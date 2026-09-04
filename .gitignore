@@ -1,0 +1,28 @@
+# dependencies
+node_modules/
+.venv/
+
+# env / secrets
+.env*
+!.env.example
+
+# next.js
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+
+# vercel
+.vercel
+
+# python
+__pycache__/
+*.pyc
+
+# tool-generated state (not project source)
+.claude-flow/
+
+# misc
+.DS_Store
+*.pem
+npm-debug.log*
