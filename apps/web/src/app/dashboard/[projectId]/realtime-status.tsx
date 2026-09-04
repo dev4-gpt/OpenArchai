@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { getModelSignedUrl } from "./model-actions";
 import { ModelViewer } from "@/components/model-viewer";
@@ -78,32 +78,56 @@ export function RealtimeStatus({
 }) {
   const [models, setModels] = useState(initialModels);
   const [renders, setRenders] = useState(initialRenders);
+  // Unique per mount so React Strict Mode's dev-only double-invoke
+  // (mount -> cleanup -> mount) doesn't reuse the same channel topic —
+  // reusing it let the first channel's async close race the second
+  // channel's subscribe, silently dropping the server-side postgres_changes
+  // registration even though the client reported "SUBSCRIBED".
+  const channelId = useRef(crypto.randomUUID());
 
   useEffect(() => {
     const supabase = createClient();
+    let cancelled = false;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
 
-    const channel = supabase
-      .channel(`project-${projectId}-status`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "models", filter: `project_id=eq.${projectId}` },
-        (payload) => {
-          if (payload.eventType === "DELETE") return;
-          setModels((prev) => upsert(prev, payload.new as ModelRow));
-        },
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "renders", filter: `project_id=eq.${projectId}` },
-        (payload) => {
-          if (payload.eventType === "DELETE") return;
-          setRenders((prev) => upsert(prev, payload.new as RenderRow));
-        },
-      )
-      .subscribe();
+    // The Realtime client authorizes postgres_changes against the session's
+    // JWT, but that token is pushed to the Realtime socket asynchronously
+    // after sign-in/hydration. Subscribing before it lands makes the
+    // channel report SUBSCRIBED while RLS silently evaluates every change
+    // as unauthenticated, so no events ever arrive. Waiting for a resolved
+    // session first (and passing its token explicitly) avoids the race.
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (cancelled || !session) return;
+      supabase.realtime.setAuth(session.access_token);
+
+      channel = supabase
+        .channel(`project-${projectId}-status-${channelId.current}`)
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "models", filter: `project_id=eq.${projectId}` },
+          (payload) => {
+            if (payload.eventType === "DELETE") return;
+            setModels((prev) => upsert(prev, payload.new as ModelRow));
+          },
+        )
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "renders", filter: `project_id=eq.${projectId}` },
+          (payload) => {
+            if (payload.eventType === "DELETE") return;
+            setRenders((prev) => upsert(prev, payload.new as RenderRow));
+          },
+        )
+        .subscribe((status, err) => {
+          if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+            console.error("Realtime subscription failed:", status, err);
+          }
+        });
+    });
 
     return () => {
-      supabase.removeChannel(channel);
+      cancelled = true;
+      if (channel) supabase.removeChannel(channel);
     };
   }, [projectId]);
 
