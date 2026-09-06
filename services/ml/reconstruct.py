@@ -61,10 +61,15 @@ def _validate_image_bytes(image_bytes: bytes) -> None:
         raise ValueError(f"Image dimensions exceed the {MAX_DIMENSION_PX}px limit")
 
 
-def _letterbox_tensor(image_bytes: bytes, size: tuple[int, int]) -> tuple[torch.Tensor, tuple[int, int, int, int]]:
+def _letterbox_tensor(
+    image_bytes: bytes, size: tuple[int, int]
+) -> tuple[torch.Tensor, tuple[int, int, int, int], float]:
     """Resize + center-pad to `size`, then ImageNet-normalize. Padding is
     zero-fill in normalized space, matching the training-time preprocessing.
-    Returns (tensor, (left, top, inner_w, inner_h))."""
+    Returns (tensor, (left, top, inner_w, inner_h), scale) where `scale` is
+    the ratio between this letterboxed canvas and the original image's own
+    pixel space -- needed to convert a user-provided calibration (measured
+    against the original image) into canvas-space pixels-per-meter."""
     H, W = size
     img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     src_w, src_h = img.size
@@ -83,7 +88,7 @@ def _letterbox_tensor(image_bytes: bytes, size: tuple[int, int]) -> tuple[torch.
     top = (H - inner_h) // 2
     canvas = torch.zeros(3, H, W)
     canvas[:, top : top + inner_h, left : left + inner_w] = inner
-    return canvas, (left, top, inner_w, inner_h)
+    return canvas, (left, top, inner_w, inner_h), scale
 
 
 def _polygon_to_mesh(poly, pixels_per_meter: float, height: float):
@@ -98,8 +103,26 @@ def _polygon_to_mesh(poly, pixels_per_meter: float, height: float):
     return mesh
 
 
-def reconstruct_glb(image_bytes: bytes, model: torch.nn.Module, device: torch.device) -> bytes:
-    tensor, (left, top, inner_w, inner_h) = _letterbox_tensor(image_bytes, IMAGE_SIZE)
+def reconstruct_glb(
+    image_bytes: bytes,
+    model: torch.nn.Module,
+    device: torch.device,
+    pixels_per_meter_original_space: float | None = None,
+    wall_height_m: float | None = None,
+) -> bytes:
+    tensor, (left, top, inner_w, inner_h), letterbox_scale = _letterbox_tensor(image_bytes, IMAGE_SIZE)
+
+    # Calibration (when provided) is measured against the original uploaded
+    # image's own pixel space -- convert it into this letterboxed canvas's
+    # pixel space via the same scale factor the model's input was resized
+    # by, so a wall that's genuinely 3m in the source photo comes out 3m in
+    # the exported mesh regardless of the source image's resolution.
+    pixels_per_meter = (
+        pixels_per_meter_original_space * letterbox_scale
+        if pixels_per_meter_original_space
+        else PIXELS_PER_METER
+    )
+    height = wall_height_m if wall_height_m else WALL_HEIGHT_M
 
     with torch.no_grad():
         logits = model(tensor.unsqueeze(0).to(device))
@@ -115,7 +138,7 @@ def reconstruct_glb(image_bytes: bytes, model: torch.nn.Module, device: torch.de
 
     meshes = []
     for poly in polygons["wall"]:
-        mesh = _polygon_to_mesh(poly, PIXELS_PER_METER, WALL_HEIGHT_M)
+        mesh = _polygon_to_mesh(poly, pixels_per_meter, height)
         if mesh is not None:
             meshes.append(mesh)
 
@@ -123,8 +146,8 @@ def reconstruct_glb(image_bytes: bytes, model: torch.nn.Module, device: torch.de
         raise ValueError("No wall geometry could be reconstructed from this floorplan")
 
     all_pts = [p for poly in polygons["wall"] for p in poly["outer"]]
-    xs = [p[0] / PIXELS_PER_METER for p in all_pts]
-    ys = [-p[1] / PIXELS_PER_METER for p in all_pts]
+    xs = [p[0] / pixels_per_meter for p in all_pts]
+    ys = [-p[1] / pixels_per_meter for p in all_pts]
     floor_poly = ShapelyPolygon(
         [(min(xs), min(ys)), (max(xs), min(ys)), (max(xs), max(ys)), (min(xs), max(ys))]
     )
@@ -141,6 +164,11 @@ class ReconstructRequest(BaseModel):
     project_id: str
     user_id: str
     upload_storage_path: str
+    # Optional user calibration (Initiative 3) -- pixels_per_meter is in the
+    # ORIGINAL uploaded image's pixel space, converted to canvas space inside
+    # reconstruct_glb. Both fall back to the module defaults when absent.
+    pixels_per_meter: float | None = None
+    wall_height_m: float | None = None
 
 
 @app.cls(image=reconstruct_image, volumes={"/cache": hf_cache}, secrets=[ml_secret], timeout=600)
@@ -155,14 +183,28 @@ class Reconstructor:
         self.model.eval()
 
     @modal.method()
-    def run(self, model_id: str, project_id: str, user_id: str, upload_storage_path: str):
+    def run(
+        self,
+        model_id: str,
+        project_id: str,
+        user_id: str,
+        upload_storage_path: str,
+        pixels_per_meter: float | None = None,
+        wall_height_m: float | None = None,
+    ):
         supabase = common.get_supabase_client()
         try:
             common.update_status(supabase, "models", model_id, "processing")
 
             image_bytes = common.download_from_storage(supabase, "floorplans", upload_storage_path)
             _validate_image_bytes(image_bytes)
-            glb_bytes = reconstruct_glb(image_bytes, self.model, self.device)
+            glb_bytes = reconstruct_glb(
+                image_bytes,
+                self.model,
+                self.device,
+                pixels_per_meter_original_space=pixels_per_meter,
+                wall_height_m=wall_height_m,
+            )
 
             model_path = f"{user_id}/{project_id}/{model_id}.glb"
             common.upload_to_storage(supabase, "models", model_path, glb_bytes, "model/gltf-binary")
@@ -182,5 +224,7 @@ def reconstruct_endpoint(body: ReconstructRequest, x_openarchai_secret: str = He
         project_id=body.project_id,
         user_id=body.user_id,
         upload_storage_path=body.upload_storage_path,
+        pixels_per_meter=body.pixels_per_meter,
+        wall_height_m=body.wall_height_m,
     )
     return {"status": "queued"}

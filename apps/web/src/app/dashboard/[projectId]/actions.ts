@@ -66,6 +66,15 @@ export async function triggerReconstruction(
     .maybeSingle();
   if (existing) return;
 
+  // Read whatever calibration has been set on this upload so far (null on
+  // first upload, before the user has had a chance to calibrate -- that's
+  // fine, reconstruct.py falls back to its existing defaults).
+  const { data: upload } = await supabase
+    .from("uploads")
+    .select("scale_pixels_per_meter, wall_height_m")
+    .eq("id", uploadId)
+    .maybeSingle();
+
   const { data: model, error } = await supabase
     .from("models")
     .insert({ project_id: projectId, upload_id: uploadId, status: "pending" })
@@ -81,6 +90,8 @@ export async function triggerReconstruction(
     project_id: projectId,
     user_id: user.id,
     upload_storage_path: uploadStoragePath,
+    pixels_per_meter: upload?.scale_pixels_per_meter ?? null,
+    wall_height_m: upload?.wall_height_m ?? null,
   });
 
   revalidatePath(`/dashboard/${projectId}`);
@@ -96,13 +107,18 @@ export async function retryReconstruction(modelId: string) {
 
   const { data: model, error: modelError } = await supabase
     .from("models")
-    .select("id, project_id, status, uploads:upload_id(storage_path)")
+    .select("id, project_id, status, uploads:upload_id(storage_path, scale_pixels_per_meter, wall_height_m)")
     .eq("id", modelId)
     .single();
   if (modelError || !model) throw new Error(modelError?.message ?? "Model not found");
   if (model.status !== "error") throw new Error("Only a failed reconstruction can be retried");
 
-  const uploadStoragePath = (model.uploads as unknown as { storage_path: string } | null)?.storage_path;
+  const uploadRow = model.uploads as unknown as {
+    storage_path: string;
+    scale_pixels_per_meter: number | null;
+    wall_height_m: number | null;
+  } | null;
+  const uploadStoragePath = uploadRow?.storage_path;
   if (!uploadStoragePath) throw new Error("Original upload is missing — re-upload the floorplan");
 
   const { error: updateError } = await supabase
@@ -116,6 +132,8 @@ export async function retryReconstruction(modelId: string) {
     project_id: model.project_id,
     user_id: user.id,
     upload_storage_path: uploadStoragePath,
+    pixels_per_meter: uploadRow?.scale_pixels_per_meter ?? null,
+    wall_height_m: uploadRow?.wall_height_m ?? null,
   });
 
   revalidatePath(`/dashboard/${model.project_id}`);
@@ -222,6 +240,38 @@ export async function revokeShareLink(projectId: string) {
   const supabase = await createClient();
 
   const { error } = await supabase.from("projects").update({ share_token: null }).eq("id", projectId);
+  if (error) throw new Error(error.message);
+
+  revalidatePath(`/dashboard/${projectId}`);
+}
+
+export async function setUploadScale(
+  uploadId: string,
+  projectId: string,
+  pixelsPerMeter: number,
+  wallHeightM: number,
+) {
+  const supabase = await createClient();
+
+  // .select() forces the update to return the affected row so a
+  // silently-zero-row RLS mismatch (no matching policy, wrong id) surfaces
+  // as a real error instead of a false "success" -- this exact class of bug
+  // just happened once already (uploads had no UPDATE policy at all).
+  const { data, error } = await supabase
+    .from("uploads")
+    .update({ scale_pixels_per_meter: pixelsPerMeter, wall_height_m: wallHeightM })
+    .eq("id", uploadId)
+    .select("id");
+  if (error) throw new Error(error.message);
+  if (!data || data.length === 0) throw new Error("Calibration was not saved — upload not found or not owned by you");
+
+  revalidatePath(`/dashboard/${projectId}`);
+}
+
+export async function setProjectUnitSystem(projectId: string, unitSystem: "metric" | "imperial") {
+  const supabase = await createClient();
+
+  const { error } = await supabase.from("projects").update({ unit_system: unitSystem }).eq("id", projectId);
   if (error) throw new Error(error.message);
 
   revalidatePath(`/dashboard/${projectId}`);

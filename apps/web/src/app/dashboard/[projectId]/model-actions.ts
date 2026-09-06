@@ -29,3 +29,17 @@ export async function getRenderSignedUrl(imageStoragePath: string) {
 
   return data.signedUrl;
 }
+
+export async function getFloorplanSignedUrl(storagePath: string) {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase.storage
+    .from("floorplans")
+    .createSignedUrl(storagePath, 300);
+
+  if (error || !data) {
+    throw new Error(error?.message ?? "Could not sign floorplan URL");
+  }
+
+  return data.signedUrl;
+}

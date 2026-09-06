@@ -4,6 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { UploadForm } from "./upload-form";
 import { RealtimeStatus } from "./realtime-status";
 import { ShareLink } from "./share-link";
+import { ScaleCalibration } from "./scale-calibration";
+import type { UnitSystem } from "@/lib/units";
 
 export default async function ProjectPage({
   params,
@@ -15,7 +17,7 @@ export default async function ProjectPage({
 
   const { data: project } = await supabase
     .from("projects")
-    .select("id, name, share_token")
+    .select("id, name, share_token, unit_system")
     .eq("id", projectId)
     .single();
 
@@ -23,7 +25,7 @@ export default async function ProjectPage({
 
   const { data: uploads } = await supabase
     .from("uploads")
-    .select("id, storage_path, created_at")
+    .select("id, storage_path, created_at, scale_pixels_per_meter, wall_height_m")
     .eq("project_id", projectId)
     .order("created_at", { ascending: false });
 
@@ -61,9 +63,16 @@ export default async function ProjectPage({
             {uploads.map((upload) => (
               <li
                 key={upload.id}
-                className="rounded-lg border border-border bg-surface px-4 py-2.5 text-sm"
+                className="space-y-2 rounded-lg border border-border bg-surface px-4 py-2.5 text-sm"
               >
-                {upload.storage_path.split("/").pop()}
+                <span>{upload.storage_path.split("/").pop()}</span>
+                <ScaleCalibration
+                  uploadId={upload.id}
+                  projectId={project.id}
+                  storagePath={upload.storage_path}
+                  unitSystem={project.unit_system as UnitSystem}
+                  hasExistingCalibration={upload.scale_pixels_per_meter != null}
+                />
               </li>
             ))}
           </ul>
