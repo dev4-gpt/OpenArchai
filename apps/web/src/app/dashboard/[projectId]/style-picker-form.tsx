@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { triggerRender } from "./actions";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 const PRESETS = [
   "Scandinavian, light wood, soft neutral palette",
@@ -50,8 +52,8 @@ export function StylePickerForm({
   const isDisabled = disabled || pending;
 
   return (
-    <form onSubmit={handleSubmit} className="mt-3 space-y-2 border-t pt-3">
-      <p className="text-xs font-medium text-gray-700">Generate a styled render</p>
+    <form onSubmit={handleSubmit} className="mt-3 space-y-2 border-t border-border pt-3">
+      <p className="text-xs font-medium text-muted">Generate a styled render</p>
       <div className="flex flex-wrap gap-1.5">
         {PRESETS.map((preset) => (
           <button
@@ -59,31 +61,29 @@ export function StylePickerForm({
             type="button"
             disabled={isDisabled}
             onClick={() => setSelectedPreset(preset)}
-            className={`rounded border px-2 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-50 ${
-              selectedPreset === preset ? "border-blue-600 bg-blue-50 text-blue-700" : "border-gray-300"
+            className={`rounded-md border px-2 py-1 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+              selectedPreset === preset
+                ? "border-accent bg-accent/10 text-accent"
+                : "border-border text-foreground hover:border-accent/40"
             }`}
           >
             {preset.split(",")[0]}
           </button>
         ))}
       </div>
-      <input
+      <Input
         type="text"
         value={customPrompt}
         onChange={(e) => setCustomPrompt(e.target.value)}
         disabled={isDisabled}
         placeholder="Or describe a custom style…"
         maxLength={300}
-        className="w-full rounded border px-2 py-1 text-xs disabled:opacity-50"
+        className="text-xs"
       />
-      <button
-        type="submit"
-        disabled={isDisabled || !promptStyle}
-        className="rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
-      >
+      <Button type="submit" variant="primary" size="sm" disabled={isDisabled || !promptStyle}>
         {pending ? "Starting…" : disabled ? "Render in progress…" : "Generate render"}
-      </button>
-      {error && <p className="text-xs text-red-600">{error}</p>}
+      </Button>
+      {error && <p className="text-xs text-danger">{error}</p>}
     </form>
   );
 }

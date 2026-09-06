@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { deleteProject } from "./new-project-actions";
+import { Button } from "@/components/ui/button";
 
 export function DeleteProjectButton({
   projectId,
@@ -21,13 +22,8 @@ export function DeleteProjectButton({
   }
 
   return (
-    <button
-      type="button"
-      onClick={handleClick}
-      disabled={pending}
-      className="px-3 text-xs text-red-600 hover:underline disabled:opacity-50"
-    >
+    <Button type="button" variant="danger" size="sm" onClick={handleClick} disabled={pending}>
       {pending ? "Deleting…" : "Delete"}
-    </button>
+    </Button>
   );
 }

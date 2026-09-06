@@ -28,10 +28,10 @@ type RenderRow = {
 };
 
 const STATUS_STYLES: Record<Status, string> = {
-  pending: "text-gray-500",
-  processing: "text-blue-600",
-  done: "text-green-600",
-  error: "text-red-600",
+  pending: "text-muted",
+  processing: "text-accent",
+  done: "text-success",
+  error: "text-danger",
 };
 
 function upsert<T extends { id: string }>(rows: T[], row: T): T[] {
@@ -60,8 +60,8 @@ function DoneModelViewer({ gltfStoragePath }: { gltfStoragePath: string }) {
     };
   }, [gltfStoragePath]);
 
-  if (error) return <p className="mt-2 text-xs text-red-500">{error}</p>;
-  if (!url) return <p className="mt-2 text-xs text-gray-500">Loading 3D model…</p>;
+  if (error) return <p className="mt-2 text-xs text-danger">{error}</p>;
+  if (!url) return <p className="mt-2 text-xs text-muted">Loading 3D model…</p>;
   return (
     <div className="mt-2">
       <ModelViewer url={url} />
@@ -87,10 +87,10 @@ function DoneRenderImage({ imageStoragePath }: { imageStoragePath: string }) {
     };
   }, [imageStoragePath]);
 
-  if (error) return <p className="text-xs text-red-500">{error}</p>;
-  if (!url) return <p className="text-xs text-gray-500">Loading render…</p>;
+  if (error) return <p className="text-xs text-danger">{error}</p>;
+  if (!url) return <p className="text-xs text-muted">Loading render…</p>;
   // eslint-disable-next-line @next/next/no-img-element -- signed URL expires in 60s, not worth next/image's caching
-  return <img src={url} alt="Styled render" className="mt-1 max-h-64 rounded border" />;
+  return <img src={url} alt="Styled render" className="mt-1 max-h-64 rounded-md border border-border" />;
 }
 
 function RetryButton({ onRetry }: { onRetry: () => Promise<void> }) {
@@ -115,11 +115,11 @@ function RetryButton({ onRetry }: { onRetry: () => Promise<void> }) {
         type="button"
         onClick={handleClick}
         disabled={pending}
-        className="text-xs font-medium text-blue-600 underline disabled:opacity-50"
+        className="text-xs font-medium text-accent underline underline-offset-2 disabled:opacity-50"
       >
         {pending ? "Retrying…" : "Retry"}
       </button>
-      {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
+      {error && <p className="mt-1 text-xs text-danger">{error}</p>}
     </span>
   );
 }
@@ -192,16 +192,16 @@ export function RealtimeStatus({
 
   return (
     <div className="space-y-2">
-      <h2 className="text-sm font-medium">3D Models</h2>
-      <ul className="divide-y rounded border">
+      <h2 className="text-sm font-medium text-muted">3D Models</h2>
+      <ul className="space-y-3">
         {models.map((model) => {
           const modelRenders = renders.filter((r) => r.model_id === model.id);
           const hasActiveRender = modelRenders.some((r) => r.status === "pending" || r.status === "processing");
 
           return (
-            <li key={model.id} className="px-4 py-3 text-sm">
+            <li key={model.id} className="rounded-lg border border-border bg-surface px-4 py-3 text-sm">
               <div className="flex items-center justify-between">
-                <span>Model {model.id.slice(0, 8)}</span>
+                <span className="font-medium">Model {model.id.slice(0, 8)}</span>
                 <div className="flex items-center gap-2">
                   <span className={STATUS_STYLES[model.status]}>{model.status}</span>
                   {model.status === "error" && (
@@ -210,18 +210,18 @@ export function RealtimeStatus({
                 </div>
               </div>
               {model.status === "error" && model.error_message && (
-                <p className="mt-1 text-xs text-red-500">{model.error_message}</p>
+                <p className="mt-1 text-xs text-danger">{model.error_message}</p>
               )}
               {model.status === "done" && model.gltf_storage_path && (
                 <DoneModelViewer gltfStoragePath={model.gltf_storage_path} />
               )}
 
               {modelRenders.length > 0 && (
-                <ul className="mt-2 space-y-2 border-l pl-3">
+                <ul className="mt-2 space-y-2 border-l border-border pl-3">
                   {modelRenders.map((render) => (
                     <li key={render.id} className="text-xs">
                       <div className="flex items-center justify-between">
-                        <span className="text-gray-600">{render.prompt_style ?? "render"}</span>
+                        <span className="text-foreground">{render.prompt_style ?? "render"}</span>
                         <div className="flex items-center gap-2">
                           <span className={STATUS_STYLES[render.status]}>{render.status}</span>
                           {render.status === "error" && (
@@ -230,7 +230,7 @@ export function RealtimeStatus({
                         </div>
                       </div>
                       {render.status === "error" && render.error_message && (
-                        <p className="mt-1 text-red-500">{render.error_message}</p>
+                        <p className="mt-1 text-danger">{render.error_message}</p>
                       )}
                       {render.status === "done" && render.image_storage_path && (
                         <DoneRenderImage imageStoragePath={render.image_storage_path} />

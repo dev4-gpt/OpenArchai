@@ -48,15 +48,19 @@ export function UploadForm({ projectId }: { projectId: string }) {
   return (
     <div className="space-y-2">
       <label className="block text-sm font-medium">Upload floorplan</label>
-      <input
-        type="file"
-        accept="image/*"
-        disabled={pending}
-        onChange={handleChange}
-        className="text-sm"
-      />
-      {pending && <p className="text-sm text-gray-500">Uploading…</p>}
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      <label
+        className={`flex cursor-pointer items-center justify-center rounded-md border border-dashed border-border px-4 py-6 text-sm text-muted transition-colors hover:border-accent/50 hover:text-foreground ${pending ? "pointer-events-none opacity-50" : ""}`}
+      >
+        {pending ? "Uploading…" : "Choose a JPEG, PNG, or WebP floorplan"}
+        <input
+          type="file"
+          accept="image/*"
+          disabled={pending}
+          onChange={handleChange}
+          className="hidden"
+        />
+      </label>
+      {error && <p className="text-sm text-danger">{error}</p>}
     </div>
   );
 }

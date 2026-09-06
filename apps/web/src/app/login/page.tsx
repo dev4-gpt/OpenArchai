@@ -1,4 +1,6 @@
 import { signIn, signUp } from "./actions";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 export default async function LoginPage({
   searchParams,
@@ -8,53 +10,37 @@ export default async function LoginPage({
   const { error, message } = await searchParams;
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-6">
-      <form className="w-full max-w-sm space-y-4">
-        <h1 className="text-xl font-semibold">OpenArchai</h1>
-
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        {message && <p className="text-sm text-green-600">{message}</p>}
-
+    <div className="flex min-h-screen items-center justify-center bg-background p-6">
+      <form className="w-full max-w-sm space-y-5 rounded-lg border border-border bg-surface p-8 shadow-sm">
         <div className="space-y-1">
+          <h1 className="text-xl font-semibold tracking-tight">OpenArchai</h1>
+          <p className="text-sm text-muted">Floorplan to 3D model to styled render.</p>
+        </div>
+
+        {error && <p className="text-sm text-danger">{error}</p>}
+        {message && <p className="text-sm text-success">{message}</p>}
+
+        <div className="space-y-1.5">
           <label htmlFor="email" className="text-sm font-medium">
             Email
           </label>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            required
-            className="w-full rounded border px-3 py-2 text-sm"
-          />
+          <Input id="email" name="email" type="email" required />
         </div>
 
-        <div className="space-y-1">
+        <div className="space-y-1.5">
           <label htmlFor="password" className="text-sm font-medium">
             Password
           </label>
-          <input
-            id="password"
-            name="password"
-            type="password"
-            required
-            minLength={6}
-            className="w-full rounded border px-3 py-2 text-sm"
-          />
+          <Input id="password" name="password" type="password" required minLength={6} />
         </div>
 
-        <div className="flex gap-2">
-          <button
-            formAction={signIn}
-            className="flex-1 rounded bg-black px-3 py-2 text-sm font-medium text-white"
-          >
+        <div className="flex gap-2 pt-1">
+          <Button formAction={signIn} variant="primary" className="flex-1">
             Sign in
-          </button>
-          <button
-            formAction={signUp}
-            className="flex-1 rounded border px-3 py-2 text-sm font-medium"
-          >
+          </Button>
+          <Button formAction={signUp} variant="secondary" className="flex-1">
             Sign up
-          </button>
+          </Button>
         </div>
       </form>
     </div>
