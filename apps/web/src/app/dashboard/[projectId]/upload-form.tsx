@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { recordUpload } from "./actions";
+import { validateImageBytes } from "@/lib/image-validation";
 
 export function UploadForm({ projectId }: { projectId: string }) {
   const [pending, setPending] = useState(false);
@@ -17,6 +18,13 @@ export function UploadForm({ projectId }: { projectId: string }) {
     setError(null);
 
     try {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const validation = validateImageBytes(bytes);
+      if (!validation.ok) {
+        setError(validation.reason);
+        return;
+      }
+
       const supabase = createClient();
       const {
         data: { user },

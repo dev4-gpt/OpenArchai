@@ -31,6 +31,35 @@ PIXELS_PER_METER = 50.0
 WALL_HEIGHT_M = 2.7
 FLOOR_THICKNESS_M = 0.05
 
+# Mirrors apps/web/src/lib/image-validation.ts. The web app validates on
+# upload, but this task can be invoked directly (spawned jobs, retries,
+# stale storage objects written before validation existed), so re-check
+# here rather than trusting the caller.
+MAX_UPLOAD_BYTES = 15 * 1024 * 1024
+MAX_DIMENSION_PX = 8000
+ALLOWED_FORMATS = {"PNG", "JPEG", "WEBP"}
+
+
+def _validate_image_bytes(image_bytes: bytes) -> None:
+    if len(image_bytes) == 0:
+        raise ValueError("Uploaded file is empty")
+    if len(image_bytes) > MAX_UPLOAD_BYTES:
+        raise ValueError(f"Uploaded file exceeds the {MAX_UPLOAD_BYTES // (1024 * 1024)}MB limit")
+
+    try:
+        probe = Image.open(io.BytesIO(image_bytes))
+        probe.verify()
+    except Exception as e:
+        raise ValueError(f"Uploaded file is not a valid image: {e}") from e
+
+    # verify() leaves the file object unusable — reopen for the actual
+    # format/dimension check.
+    probe = Image.open(io.BytesIO(image_bytes))
+    if probe.format not in ALLOWED_FORMATS:
+        raise ValueError(f"Unsupported image format: {probe.format}")
+    if probe.width > MAX_DIMENSION_PX or probe.height > MAX_DIMENSION_PX:
+        raise ValueError(f"Image dimensions exceed the {MAX_DIMENSION_PX}px limit")
+
 
 def _letterbox_tensor(image_bytes: bytes, size: tuple[int, int]) -> tuple[torch.Tensor, tuple[int, int, int, int]]:
     """Resize + center-pad to `size`, then ImageNet-normalize. Padding is
@@ -132,6 +161,7 @@ class Reconstructor:
             common.update_status(supabase, "models", model_id, "processing")
 
             image_bytes = common.download_from_storage(supabase, "floorplans", upload_storage_path)
+            _validate_image_bytes(image_bytes)
             glb_bytes = reconstruct_glb(image_bytes, self.model, self.device)
 
             model_path = f"{user_id}/{project_id}/{model_id}.glb"

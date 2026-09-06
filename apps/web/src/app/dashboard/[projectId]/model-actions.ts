@@ -15,3 +15,17 @@ export async function getModelSignedUrl(gltfStoragePath: string) {
 
   return data.signedUrl;
 }
+
+export async function getRenderSignedUrl(imageStoragePath: string) {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase.storage
+    .from("renders")
+    .createSignedUrl(imageStoragePath, 60);
+
+  if (error || !data) {
+    throw new Error(error?.message ?? "Could not sign render URL");
+  }
+
+  return data.signedUrl;
+}

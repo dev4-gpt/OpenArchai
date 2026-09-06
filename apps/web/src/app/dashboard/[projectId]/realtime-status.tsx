@@ -2,8 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { getModelSignedUrl } from "./model-actions";
+import { getModelSignedUrl, getRenderSignedUrl } from "./model-actions";
+import { retryReconstruction, retryRender } from "./actions";
 import { ModelViewer } from "@/components/model-viewer";
+import { StylePickerForm } from "./style-picker-form";
 
 type Status = "pending" | "processing" | "done" | "error";
 
@@ -64,6 +66,61 @@ function DoneModelViewer({ gltfStoragePath }: { gltfStoragePath: string }) {
     <div className="mt-2">
       <ModelViewer url={url} />
     </div>
+  );
+}
+
+function DoneRenderImage({ imageStoragePath }: { imageStoragePath: string }) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getRenderSignedUrl(imageStoragePath)
+      .then((signedUrl) => {
+        if (!cancelled) setUrl(signedUrl);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load render");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [imageStoragePath]);
+
+  if (error) return <p className="text-xs text-red-500">{error}</p>;
+  if (!url) return <p className="text-xs text-gray-500">Loading render…</p>;
+  // eslint-disable-next-line @next/next/no-img-element -- signed URL expires in 60s, not worth next/image's caching
+  return <img src={url} alt="Styled render" className="mt-1 max-h-64 rounded border" />;
+}
+
+function RetryButton({ onRetry }: { onRetry: () => Promise<void> }) {
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleClick() {
+    setPending(true);
+    setError(null);
+    try {
+      await onRetry();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Retry failed");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <span>
+      <button
+        type="button"
+        onClick={handleClick}
+        disabled={pending}
+        className="text-xs font-medium text-blue-600 underline disabled:opacity-50"
+      >
+        {pending ? "Retrying…" : "Retry"}
+      </button>
+      {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
+    </span>
   );
 }
 
@@ -137,32 +194,58 @@ export function RealtimeStatus({
     <div className="space-y-2">
       <h2 className="text-sm font-medium">3D Models</h2>
       <ul className="divide-y rounded border">
-        {models.map((model) => (
-          <li key={model.id} className="px-4 py-3 text-sm">
-            <div className="flex items-center justify-between">
-              <span>Model {model.id.slice(0, 8)}</span>
-              <span className={STATUS_STYLES[model.status]}>{model.status}</span>
-            </div>
-            {model.status === "error" && model.error_message && (
-              <p className="mt-1 text-xs text-red-500">{model.error_message}</p>
-            )}
-            {model.status === "done" && model.gltf_storage_path && (
-              <DoneModelViewer gltfStoragePath={model.gltf_storage_path} />
-            )}
-            {renders.filter((r) => r.model_id === model.id).length > 0 && (
-              <ul className="mt-2 space-y-1 border-l pl-3">
-                {renders
-                  .filter((r) => r.model_id === model.id)
-                  .map((render) => (
-                    <li key={render.id} className="flex items-center justify-between text-xs">
-                      <span className="text-gray-600">{render.prompt_style ?? "render"}</span>
-                      <span className={STATUS_STYLES[render.status]}>{render.status}</span>
+        {models.map((model) => {
+          const modelRenders = renders.filter((r) => r.model_id === model.id);
+          const hasActiveRender = modelRenders.some((r) => r.status === "pending" || r.status === "processing");
+
+          return (
+            <li key={model.id} className="px-4 py-3 text-sm">
+              <div className="flex items-center justify-between">
+                <span>Model {model.id.slice(0, 8)}</span>
+                <div className="flex items-center gap-2">
+                  <span className={STATUS_STYLES[model.status]}>{model.status}</span>
+                  {model.status === "error" && (
+                    <RetryButton onRetry={() => retryReconstruction(model.id)} />
+                  )}
+                </div>
+              </div>
+              {model.status === "error" && model.error_message && (
+                <p className="mt-1 text-xs text-red-500">{model.error_message}</p>
+              )}
+              {model.status === "done" && model.gltf_storage_path && (
+                <DoneModelViewer gltfStoragePath={model.gltf_storage_path} />
+              )}
+
+              {modelRenders.length > 0 && (
+                <ul className="mt-2 space-y-2 border-l pl-3">
+                  {modelRenders.map((render) => (
+                    <li key={render.id} className="text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-600">{render.prompt_style ?? "render"}</span>
+                        <div className="flex items-center gap-2">
+                          <span className={STATUS_STYLES[render.status]}>{render.status}</span>
+                          {render.status === "error" && (
+                            <RetryButton onRetry={() => retryRender(render.id)} />
+                          )}
+                        </div>
+                      </div>
+                      {render.status === "error" && render.error_message && (
+                        <p className="mt-1 text-red-500">{render.error_message}</p>
+                      )}
+                      {render.status === "done" && render.image_storage_path && (
+                        <DoneRenderImage imageStoragePath={render.image_storage_path} />
+                      )}
                     </li>
                   ))}
-              </ul>
-            )}
-          </li>
-        ))}
+                </ul>
+              )}
+
+              {model.status === "done" && model.gltf_storage_path && (
+                <StylePickerForm modelId={model.id} projectId={projectId} disabled={hasActiveRender} />
+              )}
+            </li>
+          );
+        })}
       </ul>
     </div>
   );
