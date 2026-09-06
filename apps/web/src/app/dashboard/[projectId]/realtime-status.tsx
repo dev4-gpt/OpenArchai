@@ -63,8 +63,16 @@ function DoneModelViewer({ gltfStoragePath }: { gltfStoragePath: string }) {
   if (error) return <p className="mt-2 text-xs text-danger">{error}</p>;
   if (!url) return <p className="mt-2 text-xs text-muted">Loading 3D model…</p>;
   return (
-    <div className="mt-2">
+    <div className="mt-2 space-y-1.5">
       <ModelViewer url={url} />
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-block text-xs font-medium text-accent underline underline-offset-2"
+      >
+        Open model (.glb)
+      </a>
     </div>
   );
 }
@@ -89,8 +97,20 @@ function DoneRenderImage({ imageStoragePath }: { imageStoragePath: string }) {
 
   if (error) return <p className="text-xs text-danger">{error}</p>;
   if (!url) return <p className="text-xs text-muted">Loading render…</p>;
-  // eslint-disable-next-line @next/next/no-img-element -- signed URL expires in 60s, not worth next/image's caching
-  return <img src={url} alt="Styled render" className="mt-1 max-h-64 rounded-md border border-border" />;
+  return (
+    <div className="mt-1 space-y-1">
+      {/* eslint-disable-next-line @next/next/no-img-element -- signed URL expires in 60s, not worth next/image's caching */}
+      <img src={url} alt="Styled render" className="max-h-64 rounded-md border border-border" />
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-block text-xs font-medium text-accent underline underline-offset-2"
+      >
+        Open image
+      </a>
+    </div>
+  );
 }
 
 function RetryButton({ onRetry }: { onRetry: () => Promise<void> }) {
