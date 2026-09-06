@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { createProject } from "./new-project-actions";
+import { DeleteProjectButton } from "./delete-project-button";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -26,13 +27,14 @@ export default async function DashboardPage() {
       <ul className="divide-y rounded border">
         {projects?.length ? (
           projects.map((project) => (
-            <li key={project.id}>
+            <li key={project.id} className="flex items-center justify-between">
               <Link
                 href={`/dashboard/${project.id}`}
-                className="block px-4 py-3 text-sm hover:bg-gray-50"
+                className="flex-1 px-4 py-3 text-sm hover:bg-gray-50"
               >
                 {project.name}
               </Link>
+              <DeleteProjectButton projectId={project.id} projectName={project.name} />
             </li>
           ))
         ) : (
