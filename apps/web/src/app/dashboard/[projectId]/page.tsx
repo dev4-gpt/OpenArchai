@@ -3,6 +3,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { UploadForm } from "./upload-form";
 import { RealtimeStatus } from "./realtime-status";
+import { ShareLink } from "./share-link";
 
 export default async function ProjectPage({
   params,
@@ -14,7 +15,7 @@ export default async function ProjectPage({
 
   const { data: project } = await supabase
     .from("projects")
-    .select("id, name")
+    .select("id, name, share_token")
     .eq("id", projectId)
     .single();
 
@@ -50,6 +51,8 @@ export default async function ProjectPage({
       <div className="rounded-lg border border-border bg-surface p-4">
         <UploadForm projectId={project.id} />
       </div>
+
+      <ShareLink projectId={project.id} initialShareToken={project.share_token} />
 
       <div className="space-y-2">
         <h2 className="text-sm font-medium text-muted">Floorplans</h2>

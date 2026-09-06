@@ -204,3 +204,25 @@ export async function retryRender(renderId: string) {
 
   revalidatePath(`/dashboard/${render.project_id}`);
 }
+
+export async function generateShareLink(projectId: string): Promise<string> {
+  const supabase = await createClient();
+  const token = crypto.randomUUID();
+
+  // RLS's existing projects_update_own policy already restricts this to
+  // rows the caller owns -- no extra ownership check needed here.
+  const { error } = await supabase.from("projects").update({ share_token: token }).eq("id", projectId);
+  if (error) throw new Error(error.message);
+
+  revalidatePath(`/dashboard/${projectId}`);
+  return token;
+}
+
+export async function revokeShareLink(projectId: string) {
+  const supabase = await createClient();
+
+  const { error } = await supabase.from("projects").update({ share_token: null }).eq("id", projectId);
+  if (error) throw new Error(error.message);
+
+  revalidatePath(`/dashboard/${projectId}`);
+}
