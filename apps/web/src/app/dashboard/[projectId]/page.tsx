@@ -5,6 +5,7 @@ import { UploadForm } from "./upload-form";
 import { RealtimeStatus } from "./realtime-status";
 import { ShareLink } from "./share-link";
 import { ScaleCalibration } from "./scale-calibration";
+import { ConstructionModelsList } from "./construction-models-list";
 import type { UnitSystem } from "@/lib/units";
 
 export default async function ProjectPage({
@@ -40,6 +41,21 @@ export default async function ProjectPage({
     .select("id, model_id, status, image_storage_path, prompt_style, error_message, created_at")
     .eq("project_id", projectId)
     .order("created_at", { ascending: false });
+
+  const { data: constructionModelsRaw } = await supabase
+    .from("construction_models")
+    .select("id, status, detected_layers, elements, error_message, uploads:upload_id(storage_path)")
+    .eq("project_id", projectId)
+    .order("created_at", { ascending: false });
+
+  const constructionModels = (constructionModelsRaw ?? []).map((m) => ({
+    id: m.id,
+    status: m.status,
+    detected_layers: m.detected_layers as string[] | null,
+    elements: m.elements as { walls: unknown[]; doors: unknown[]; windows: unknown[] } | null,
+    error_message: m.error_message,
+    upload_storage_path: (m.uploads as unknown as { storage_path: string } | null)?.storage_path ?? "",
+  }));
 
   return (
     <div className="mx-auto max-w-2xl space-y-8">
@@ -88,6 +104,8 @@ export default async function ProjectPage({
         initialModels={models ?? []}
         initialRenders={renders ?? []}
       />
+
+      <ConstructionModelsList projectId={project.id} initialModels={constructionModels} />
     </div>
   );
 }

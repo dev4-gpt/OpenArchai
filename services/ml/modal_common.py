@@ -35,6 +35,12 @@ reconstruct_image = (
     .add_local_python_source("floorplan_model", "common", "modal_common")
 )
 
+cad_image = (
+    modal.Image.debian_slim(python_version="3.12")
+    .pip_install("ezdxf", "supabase", "fastapi[standard]")
+    .add_local_python_source("common", "modal_common")
+)
+
 render_image = (
     modal.Image.debian_slim(python_version="3.12")
     .pip_install(

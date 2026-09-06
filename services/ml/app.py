@@ -6,4 +6,5 @@ each function's own remote container."""
 from modal_common import app  # noqa: F401
 
 import reconstruct  # noqa: E402,F401
+import reconstruct_cad  # noqa: E402,F401
 import render  # noqa: E402,F401
