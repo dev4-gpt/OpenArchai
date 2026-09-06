@@ -30,6 +30,15 @@ Context: OpenArchai is being built primarily for [Pamela Dev & Co / PDCO Archite
 - **Manual step required** (needs your Supabase account, not something I can do headlessly): create a second Supabase project for production, apply all four migrations to it (`node --env-file=.env.local scripts/run-migration.mjs <file>` per migration, pointed at the new project's connection string), and give the Vercel deployment its own `.env` pointing at the new project's keys. Keep the current project as dev/demo only.
 - Until that split exists, treat the current Supabase project as containing both dev and demo data — don't put a real client's floorplan in it yet.
 
+## Observability tooling — planned, not yet integrated (2026-09-06)
+
+Two different tools cover two different gaps. Neither is urgent at current scale (closed beta, 1-2 users) — both are noted here so the reasoning survives until it's time to add them, rather than re-litigating from scratch.
+
+- **[Opik](https://github.com/comet-ml/opik)** (Comet, Apache 2.0) — scoped to LLM/GenAI-specific tracing and evaluation: prompt/completion tracing, latency, LLM-as-a-judge scoring, prompt versioning. **Why it's relevant here**: the render step (`services/ml/render.py`) is a prompt→image generation call — Opik would let us trace each render's prompt, style preset, latency, and (via its evaluation tooling) compare output quality across prompt variants. This maps directly to the "research iterations on styles/prompts" goal from the production-readiness audit. It does **not** cover general app errors, job state, or infra — it's not a Sentry/Datadog substitute.
+- **Sentry** (or equivalent APM/error-tracking tool) — general error tracking across both halves of the stack: unhandled exceptions in Next.js server actions, and failures inside Modal jobs that currently only surface as a `error_message` string on the row (no stack trace, no alerting). **Why it's needed**: this is the actual gap called out in the audit's "Observability and alerts" section — right now, a failure is discovered by a human noticing a stuck or errored row, not by the system telling anyone. Sentry has free-tier support for both Next.js and Python, making it the lower-effort option here versus building structured logging + alerting from scratch.
+
+**When to actually add these**: Opik when style/prompt research becomes a real, repeated activity (not yet); Sentry when there's more than one active user, so failures can't just be watched for manually.
+
 ## Deferred (re-raise if PDCO opens this beyond internal use)
 Rate limiting/quotas against abuse, Modal secret rotation + replay protection, three-tier staging environments, full CI test pyramid, RUNBOOK.md/ADRs, cost dashboards, formal ToS/privacy policy, research/benchmark harness, job-state-machine redesign (attempt counts, heartbeats, stale-job sweeper). All reasonable engineering, none of it defends against a threat that doesn't exist yet with a closed, known user base.
 
