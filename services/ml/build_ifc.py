@@ -6,17 +6,21 @@ meaningful rather than a raw parsing guess.
 v1 scope, documented here rather than silently assumed:
 - Walls get real 3D extruded geometry via ifcopenshell's own create_2pt_wall
   helper (verified against a round-tripped file before this was wired up).
-- Doors/windows get the correct position and OverallWidth/OverallHeight as
-  IFC properties, but no 3D shape and no actual opening cut into the wall
-  they sit in -- that's a real modeling step (an IfcOpeningElement boolean
-  void) deferred as a fast-follow, not attempted here.
-- The floor slab is not yet represented as an IFC entity at all -- every
-  approach that doesn't require a Blender host (ifcopenshell's own
-  `geometry.add_representation` recipe expects a `bpy` object/mesh, which
-  has no place in a headless Modal container) needs hand-built
-  IfcExtrudedAreaSolid geometry that wasn't verified before this shipped;
-  better to ship correct walls/doors/windows now than guess at slab
-  geometry with no way to visually confirm it here.
+- Doors/windows get correct position and OverallWidth/OverallHeight, plus a
+  linked IfcOpeningElement (via void.add_filling) recording the void
+  relationship -- but neither the opening nor the door/window has a 3D
+  shape, and the wall's own geometry isn't boolean-cut, so none of this
+  renders as an actual hole in the wall yet.
+- The floor slab is now a real IfcSlab entity, assigned to the storey and
+  placed at the correct elevation (-150mm) -- but it has no shape
+  representation: every approach that doesn't require a Blender host
+  (ifcopenshell's own `geometry.add_representation` recipe expects a `bpy`
+  object/mesh, which has no place in a headless Modal container) needs
+  hand-built IfcExtrudedAreaSolid geometry that wasn't verified before this
+  shipped, so the slab won't render visually in a viewer despite existing
+  in the schema.
+- Rooms become bare IfcSpace entities (name + storey assignment only) --
+  no boundary/space geometry either.
 """
 
 import os
