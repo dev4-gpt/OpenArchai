@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "openarchai": {
+      "command": "python3",
+      "args": ["services/mcp/openarchai_server.py"],
+      "env": {
+        "PYTHONPATH": "."
+      }
+    }
+  }
+}

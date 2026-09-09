@@ -42,7 +42,9 @@ function upsert<T extends { id: string }>(rows: T[], row: T): T[] {
   return next;
 }
 
-function DoneModelViewer({ gltfStoragePath }: { gltfStoragePath: string }) {
+import type { UnitSystem } from "@/lib/units";
+
+function DoneModelViewer({ gltfStoragePath, unitSystem }: { gltfStoragePath: string; unitSystem?: UnitSystem }) {
   const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -64,7 +66,7 @@ function DoneModelViewer({ gltfStoragePath }: { gltfStoragePath: string }) {
   if (!url) return <p className="mt-2 text-xs text-muted">Loading 3D model…</p>;
   return (
     <div className="mt-2 space-y-1.5">
-      <ModelViewer url={url} />
+      <ModelViewer url={url} unitSystem={unitSystem} />
       <a
         href={url}
         target="_blank"
@@ -148,10 +150,12 @@ export function RealtimeStatus({
   projectId,
   initialModels,
   initialRenders,
+  unitSystem = "metric",
 }: {
   projectId: string;
   initialModels: ModelRow[];
   initialRenders: RenderRow[];
+  unitSystem?: UnitSystem;
 }) {
   const [models, setModels] = useState(initialModels);
   const [renders, setRenders] = useState(initialRenders);
@@ -233,7 +237,7 @@ export function RealtimeStatus({
                 <p className="mt-1 text-xs text-danger">{model.error_message}</p>
               )}
               {model.status === "done" && model.gltf_storage_path && (
-                <DoneModelViewer gltfStoragePath={model.gltf_storage_path} />
+                <DoneModelViewer gltfStoragePath={model.gltf_storage_path} unitSystem={unitSystem} />
               )}
 
               {modelRenders.length > 0 && (

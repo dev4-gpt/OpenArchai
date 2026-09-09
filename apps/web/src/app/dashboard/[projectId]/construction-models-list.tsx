@@ -4,14 +4,23 @@ import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { CadUploadForm } from "./cad-upload-form";
 import { ConstructionModelStatus } from "./construction-model-status";
+import type { UnitSystem } from "@/lib/units";
 
+type Point = [number, number];
 type ConstructionModelRow = {
   id: string;
   status: string;
   detected_layers: string[] | null;
-  elements: { walls: unknown[]; doors: unknown[]; windows: unknown[] } | null;
+  elements: {
+    walls: { start: Point; end: Point }[];
+    doors: { position: Point; width_m: number | null }[];
+    windows: { position: Point; width_m: number | null }[];
+    floor_bounds: { min_x: number; min_y: number; max_x: number; max_y: number };
+  } | null;
   error_message: string | null;
   upload_storage_path: string;
+  review_status: string;
+  ifc_storage_path: string | null;
 };
 
 // The Realtime payload only carries construction_models' own columns, not
@@ -29,9 +38,11 @@ function upsert(rows: ConstructionModelRow[], row: Partial<ConstructionModelRow>
 export function ConstructionModelsList({
   projectId,
   initialModels,
+  unitSystem,
 }: {
   projectId: string;
   initialModels: ConstructionModelRow[];
+  unitSystem: UnitSystem;
 }) {
   const [models, setModels] = useState(initialModels);
   // Same fix as realtime-status.tsx: unique channel per mount avoids React
@@ -96,6 +107,9 @@ export function ConstructionModelsList({
                 detectedLayers={model.detected_layers}
                 elements={model.elements}
                 errorMessage={model.error_message}
+                unitSystem={unitSystem}
+                reviewStatus={model.review_status}
+                ifcStoragePath={model.ifc_storage_path}
               />
             </li>
           ))}

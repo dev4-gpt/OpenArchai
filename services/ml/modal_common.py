@@ -41,6 +41,15 @@ cad_image = (
     .add_local_python_source("common", "modal_common")
 )
 
+ifc_image = (
+    modal.Image.debian_slim(python_version="3.12")
+    # Kept separate from cad_image: ifcopenshell is a substantial dependency
+    # (its own native extension) only needed for the one-time export-on-
+    # approval step, not the more frequent DXF parsing calls.
+    .pip_install("ifcopenshell", "supabase", "fastapi[standard]")
+    .add_local_python_source("common", "modal_common")
+)
+
 render_image = (
     modal.Image.debian_slim(python_version="3.12")
     .pip_install(

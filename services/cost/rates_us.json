@@ -1,0 +1,40 @@
+{
+  "location": "US National Average",
+  "currency": "USD",
+  "symbol": "$",
+  "civil_construction_per_sqft": {
+    "budget": 140,
+    "mid": 210,
+    "premium": 380
+  },
+  "interior_finishing_per_sqft": {
+    "budget": 65,
+    "mid": 125,
+    "premium": 240
+  },
+  "finishes": {
+    "flooring": {
+      "luxury_vinyl_plank": { "material": 3.5, "labor": 2.5, "unit": "sqft" },
+      "porcelain_tile": { "material": 6.5, "labor": 6.0, "unit": "sqft" },
+      "engineered_hardwood": { "material": 9.5, "labor": 4.5, "unit": "sqft" },
+      "solid_white_oak": { "material": 14.0, "labor": 6.0, "unit": "sqft" }
+    },
+    "walls": {
+      "standard_drywall_paint": { "material": 0.8, "labor": 1.4, "unit": "sqft" },
+      "benjamin_moore_regal": { "material": 1.5, "labor": 1.8, "unit": "sqft" },
+      "wood_accent_slats": { "material": 12.0, "labor": 6.0, "unit": "sqft" }
+    },
+    "ceilings": {
+      "drywall_smooth": { "material": 1.5, "labor": 2.5, "unit": "sqft" },
+      "coffered_wood_ceiling": { "material": 18.0, "labor": 12.0, "unit": "sqft" }
+    },
+    "openings": {
+      "hollow_core_interior_door": { "rate": 180, "unit": "piece" },
+      "solid_core_wood_door": { "rate": 450, "unit": "piece" },
+      "double_hung_vinyl_window": { "rate": 400, "unit": "piece" },
+      "aluminum_clad_wood_window": { "rate": 950, "unit": "piece" }
+    }
+  },
+  "contingency_rate": 0.10,
+  "contractor_margin_rate": 0.15
+}

@@ -66,3 +66,78 @@ export async function submitLayerMapping(
 
   revalidatePath(`/dashboard/${projectId}`);
 }
+
+export async function updateConstructionElements(
+  constructionModelId: string,
+  projectId: string,
+  elements: unknown,
+) {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("construction_models")
+    .update({ elements, review_status: "needs_correction" })
+    .eq("id", constructionModelId)
+    .select("id");
+  if (error) throw new Error(error.message);
+  if (!data || data.length === 0) {
+    throw new Error("Could not save corrections — not found or not owned by you");
+  }
+
+  revalidatePath(`/dashboard/${projectId}`);
+}
+
+export async function approveConstructionModel(constructionModelId: string, projectId: string) {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not signed in");
+
+  const { data, error } = await supabase
+    .from("construction_models")
+    .update({ review_status: "approved", reviewed_by: user.id, reviewed_at: new Date().toISOString() })
+    .eq("id", constructionModelId)
+    .select("id");
+  if (error) throw new Error(error.message);
+  if (!data || data.length === 0) {
+    throw new Error("Could not approve — not found or not owned by you");
+  }
+
+  revalidatePath(`/dashboard/${projectId}`);
+
+  // Approval is the trigger for IFC export -- only an approved model is
+  // ever exported, matching the plan's human-review gate.
+  await postToModal(process.env.MODAL_BUILD_IFC_ENDPOINT_URL!, {
+    construction_model_id: constructionModelId,
+    project_id: projectId,
+    user_id: user.id,
+  });
+}
+
+export async function saveEditorFloorPlan(projectId: string, elements: unknown) {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not signed in");
+
+  const { data: constructionModel, error: cmError } = await supabase
+    .from("construction_models")
+    .insert({
+      project_id: projectId,
+      status: "extracted",
+      review_status: "unreviewed",
+      elements,
+    })
+    .select("id")
+    .single();
+
+  if (cmError) throw new Error(cmError.message);
+
+  revalidatePath(`/dashboard/${projectId}`);
+  return constructionModel.id;
+}
+

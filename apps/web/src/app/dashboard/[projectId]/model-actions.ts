@@ -43,3 +43,17 @@ export async function getFloorplanSignedUrl(storagePath: string) {
 
   return data.signedUrl;
 }
+
+export async function getIfcSignedUrl(ifcStoragePath: string) {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase.storage
+    .from("ifc-models")
+    .createSignedUrl(ifcStoragePath, 60);
+
+  if (error || !data) {
+    throw new Error(error?.message ?? "Could not sign IFC file URL");
+  }
+
+  return data.signedUrl;
+}

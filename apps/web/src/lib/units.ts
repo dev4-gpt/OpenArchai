@@ -22,3 +22,22 @@ export function formatLength(meters: number, unitSystem: UnitSystem): string {
   const { feet, inches } = metersToFeetInches(meters);
   return `${feet}' ${inches}"`;
 }
+
+// Decimal (not feet+inches-pair) conversions -- for editing many numeric
+// fields at once (e.g. a review UI's wall coordinates), a single decimal
+// number per field is far more usable than a feet+inches pair per field.
+// Decimal feet is also the standard convention for CAD/civil coordinate
+// entry in imperial contexts, so this isn't a shortcut, just the right unit
+// for this kind of value (as opposed to a callout like a door width, where
+// feet+inches is the norm -- see feetInchesToMeters above).
+export function metersToUnit(meters: number, unitSystem: UnitSystem): number {
+  return unitSystem === "metric" ? meters : meters / METERS_PER_FOOT;
+}
+
+export function unitToMeters(value: number, unitSystem: UnitSystem): number {
+  return unitSystem === "metric" ? value : value * METERS_PER_FOOT;
+}
+
+export function unitLabel(unitSystem: UnitSystem): string {
+  return unitSystem === "metric" ? "m" : "ft";
+}

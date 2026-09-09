@@ -1,0 +1,52 @@
+{
+  "location": "Gurgaon NCR / Delhi",
+  "currency": "INR",
+  "symbol": "₹",
+  "civil_construction_per_sqft": {
+    "budget": 1650,
+    "mid": 2350,
+    "premium": 3800
+  },
+  "interior_finishing_per_sqft": {
+    "budget": 950,
+    "mid": 1750,
+    "premium": 3200
+  },
+  "finishes": {
+    "flooring": {
+      "vitrified_tiles": { "material": 65, "labor": 30, "unit": "sqft" },
+      "kota_stone": { "material": 85, "labor": 35, "unit": "sqft" },
+      "indian_marble": { "material": 220, "labor": 55, "unit": "sqft" },
+      "italian_statuario": { "material": 750, "labor": 90, "unit": "sqft" },
+      "teak_hardwood": { "material": 380, "labor": 60, "unit": "sqft" }
+    },
+    "walls": {
+      "tractor_emulsion": { "material": 10, "labor": 8, "unit": "sqft" },
+      "asian_paints_royale": { "material": 24, "labor": 12, "unit": "sqft" },
+      "exposed_brick_cladding": { "material": 110, "labor": 45, "unit": "sqft" },
+      "venetian_lime_stucco": { "material": 120, "labor": 50, "unit": "sqft" }
+    },
+    "ceilings": {
+      "gypsum_false_ceiling": { "material": 75, "labor": 35, "unit": "sqft" },
+      "grid_ceiling": { "material": 55, "labor": 25, "unit": "sqft" },
+      "wooden_slat_ceiling": { "material": 280, "labor": 75, "unit": "sqft" }
+    },
+    "openings": {
+      "flush_door_laminated": { "rate": 8500, "unit": "piece" },
+      "teak_paneled_door": { "rate": 22000, "unit": "piece" },
+      "upvc_window_casement": { "rate": 650, "unit": "sqft" },
+      "aluminum_anodized_window": { "rate": 520, "unit": "sqft" }
+    }
+  },
+  "labor_daily_rates": {
+    "head_mason": 1100,
+    "mason": 900,
+    "carpenter": 850,
+    "painter": 750,
+    "plumber": 800,
+    "electrician": 800,
+    "helper": 550
+  },
+  "contingency_rate": 0.10,
+  "contractor_margin_rate": 0.12
+}

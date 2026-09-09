@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { submitLayerMapping } from "./cad-actions";
 import { Button } from "@/components/ui/button";
+import { ConstructionReview } from "./construction-review";
+import type { UnitSystem } from "@/lib/units";
 
 type ElementType = "wall" | "door" | "window" | "ignore";
 
@@ -13,7 +15,13 @@ const OPTIONS: { value: ElementType; label: string }[] = [
   { value: "window", label: "Window" },
 ];
 
-type Elements = { walls: unknown[]; doors: unknown[]; windows: unknown[] };
+type Point = [number, number];
+type Elements = {
+  walls: { start: Point; end: Point }[];
+  doors: { position: Point; width_m: number | null }[];
+  windows: { position: Point; width_m: number | null }[];
+  floor_bounds: { min_x: number; min_y: number; max_x: number; max_y: number };
+};
 
 export function ConstructionModelStatus({
   constructionModelId,
@@ -23,6 +31,9 @@ export function ConstructionModelStatus({
   detectedLayers,
   elements,
   errorMessage,
+  unitSystem,
+  reviewStatus,
+  ifcStoragePath,
 }: {
   constructionModelId: string;
   projectId: string;
@@ -31,6 +42,9 @@ export function ConstructionModelStatus({
   detectedLayers: string[] | null;
   elements: Elements | null;
   errorMessage: string | null;
+  unitSystem: UnitSystem;
+  reviewStatus: string;
+  ifcStoragePath: string | null;
 }) {
   const [mapping, setMapping] = useState<Record<string, ElementType>>(() =>
     Object.fromEntries((detectedLayers ?? []).map((l) => [l, "ignore" as ElementType])),
@@ -48,6 +62,17 @@ export function ConstructionModelStatus({
     } finally {
       setPending(false);
     }
+  }
+
+  // Once approved, "processing"/"error" mean the IFC export step, not the
+  // original DXF-read step -- same status values, different phase of the
+  // pipeline, so message them distinctly rather than reusing "Reading CAD
+  // file…" for a job that's actually building an IFC file.
+  if (reviewStatus === "approved" && status === "processing") {
+    return <p className="text-xs text-muted">Building IFC export…</p>;
+  }
+  if (reviewStatus === "approved" && status === "error") {
+    return <p className="text-xs text-danger">{errorMessage}</p>;
   }
 
   if (status === "pending" || status === "processing") {
@@ -88,13 +113,16 @@ export function ConstructionModelStatus({
     );
   }
 
-  if (status === "extracted" || status === "done") {
+  if ((status === "extracted" || status === "done") && elements) {
     return (
-      <p className="text-xs text-muted">
-        Extracted {elements?.walls.length ?? 0} wall segments, {elements?.doors.length ?? 0} door
-        {elements?.doors.length === 1 ? "" : "s"}, {elements?.windows.length ?? 0} window
-        {elements?.windows.length === 1 ? "" : "s"}. Review/approval step is the next piece to build.
-      </p>
+      <ConstructionReview
+        constructionModelId={constructionModelId}
+        projectId={projectId}
+        unitSystem={unitSystem}
+        initialElements={elements}
+        reviewStatus={reviewStatus}
+        ifcStoragePath={ifcStoragePath}
+      />
     );
   }
 
