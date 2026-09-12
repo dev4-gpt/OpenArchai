@@ -116,6 +116,70 @@ export async function approveConstructionModel(constructionModelId: string, proj
   });
 }
 
+// Mirrors retryReconstruction/retryRender in actions.ts, adapted for the CAD
+// pipeline's extra pre-review steps. Layer mappings the user chose are never
+// persisted (only held in the mapping form's local state), so a job that
+// failed during extraction can't be silently re-run with the same mapping —
+// instead this resets the row back to "awaiting_layer_mapping" so the user
+// redoes the mapping form, which itself re-fires the extraction call.
+export async function retryConstructionJob(constructionModelId: string, projectId: string) {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not signed in");
+
+  const { data: row, error: rowError } = await supabase
+    .from("construction_models")
+    .select("id, project_id, status, review_status, detected_layers, uploads:upload_id(storage_path)")
+    .eq("id", constructionModelId)
+    .single();
+  if (rowError || !row) throw new Error(rowError?.message ?? "Construction model not found");
+  if (row.status !== "error") throw new Error("Only a failed job can be retried");
+
+  const uploadStoragePath = (row.uploads as unknown as { storage_path: string } | null)?.storage_path;
+
+  if (row.review_status === "approved") {
+    // Failed during IFC export -- re-fire build_ifc with the same inputs.
+    const { error: updateError } = await supabase
+      .from("construction_models")
+      .update({ status: "processing", error_message: null })
+      .eq("id", constructionModelId);
+    if (updateError) throw new Error(updateError.message);
+
+    await postToModal(process.env.MODAL_BUILD_IFC_ENDPOINT_URL!, {
+      construction_model_id: constructionModelId,
+      project_id: projectId,
+      user_id: user.id,
+    });
+  } else if (row.detected_layers) {
+    // Failed during extraction, after a layer mapping was already submitted --
+    // send the user back to the mapping form rather than guessing the mapping.
+    const { error: updateError } = await supabase
+      .from("construction_models")
+      .update({ status: "awaiting_layer_mapping", error_message: null })
+      .eq("id", constructionModelId);
+    if (updateError) throw new Error(updateError.message);
+  } else {
+    // Failed during initial layer detection -- re-fire it from scratch.
+    if (!uploadStoragePath) throw new Error("Original upload is missing — re-upload the DXF");
+
+    const { error: updateError } = await supabase
+      .from("construction_models")
+      .update({ status: "pending", error_message: null })
+      .eq("id", constructionModelId);
+    if (updateError) throw new Error(updateError.message);
+
+    await postToModal(process.env.MODAL_DETECT_LAYERS_ENDPOINT_URL!, {
+      construction_model_id: constructionModelId,
+      upload_storage_path: uploadStoragePath,
+    });
+  }
+
+  revalidatePath(`/dashboard/${projectId}`);
+}
+
 export async function saveEditorFloorPlan(projectId: string, elements: unknown) {
   const supabase = await createClient();
 

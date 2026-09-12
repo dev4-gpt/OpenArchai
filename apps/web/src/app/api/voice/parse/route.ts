@@ -1,26 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { parseDesignCommand } from "@/lib/gemini";
-
-// Simple memory store for rate limiting
-const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
   try {
     // Rate limiting: 30 requests per minute
     const ip = req.headers.get('x-forwarded-for') || 'default';
-    const now = Date.now();
-    const rateLimitData = rateLimitMap.get(ip);
-    
-    if (rateLimitData && rateLimitData.resetTime > now) {
-      if (rateLimitData.count >= 30) {
-        return NextResponse.json(
-          { error: "Too many requests" }, 
-          { status: 429 }
-        );
-      }
-      rateLimitData.count += 1;
-    } else {
-      rateLimitMap.set(ip, { count: 1, resetTime: now + 60000 });
+    if (!checkRateLimit(ip, 30, 60_000)) {
+      return NextResponse.json(
+        { error: "Too many requests" },
+        { status: 429 }
+      );
     }
 
     const body = await req.json();

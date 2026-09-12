@@ -179,6 +179,9 @@ export function PresentationClient({
           </h2>
           <span className="text-[11px] text-muted">Gurgaon NCR Schedule of Rates (SOR)</span>
         </div>
+        <p className="text-[10px] text-muted italic">
+          Estimated cost for planning purposes only — not a formal quotation.
+        </p>
 
         {/* Financial KPI Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -260,24 +263,34 @@ export function PresentationClient({
             4. Statutory Building Code & Regulatory Verification
           </h2>
           <span className="rounded bg-success/15 px-2 py-0.5 text-xs font-bold text-success border border-success/30">
-            {compliance.score}% Statutory Compliance
+            {compliance.score}% of Verified Checks Compliant
           </span>
         </div>
+        <p className="text-[10px] text-muted italic">
+          Advisory summary only — not a certified code-compliance review. Reflects {compliance.totalChecks} check(s)
+          verifiable from the extracted plan geometry; {compliance.unverifiedCount} additional item(s) require manual
+          confirmation (see full compliance panel).
+        </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {compliance.issues.slice(0, 4).map((issue) => (
-            <div
-              key={issue.id}
-              className="rounded-lg border border-border bg-surface p-3 text-xs shadow-xs space-y-1"
-            >
-              <div className="flex items-center justify-between">
-                <span className="font-semibold text-foreground">{issue.category}</span>
-                <span className="text-[10px] font-mono text-muted">{issue.code}</span>
+          {compliance.issues
+            .filter((issue) => issue.verified)
+            .slice(0, 4)
+            .map((issue) => (
+              <div
+                key={issue.id}
+                className="rounded-lg border border-border bg-surface p-3 text-xs shadow-xs space-y-1"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-foreground">{issue.category}</span>
+                  <span className="text-[10px] font-mono text-muted">{issue.code}</span>
+                </div>
+                <p className="text-muted text-[11px]">{issue.message}</p>
+                <p className={`text-[10px] font-medium ${issue.passed ? "text-success" : "text-danger"}`}>
+                  {issue.passed ? "✓" : "!"} {issue.suggestion}
+                </p>
               </div>
-              <p className="text-muted text-[11px]">{issue.message}</p>
-              <p className="text-success text-[10px] font-medium">✓ {issue.suggestion}</p>
-            </div>
-          ))}
+            ))}
         </div>
       </section>
 

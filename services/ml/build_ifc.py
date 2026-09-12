@@ -23,6 +23,7 @@ v1 scope, documented here rather than silently assumed:
   no boundary/space geometry either.
 """
 
+import logging
 import os
 import tempfile
 
@@ -40,6 +41,8 @@ from pydantic import BaseModel
 
 import common
 from modal_common import app, ifc_image, ml_secret
+
+logger = logging.getLogger(__name__)
 
 # Not recoverable from a 2D DXF's wall centerlines/door-block widths alone --
 # documented assumptions, same pattern as reconstruct.py's WALL_HEIGHT_M.
@@ -136,7 +139,12 @@ def build_ifc_bytes(elements: dict, project_name: str) -> bytes:
                 )
                 ifcopenshell.api.run("void.add_filling", f, opening=opening, element=entity)
             except Exception:
-                pass  # Graceful fallback if void relation isn't supported in target schema
+                # Non-fatal (the door/window entity itself is already valid without
+                # the void relationship), but still worth surfacing in Modal's logs --
+                # a bare `pass` here would silently hide a real regression.
+                logger.warning(
+                    "Failed to create IfcOpeningElement void relation for %s %d", ifc_class, i + 1, exc_info=True
+                )
 
     # 3. Add IfcSpace for detected rooms
     for i, room in enumerate(elements.get("rooms", [])):

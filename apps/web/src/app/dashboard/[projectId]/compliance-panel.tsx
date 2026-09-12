@@ -16,17 +16,18 @@ export function CompliancePanel({
   region?: "india" | "us";
 }) {
   const [activeRegion, setActiveRegion] = useState<"india" | "us">(region);
-  const [filter, setFilter] = useState<"all" | "attention" | "passed">("all");
+  const [filter, setFilter] = useState<"all" | "attention" | "passed" | "unverified">("all");
 
   const report: ComplianceReport = evaluateCompliance(elements, activeRegion);
 
   const displayedIssues = report.issues.filter((issue) => {
-    if (filter === "attention") return !issue.passed;
-    if (filter === "passed") return issue.passed;
+    if (filter === "attention") return issue.verified && !issue.passed;
+    if (filter === "passed") return issue.verified && issue.passed;
+    if (filter === "unverified") return !issue.verified;
     return true;
   });
 
-  const attentionCount = report.issues.filter((i) => !i.passed).length;
+  const attentionCount = report.issues.filter((i) => i.verified && !i.passed).length;
 
   return (
     <div className="space-y-4 rounded-lg border border-border bg-surface p-4 shadow-xs">
@@ -46,11 +47,15 @@ export function CompliancePanel({
                   : "bg-danger/15 text-danger border border-danger/30"
               }`}
             >
-              {report.score}% Compliant
+              {report.score}% of Verified Checks
             </span>
           </div>
           <p className="text-xs text-muted mt-0.5">
             {report.standardName}
+          </p>
+          <p className="text-[11px] text-muted italic mt-1">
+            Advisory only — not a certified compliance review. {report.unverifiedCount} item(s) below can&apos;t be
+            checked from the extracted plan geometry and need manual verification.
           </p>
         </div>
 
@@ -113,10 +118,19 @@ export function CompliancePanel({
           >
             Passed ({report.passedCount})
           </button>
+          <button
+            type="button"
+            onClick={() => setFilter("unverified")}
+            className={`rounded px-2.5 py-1 text-xs transition-colors ${
+              filter === "unverified" ? "bg-muted/20 text-foreground font-semibold" : "text-muted hover:text-foreground"
+            }`}
+          >
+            Not Verified ({report.unverifiedCount})
+          </button>
         </div>
 
         <span className="text-[11px] text-muted">
-          {report.passedCount} of {report.totalChecks} statutory checks passed
+          {report.passedCount} of {report.totalChecks} verifiable statutory checks passed
         </span>
       </div>
 
@@ -126,7 +140,9 @@ export function CompliancePanel({
           <div
             key={issue.id}
             className={`rounded-lg border p-3 text-xs transition-colors ${
-              issue.passed
+              !issue.verified
+                ? "border-border bg-[#faf8f4]"
+                : issue.passed
                 ? "border-border bg-surface hover:border-success/40"
                 : issue.severity === "error"
                 ? "border-danger/40 bg-danger/5"
@@ -137,14 +153,16 @@ export function CompliancePanel({
               <div className="flex items-center gap-2">
                 <span
                   className={`inline-flex items-center justify-center h-4 w-4 rounded-full text-[10px] font-bold ${
-                    issue.passed
+                    !issue.verified
+                      ? "bg-muted/20 text-muted"
+                      : issue.passed
                       ? "bg-success/20 text-success"
                       : issue.severity === "error"
                       ? "bg-danger/20 text-danger"
                       : "bg-accent/20 text-accent"
                   }`}
                 >
-                  {issue.passed ? "✓" : "!"}
+                  {!issue.verified ? "?" : issue.passed ? "✓" : "!"}
                 </span>
                 <span className="font-semibold text-foreground">{issue.message}</span>
               </div>

@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { submitLayerMapping } from "./cad-actions";
+import { submitLayerMapping, retryConstructionJob } from "./cad-actions";
 import { Button } from "@/components/ui/button";
+import { RetryButton } from "@/components/ui/retry-button";
 import { ConstructionReview } from "./construction-review";
 import type { UnitSystem } from "@/lib/units";
 
@@ -72,7 +73,12 @@ export function ConstructionModelStatus({
     return <p className="text-xs text-muted">Building IFC export…</p>;
   }
   if (reviewStatus === "approved" && status === "error") {
-    return <p className="text-xs text-danger">{errorMessage}</p>;
+    return (
+      <div className="space-y-1">
+        <p className="text-xs text-danger">{errorMessage}</p>
+        <RetryButton onRetry={() => retryConstructionJob(constructionModelId, projectId)} />
+      </div>
+    );
   }
 
   if (status === "pending" || status === "processing") {
@@ -80,7 +86,12 @@ export function ConstructionModelStatus({
   }
 
   if (status === "error") {
-    return <p className="text-xs text-danger">{errorMessage}</p>;
+    return (
+      <div className="space-y-1">
+        <p className="text-xs text-danger">{errorMessage}</p>
+        <RetryButton onRetry={() => retryConstructionJob(constructionModelId, projectId)} />
+      </div>
+    );
   }
 
   if (status === "awaiting_layer_mapping") {

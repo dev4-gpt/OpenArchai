@@ -74,6 +74,9 @@ export function CostPanel({
           <p className="text-xs text-muted">
             Automated takeoffs from floor plan geometry. Calculated across Budget, Standard, and Premium finishes.
           </p>
+          <p className="text-[11px] text-muted italic mt-0.5">
+            Estimated cost for planning purposes only — not a formal quotation.
+          </p>
         </div>
 
         {/* Action Controls */}

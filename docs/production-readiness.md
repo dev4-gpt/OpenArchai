@@ -12,6 +12,7 @@ Context: OpenArchai is being built primarily for [Pamela Dev & Co / PDCO Archite
 
 ### 2. Data isolation between projects — done, verified live
 - RLS policies in [0001_init.sql](../supabase/migrations/0001_init.sql) already scoped every table through `project_id → projects.user_id = auth.uid()`, including storage bucket policies.
+  - **Update (2026-09-09):** [0012_project_collaboration.sql](../supabase/migrations/0012_project_collaboration.sql) replaced the single-owner model above with a `project_members` table (owner/editor roles) — PDCO staff can now share a project. Every policy this section describes was rewritten to check membership instead of direct `user_id` ownership; storage paths are unchanged, only the policy predicate moved from checking the first path segment (uploader id) to the second (project id).
 - [apps/web/scripts/verify-rls.mjs](../apps/web/scripts/verify-rls.mjs): creates two throwaway auth users, has user A own a project/upload/model/render, then asserts user B cannot SELECT, INSERT, UPDATE, or download any of it. Run with `npm run verify:rls` from `apps/web/`.
 - Run on 2026-09-05 against the live dev project: **7/7 checks passed**.
 

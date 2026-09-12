@@ -4,6 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { UploadForm } from "./upload-form";
 import { RealtimeStatus } from "./realtime-status";
 import { ShareLink } from "./share-link";
+import { MembersPanel } from "./members-panel";
+import { listProjectMembers } from "./members-actions";
 import { ScaleCalibration } from "./scale-calibration";
 import { ConstructionModelsList } from "./construction-models-list";
 import { EditorTab } from "./editor-tab";
@@ -30,6 +32,12 @@ export default async function ProjectPage({
     .single();
 
   if (!project) notFound();
+
+  const {
+    data: { user: currentUser },
+  } = await supabase.auth.getUser();
+  const members = await listProjectMembers(projectId);
+  const isOwner = members.some((m) => m.user_id === currentUser?.id && m.role === "owner");
 
   const { data: uploads } = await supabase
     .from("uploads")
@@ -121,6 +129,8 @@ export default async function ProjectPage({
         </div>
 
         <ShareLink projectId={project.id} initialShareToken={project.share_token} />
+
+        <MembersPanel projectId={project.id} initialMembers={members} isOwner={isOwner} />
 
         <div className="space-y-2">
           <h2 className="text-sm font-medium text-muted">Floorplans</h2>
