@@ -8,8 +8,13 @@ import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 // every other part of the app uses the user-scoped client in server.ts so
 // RLS stays the enforcement boundary.
 export function createAdminClient() {
+  const secretKey =
+    process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!secretKey) {
+    throw new Error("Missing SUPABASE_SECRET_KEY / SUPABASE_SERVICE_ROLE_KEY");
+  }
   return createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    secretKey,
   );
 }
