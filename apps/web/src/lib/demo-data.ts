@@ -24,10 +24,10 @@ const DEFAULT_DEMO_FLOORPLAN: FloorPlan = {
     { id: "demo_wall_4", start: { x: 0, y: 3 }, end: { x: 0, y: 0 }, thickness: 0.15 },
   ],
   doors: [
-    { id: "demo_door_1", position: { x: 2, y: 0 }, width: 0.9, swingDirection: "right" },
+    { id: "demo_door_1", position: { x: 2, y: 0 }, width: 0.9, wallId: "demo_wall_1" },
   ],
   windows: [
-    { id: "demo_win_1", position: { x: 5, y: 1.5 }, width: 1.2 },
+    { id: "demo_win_1", position: { x: 5, y: 1.5 }, width: 1.2, wallId: "demo_wall_2" },
   ],
   rooms: [
     {
