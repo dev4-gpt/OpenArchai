@@ -94,10 +94,21 @@ export function ModelViewer({
 
   const setView = (pos: [number, number, number]) => {
     if (cameraRef.current && controlsRef.current) {
-      cameraRef.current.position.set(...pos);
+      if (pos[0] === 0 && pos[2] === 0) {
+        cameraRef.current.position.set(0.001, pos[1], 0);
+      } else {
+        cameraRef.current.position.set(...pos);
+      }
       controlsRef.current.target.set(0, 0, 0);
       controlsRef.current.update();
     }
+  };
+
+  const handleReset = () => {
+    if (controlsRef.current?.reset) {
+      controlsRef.current.reset();
+    }
+    setView([6, 6, 6]);
   };
 
   const handlePointerDown = (e: any) => {
@@ -125,7 +136,7 @@ export function ModelViewer({
            <button onClick={() => setView([0, 10, 0])} className="flex items-center gap-1 px-2 py-1 text-xs hover:bg-accent/10 hover:text-accent rounded transition-colors" title="Top"><TopIcon/> <span className="hidden sm:inline">Top</span></button>
            <button onClick={() => setView([0, 0, 10])} className="flex items-center gap-1 px-2 py-1 text-xs hover:bg-accent/10 hover:text-accent rounded transition-colors" title="Front"><FrontIcon/> <span className="hidden sm:inline">Front</span></button>
            <button onClick={() => setView([6, 6, 6])} className="flex items-center gap-1 px-2 py-1 text-xs hover:bg-accent/10 hover:text-accent rounded transition-colors" title="Perspective"><PerspectiveIcon/> <span className="hidden sm:inline">Perspective</span></button>
-           <button onClick={() => setView([6, 6, 6])} className="flex items-center gap-1 px-2 py-1 text-xs hover:bg-accent/10 hover:text-accent rounded transition-colors" title="Reset"><ResetIcon/> <span className="hidden sm:inline">Reset</span></button>
+           <button onClick={handleReset} className="flex items-center gap-1 px-2 py-1 text-xs hover:bg-accent/10 hover:text-accent rounded transition-colors" title="Reset View"><ResetIcon/> <span className="hidden sm:inline">Reset</span></button>
         </div>
         
         {/* Tools */}

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { floorPlanStore, useFloorPlanStore } from "./state/floor-plan-store";
-import type { Point, Wall } from "./types";
+import type { Point, Wall, Door, Window, Room } from "./types";
 import { metersToUnit, unitLabel, type UnitSystem } from "@/lib/units";
 
 export function EditorCanvas({ unitSystem = "metric" }: { unitSystem?: UnitSystem }) {
@@ -11,6 +11,7 @@ export function EditorCanvas({ unitSystem = "metric" }: { unitSystem?: UnitSyste
   const [mousePos, setMousePos] = useState<Point | null>(null);
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState<Point>({ x: 0, y: 0 });
+  const [hoveredDeleteId, setHoveredDeleteId] = useState<string | null>(null);
 
   const { floorPlan, tool, drawingPoints, snapPoint, selectedIds } = state;
   const { zoom, panOffset, walls, doors, windows, rooms } = floorPlan;
@@ -127,12 +128,12 @@ export function EditorCanvas({ unitSystem = "metric" }: { unitSystem?: UnitSyste
       const cy = room.vertices.reduce((s, p) => s + p.y, 0) / room.vertices.length;
       const labelPt = worldToScreen(cx, cy);
 
-      ctx.fillStyle = "#2a2621";
+      ctx.fillStyle = isRoomDeleteHover ? "#ef4444" : "#2a2621";
       ctx.font = "bold 11px sans-serif";
       ctx.textAlign = "center";
       ctx.fillText(room.label, labelPt.x, labelPt.y - 4);
 
-      ctx.fillStyle = "#8a8073";
+      ctx.fillStyle = isRoomDeleteHover ? "#ef4444" : "#8a8073";
       ctx.font = "10px sans-serif";
       const areaDisplay =
         unitSystem === "metric"
@@ -146,10 +147,11 @@ export function EditorCanvas({ unitSystem = "metric" }: { unitSystem?: UnitSyste
       const p1 = worldToScreen(wall.start.x, wall.start.y);
       const p2 = worldToScreen(wall.end.x, wall.end.y);
       const isSelected = selectedIds.includes(wall.id);
+      const isDeleteHover = tool === "eraser" && hoveredDeleteId === wall.id;
 
       // Wall core
-      ctx.strokeStyle = isSelected ? "#a15c3e" : "#2a2621";
-      ctx.lineWidth = Math.max(3, wall.thickness * zoom);
+      ctx.strokeStyle = isDeleteHover ? "#ef4444" : isSelected ? "#a15c3e" : "#2a2621";
+      ctx.lineWidth = isDeleteHover ? Math.max(5, (wall.thickness + 0.04) * zoom) : Math.max(3, wall.thickness * zoom);
       ctx.lineCap = "round";
 
       ctx.beginPath();
@@ -166,7 +168,7 @@ export function EditorCanvas({ unitSystem = "metric" }: { unitSystem?: UnitSyste
         const label = `${distUnit.toFixed(2)} ${unitLabel(unitSystem)}`;
 
         ctx.font = "10px sans-serif";
-        ctx.fillStyle = "#595045";
+        ctx.fillStyle = isDeleteHover ? "#ef4444" : "#595045";
         ctx.textAlign = "center";
         ctx.fillText(label, midX, midY - 6);
       }
@@ -177,16 +179,17 @@ export function EditorCanvas({ unitSystem = "metric" }: { unitSystem?: UnitSyste
       const pos = worldToScreen(win.position.x, win.position.y);
       const halfW = (win.width * zoom) / 2;
       const isSelected = selectedIds.includes(win.id);
+      const isDeleteHover = tool === "eraser" && hoveredDeleteId === win.id;
 
-      ctx.strokeStyle = isSelected ? "#a15c3e" : "#3b82f6";
-      ctx.lineWidth = 4;
+      ctx.strokeStyle = isDeleteHover ? "#ef4444" : isSelected ? "#a15c3e" : "#3b82f6";
+      ctx.lineWidth = isDeleteHover ? 6 : 4;
       ctx.beginPath();
       ctx.moveTo(pos.x - halfW, pos.y);
       ctx.lineTo(pos.x + halfW, pos.y);
       ctx.stroke();
 
       // Window sill indicator
-      ctx.strokeStyle = "#93c5fd";
+      ctx.strokeStyle = isDeleteHover ? "#fca5a5" : "#93c5fd";
       ctx.lineWidth = 1;
       ctx.strokeRect(pos.x - halfW, pos.y - 3, win.width * zoom, 6);
     }
@@ -196,17 +199,18 @@ export function EditorCanvas({ unitSystem = "metric" }: { unitSystem?: UnitSyste
       const pos = worldToScreen(door.position.x, door.position.y);
       const doorRadius = door.width * zoom;
       const isSelected = selectedIds.includes(door.id);
+      const isDeleteHover = tool === "eraser" && hoveredDeleteId === door.id;
 
       // Door leaf
-      ctx.strokeStyle = isSelected ? "#a15c3e" : "#a15c3e";
-      ctx.lineWidth = 3;
+      ctx.strokeStyle = isDeleteHover ? "#ef4444" : isSelected ? "#a15c3e" : "#a15c3e";
+      ctx.lineWidth = isDeleteHover ? 5 : 3;
       ctx.beginPath();
       ctx.moveTo(pos.x, pos.y);
       ctx.lineTo(pos.x, pos.y - doorRadius);
       ctx.stroke();
 
       // Door swing arc
-      ctx.strokeStyle = "#d4b09b";
+      ctx.strokeStyle = isDeleteHover ? "#fca5a5" : "#d4b09b";
       ctx.lineWidth = 1;
       ctx.setLineDash([3, 3]);
       ctx.beginPath();
@@ -222,8 +226,7 @@ export function EditorCanvas({ unitSystem = "metric" }: { unitSystem?: UnitSyste
       const p2 = worldToScreen(snap.x, snap.y);
 
       ctx.strokeStyle = "#a15c3e";
-      ctx.lineWidth = 0.15 * zoom;
-      ctx.lineCap = "round";
+      ctx.lineWidth = 2;
       ctx.setLineDash([4, 4]);
 
       ctx.beginPath();
@@ -242,11 +245,11 @@ export function EditorCanvas({ unitSystem = "metric" }: { unitSystem?: UnitSyste
       ctx.fillText(label, (p1.x + p2.x) / 2, (p1.y + p2.y) / 2 - 8);
     }
 
-    // 8. Snap point circle indicator
-    if (snapPoint) {
+    // 8. Snap point indicator
+    if (snapPoint && tool === "wall") {
       const sp = worldToScreen(snapPoint.x, snapPoint.y);
-      ctx.strokeStyle = "#a15c3e";
-      ctx.fillStyle = "rgba(161, 92, 62, 0.2)";
+      ctx.fillStyle = "#a15c3e";
+      ctx.strokeStyle = "#ffffff";
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.arc(sp.x, sp.y, 6, 0, Math.PI * 2);
@@ -268,6 +271,8 @@ export function EditorCanvas({ unitSystem = "metric" }: { unitSystem?: UnitSyste
     selectedIds,
     unitSystem,
     worldToScreen,
+    tool,
+    hoveredDeleteId,
   ]);
 
   // Mouse event handlers
@@ -292,24 +297,14 @@ export function EditorCanvas({ unitSystem = "metric" }: { unitSystem?: UnitSyste
       floorPlanStore.addDoor(snap);
     } else if (tool === "window") {
       floorPlanStore.addWindow(snap);
+    } else if (tool === "eraser") {
+      const targetId = findElementAt(rawWorld, walls, doors, windows, rooms);
+      if (targetId) {
+        floorPlanStore.deleteElement(targetId);
+        setHoveredDeleteId(null);
+      }
     } else if (tool === "select") {
-      // Find closest entity to select
-      let foundId: string | null = null;
-      for (const w of walls) {
-        const d = distToSegment(rawWorld, w.start, w.end);
-        if (d < 0.3) {
-          foundId = w.id;
-          break;
-        }
-      }
-      if (!foundId) {
-        for (const d of doors) {
-          if (Math.hypot(d.position.x - rawWorld.x, d.position.y - rawWorld.y) < 0.4) {
-            foundId = d.id;
-            break;
-          }
-        }
-      }
+      const foundId = findElementAt(rawWorld, walls, doors, windows, rooms);
       if (foundId) {
         floorPlanStore.selectElement(foundId, e.shiftKey);
       } else {
@@ -335,6 +330,13 @@ export function EditorCanvas({ unitSystem = "metric" }: { unitSystem?: UnitSyste
     const snap = getSnapTarget(rawWorld);
     setMousePos(rawWorld);
     floorPlanStore.setSnapPoint(snap);
+
+    if (tool === "eraser") {
+      const hitId = findElementAt(rawWorld, walls, doors, windows, rooms);
+      setHoveredDeleteId(hitId);
+    } else if (hoveredDeleteId) {
+      setHoveredDeleteId(null);
+    }
   }
 
   function handleMouseUp() {
@@ -366,7 +368,9 @@ export function EditorCanvas({ unitSystem = "metric" }: { unitSystem?: UnitSyste
     <div
       tabIndex={0}
       onKeyDown={handleKeyDown}
-      className="relative h-[500px] w-full overflow-hidden rounded-b-lg bg-[#faf8f4] outline-none cursor-crosshair"
+      className={`relative h-[500px] w-full overflow-hidden rounded-b-lg bg-[#faf8f4] outline-none ${
+        tool === "eraser" ? "cursor-pointer" : "cursor-crosshair"
+      }`}
     >
       <canvas
         ref={canvasRef}
@@ -382,10 +386,51 @@ export function EditorCanvas({ unitSystem = "metric" }: { unitSystem?: UnitSyste
           ? "Click to place wall points. Press Escape to finish."
           : tool === "select"
           ? "Click wall/opening to select. Backspace to delete."
+          : tool === "eraser"
+          ? "Click any wall, door, or window to delete it."
           : `Click to place ${tool}.`}
       </div>
     </div>
   );
+}
+
+// Helper: hit-test elements on the floorplan
+function findElementAt(
+  pt: Point,
+  walls: Wall[],
+  doors: Door[],
+  windows: Window[],
+  rooms: Room[]
+): string | null {
+  // Check doors and windows first (points)
+  for (const d of doors) {
+    if (Math.hypot(d.position.x - pt.x, d.position.y - pt.y) < 0.5) {
+      return d.id;
+    }
+  }
+  for (const win of windows) {
+    if (Math.hypot(win.position.x - pt.x, win.position.y - pt.y) < 0.5) {
+      return win.id;
+    }
+  }
+  // Check walls (line segments)
+  for (const w of walls) {
+    const d = distToSegment(pt, w.start, w.end);
+    if (d < 0.35) {
+      return w.id;
+    }
+  }
+  // Check room labels/centroids
+  for (const r of rooms) {
+    if (r.vertices.length >= 3) {
+      const cx = r.vertices.reduce((s, p) => s + p.x, 0) / r.vertices.length;
+      const cy = r.vertices.reduce((s, p) => s + p.y, 0) / r.vertices.length;
+      if (Math.hypot(cx - pt.x, cy - pt.y) < 0.8) {
+        return r.id;
+      }
+    }
+  }
+  return null;
 }
 
 // Distance from point to line segment

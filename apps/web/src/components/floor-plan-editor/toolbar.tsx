@@ -18,12 +18,13 @@ export function EditorToolbar({
   const [selectedPreset, setSelectedPreset] = useState<string>("");
   const [presetRegion, setPresetRegion] = useState<"india" | "us">("india");
 
+  const hasSelected = state.selectedIds.length > 0;
   const tools: { id: EditorTool; label: string; icon: string }[] = [
     { id: "select", label: "Select", icon: "↖" },
     { id: "wall", label: "Wall", icon: "🧱" },
     { id: "door", label: "Door", icon: "🚪" },
     { id: "window", label: "Window", icon: "🪟" },
-    { id: "eraser", label: "Delete", icon: "✕" },
+    { id: "eraser", label: hasSelected ? `Delete (${state.selectedIds.length})` : "Delete", icon: "✕" },
   ];
 
   function handleAddPreset(name: string) {
@@ -59,7 +60,10 @@ export function EditorToolbar({
             type="button"
             onClick={() => {
               if (t.id === "eraser") {
-                floorPlanStore.deleteSelected();
+                if (state.selectedIds.length > 0) {
+                  floorPlanStore.deleteSelected();
+                }
+                floorPlanStore.setTool("eraser");
               } else {
                 floorPlanStore.setTool(t.id);
               }
@@ -146,14 +150,35 @@ export function EditorToolbar({
         </button>
         <button
           type="button"
-          onClick={() => {
-            floorPlanStore.setZoom(35);
-            floorPlanStore.setPanOffset({ x: 300, y: 250 });
-          }}
+          onClick={() => floorPlanStore.resetView()}
           className="rounded border border-border px-2 py-1 text-xs text-foreground hover:border-accent/40"
-          title="Reset View"
+          title="Reset zoom and center view"
         >
-          Reset
+          Reset View
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            const hasElements =
+              state.floorPlan.walls.length > 0 ||
+              state.floorPlan.doors.length > 0 ||
+              state.floorPlan.windows.length > 0 ||
+              state.floorPlan.rooms.length > 0;
+            if (!hasElements) return;
+            if (window.confirm("Clear all elements from the floor plan? You can undo this action with Undo.")) {
+              floorPlanStore.clearPlan();
+            }
+          }}
+          disabled={
+            state.floorPlan.walls.length === 0 &&
+            state.floorPlan.doors.length === 0 &&
+            state.floorPlan.windows.length === 0 &&
+            state.floorPlan.rooms.length === 0
+          }
+          className="rounded border border-border px-2 py-1 text-xs text-foreground hover:border-danger/50 hover:text-danger disabled:opacity-40 transition-colors"
+          title="Clear all drawn walls, doors, windows, and rooms"
+        >
+          Clear Canvas
         </button>
 
         <div className="mx-1 h-5 w-px bg-border" />

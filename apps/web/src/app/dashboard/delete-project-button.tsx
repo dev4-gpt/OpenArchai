@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { deleteProject } from "./new-project-actions";
 import { Button } from "@/components/ui/button";
 
@@ -11,6 +12,7 @@ export function DeleteProjectButton({
   projectId: string;
   projectName: string;
 }) {
+  const router = useRouter();
   const [pending, setPending] = useState(false);
 
   async function handleClick() {
@@ -18,7 +20,14 @@ export function DeleteProjectButton({
       return;
     }
     setPending(true);
-    await deleteProject(projectId);
+    try {
+      await deleteProject(projectId);
+      router.refresh();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to delete project");
+    } finally {
+      setPending(false);
+    }
   }
 
   return (

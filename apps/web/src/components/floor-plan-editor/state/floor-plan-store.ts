@@ -201,6 +201,22 @@ export const floorPlanStore = {
     emitChange();
   },
 
+  deleteElement: (id: string) => {
+    const updated = pushUndo(currentState);
+    currentState = {
+      ...updated,
+      selectedIds: currentState.selectedIds.filter((x) => x !== id),
+      floorPlan: {
+        ...updated.floorPlan,
+        walls: updated.floorPlan.walls.filter((w) => w.id !== id),
+        doors: updated.floorPlan.doors.filter((d) => d.id !== id),
+        windows: updated.floorPlan.windows.filter((win) => win.id !== id),
+        rooms: updated.floorPlan.rooms.filter((r) => r.id !== id),
+      },
+    };
+    emitChange();
+  },
+
   deleteSelected: () => {
     if (currentState.selectedIds.length === 0) return;
     const updated = pushUndo(currentState);
@@ -214,6 +230,39 @@ export const floorPlanStore = {
         doors: updated.floorPlan.doors.filter((d) => !ids.has(d.id)),
         windows: updated.floorPlan.windows.filter((win) => !ids.has(win.id)),
         rooms: updated.floorPlan.rooms.filter((r) => !ids.has(r.id)),
+      },
+    };
+    emitChange();
+  },
+
+  clearPlan: () => {
+    const { walls, doors, windows, rooms } = currentState.floorPlan;
+    if (walls.length === 0 && doors.length === 0 && windows.length === 0 && rooms.length === 0) {
+      return;
+    }
+    const updated = pushUndo(currentState);
+    currentState = {
+      ...updated,
+      selectedIds: [],
+      drawingPoints: [],
+      floorPlan: {
+        ...updated.floorPlan,
+        walls: [],
+        doors: [],
+        windows: [],
+        rooms: [],
+      },
+    };
+    emitChange();
+  },
+
+  resetView: () => {
+    currentState = {
+      ...currentState,
+      floorPlan: {
+        ...currentState.floorPlan,
+        zoom: 35,
+        panOffset: { x: 300, y: 250 },
       },
     };
     emitChange();
