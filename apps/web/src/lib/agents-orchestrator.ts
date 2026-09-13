@@ -1,5 +1,3 @@
-import { parseDesignCommand } from "@/components/voice-assistant/command-parser";
-
 export type AgentRole = "chief_architect" | "code_specialist" | "interior_designer" | "cost_estimator";
 
 export interface AgentMessage {
