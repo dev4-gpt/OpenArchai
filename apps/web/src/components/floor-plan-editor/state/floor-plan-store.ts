@@ -312,5 +312,9 @@ export const floorPlanStore = {
 };
 
 export function useFloorPlanStore(): EditorState {
-  return useSyncExternalStore(floorPlanStore.subscribe, floorPlanStore.getState);
+  return useSyncExternalStore(
+    floorPlanStore.subscribe,
+    floorPlanStore.getState,
+    floorPlanStore.getState,
+  );
 }

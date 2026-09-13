@@ -1,6 +1,8 @@
 import { DemoSandbox } from "@/components/demo/demo-sandbox";
 import { getDemoProjectData } from "@/lib/demo-data";
 
+export const dynamic = "force-dynamic";
+
 export const metadata = {
   title: "Public Sandbox Demo | AtelierOS",
   description: "Interactive architectural sandbox demo: 2D floor plan studio, 3D model viewer, AI renders, and building code compliance.",
