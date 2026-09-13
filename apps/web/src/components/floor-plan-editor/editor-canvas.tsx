@@ -112,6 +112,8 @@ export function EditorCanvas({ unitSystem = "metric" }: { unitSystem?: UnitSyste
     // 3. Render rooms (polygons)
     for (const room of rooms) {
       if (room.vertices.length < 3) continue;
+      const isRoomDeleteHover = tool === "eraser" && hoveredDeleteId === room.id;
+
       ctx.beginPath();
       const first = worldToScreen(room.vertices[0].x, room.vertices[0].y);
       ctx.moveTo(first.x, first.y);
@@ -120,7 +122,7 @@ export function EditorCanvas({ unitSystem = "metric" }: { unitSystem?: UnitSyste
         ctx.lineTo(pt.x, pt.y);
       }
       ctx.closePath();
-      ctx.fillStyle = "rgba(161, 92, 62, 0.05)";
+      ctx.fillStyle = isRoomDeleteHover ? "rgba(239, 68, 68, 0.15)" : "rgba(161, 92, 62, 0.05)";
       ctx.fill();
 
       // Label at centroid
