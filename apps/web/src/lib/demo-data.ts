@@ -49,16 +49,16 @@ const DEFAULT_DEMO_FLOORPLAN: FloorPlan = {
 
 const DEFAULT_DEMO_ELEMENTS: ConstructionElements = {
   walls: [
-    { start: [0, 0], end: [5, 0] },
-    { start: [5, 0], end: [5, 3] },
-    { start: [5, 3], end: [0, 3] },
-    { start: [0, 3], end: [0, 0] },
+    { start: [0, 0] as [number, number], end: [5, 0] as [number, number] },
+    { start: [5, 0] as [number, number], end: [5, 3] as [number, number] },
+    { start: [5, 3] as [number, number], end: [0, 3] as [number, number] },
+    { start: [0, 3] as [number, number], end: [0, 0] as [number, number] },
   ],
   doors: [
-    { position: [2, 0], width_m: 0.9 },
+    { position: [2, 0] as [number, number], width_m: 0.9 },
   ],
   windows: [
-    { position: [5, 1.5], width_m: 1.2 },
+    { position: [5, 1.5] as [number, number], width_m: 1.2 },
   ],
   floor_bounds: { min_x: 0, min_y: 0, max_x: 5, max_y: 3 },
 };
