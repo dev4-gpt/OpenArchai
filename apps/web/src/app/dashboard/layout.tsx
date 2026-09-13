@@ -15,7 +15,7 @@ export default async function DashboardLayout({
   return (
     <div className="min-h-screen bg-background">
       <header className="flex items-center justify-between border-b border-border bg-surface px-6 py-4">
-        <span className="text-sm font-semibold tracking-tight">OpenArchai</span>
+        <span className="text-sm font-semibold tracking-tight">AtelierOS</span>
         <div className="flex items-center gap-4 text-sm">
           <span className="text-muted">{user?.email}</span>
           <form action={signOut}>

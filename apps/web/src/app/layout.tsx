@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "OpenArchai",
-  description: "Floorplan to 3D model to styled render.",
+  title: "AtelierOS",
+  description: "AI Operating System for Architects & Interior Designers.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

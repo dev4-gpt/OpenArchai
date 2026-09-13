@@ -191,7 +191,7 @@ class IfcExporter:
                 raise ValueError("Construction model must be approved before IFC export")
 
             project_row = supabase.table("projects").select("name").eq("id", project_id).single().execute().data
-            project_name = project_row["name"] if project_row else "OpenArchai Export"
+            project_name = project_row["name"] if project_row else "AtelierOS Export"
 
             ifc_bytes = build_ifc_bytes(row["elements"], project_name)
 

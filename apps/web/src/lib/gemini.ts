@@ -6,7 +6,7 @@ export async function parseDesignCommand(transcript: string, projectContext?: { 
     throw new Error("GEMINI_API_KEY is missing");
   }
 
-  const prompt = `You are a Voice AI Assistant for OpenArchai, an architecture and interior design platform. 
+  const prompt = `You are a Voice AI Assistant for AtelierOS, an architecture and interior design platform. 
   Parse the user's voice transcript and return a valid JSON object matching one of these schema types for a DesignCommand:
 
   Schema:
@@ -71,7 +71,7 @@ export async function askArchitectQuestion(question: string, context?: string): 
     throw new Error("GEMINI_API_KEY is missing");
   }
 
-  const prompt = `You are an expert architect and interior designer for OpenArchai. 
+  const prompt = `You are an expert architect and interior designer for AtelierOS. 
   Answer the following question briefly and professionally.
   Context: ${context || "None"}
   Question: "${question}"`;

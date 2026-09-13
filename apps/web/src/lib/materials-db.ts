@@ -1,4 +1,4 @@
-// Materials and Finishes Catalog for OpenArchai
+// Materials and Finishes Catalog for AtelierOS
 // Optimized for Indian residential architecture (Gurgaon / Delhi NCR standard)
 // with US alternates and free CC0 PBR texture mapping (Poly Haven / ambientCG).
 

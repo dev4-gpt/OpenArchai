@@ -13,7 +13,7 @@ export default async function LoginPage({
     <div className="flex min-h-screen items-center justify-center bg-background p-6">
       <form className="w-full max-w-sm space-y-5 rounded-lg border border-border bg-surface p-8 shadow-sm">
         <div className="space-y-1">
-          <h1 className="text-xl font-semibold tracking-tight">OpenArchai</h1>
+          <h1 className="text-xl font-semibold tracking-tight">AtelierOS</h1>
           <p className="text-sm text-muted">Floorplan to 3D model to styled render.</p>
         </div>
 

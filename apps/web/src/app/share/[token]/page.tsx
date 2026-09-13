@@ -54,7 +54,7 @@ export default async function SharePage({
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-surface px-6 py-4">
-        <span className="text-sm font-semibold tracking-tight">OpenArchai</span>
+        <span className="text-sm font-semibold tracking-tight">AtelierOS</span>
       </header>
       <main className="mx-auto max-w-2xl space-y-6 p-6">
         <div className="space-y-1">

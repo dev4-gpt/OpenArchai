@@ -1,4 +1,4 @@
-"""Automated Bill of Quantities (BOQ) and Cost Estimator for OpenArchai.
+"""Automated Bill of Quantities (BOQ) and Cost Estimator for AtelierOS.
 
 Consumes construction model elements (walls, doors, windows, bounds) and regional schedules of rates
 (rates_india.json or rates_us.json) to produce an architect-grade cost estimate across

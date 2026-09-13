@@ -101,7 +101,7 @@ def check_nbc_compliance(elements: Dict[str, Any], rooms: List[Dict[str, Any]] =
 
     # Ceiling Height standard check
     total_checks += 1
-    checks_passed += 1  # Default design standard meets 2.75m in OpenArchai
+    checks_passed += 1  # Default design standard meets 2.75m in AtelierOS
 
     score = round((checks_passed / max(1, total_checks)) * 100)
 

@@ -1,4 +1,4 @@
-"""OpenArchai Model Context Protocol (MCP) Server.
+"""AtelierOS Model Context Protocol (MCP) Server.
 
 Exposes architectural analysis, cost estimation, building code compliance (NBC, Vastu, DTCP),
 material selection, and multi-agent design consultation as standard MCP tools for external
@@ -212,7 +212,7 @@ def run_stdio_server():
                         "protocolVersion": "2024-11-05",
                         "capabilities": {"tools": {}},
                         "serverInfo": {
-                            "name": "openarchai-mcp-server",
+                            "name": "atelieros-mcp-server",
                             "version": "1.0.0"
                         }
                     }
