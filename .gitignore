@@ -26,3 +26,6 @@ __pycache__/
 .DS_Store
 *.pem
 npm-debug.log*
+
+# pnpm package cache
+.pnpm-store/
