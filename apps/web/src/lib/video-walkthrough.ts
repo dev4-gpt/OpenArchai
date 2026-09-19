@@ -110,8 +110,7 @@ export const SAMPLE_CINEMATIC_REELS: VideoWalkthroughReel[] = [
     title: "Cinematic 3D Turntable Walkthrough",
     mode: "orbit_360",
     durationSec: 12,
-    // CC0 / High-performance architectural MP4 loops
-    videoUrl: "https://assets.mixkit.co/videos/preview/mixkit-modern-apartment-living-room-with-a-couch-41586-large.mp4",
+    videoUrl: "/videos/reel-360-turntable.mp4",
     thumbnailUrl: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=600&q=80",
     keyframes: generateCameraPath("orbit_360"),
     prompt: "Modern minimalist studio apartment, warm natural afternoon sunlight, Italian marble and herringbone oak floors",
@@ -124,7 +123,7 @@ export const SAMPLE_CINEMATIC_REELS: VideoWalkthroughReel[] = [
     title: "Twilight Circadian Walkthrough (2700K Warm)",
     mode: "interior_glide",
     durationSec: 12,
-    videoUrl: "https://assets.mixkit.co/videos/preview/mixkit-luxury-home-interior-with-warm-lighting-41588-large.mp4",
+    videoUrl: "/videos/reel-twilight-glide.mp4",
     thumbnailUrl: "https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?w=600&q=80",
     keyframes: generateCameraPath("interior_glide"),
     prompt: "Evening twilight living room walkthrough, warm recessed ceiling spotlights, fluted timber acoustic panels",
