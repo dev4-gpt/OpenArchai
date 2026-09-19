@@ -125,16 +125,143 @@ function generateContextualFallback(role: AgentRole, prompt: string, context: Pr
   }
 }
 
+export interface ModelRoute {
+  provider: "groq" | "openrouter" | "gemini" | "nvidia";
+  model: string;
+}
+
+const AGENT_MODEL_ROUTES: Record<AgentRole, ModelRoute[]> = {
+  chief_architect: [
+    { provider: "groq", model: "llama-3.3-70b-versatile" },
+    { provider: "openrouter", model: "meta-llama/llama-3.3-70b-instruct" },
+    { provider: "openrouter", model: "google/gemini-2.5-flash" },
+    { provider: "gemini", model: "gemini-2.0-flash" },
+  ],
+  code_specialist: [
+    { provider: "gemini", model: "gemini-2.0-flash" },
+    { provider: "openrouter", model: "google/gemini-2.5-flash" },
+    { provider: "groq", model: "llama-3.3-70b-versatile" },
+  ],
+  interior_designer: [
+    { provider: "openrouter", model: "google/gemini-2.5-flash" },
+    { provider: "openrouter", model: "mistralai/mistral-large-2407" },
+    { provider: "gemini", model: "gemini-2.0-flash" },
+    { provider: "groq", model: "llama-3.3-70b-versatile" },
+  ],
+  cost_estimator: [
+    { provider: "groq", model: "deepseek-r1-distill-llama-70b" },
+    { provider: "openrouter", model: "deepseek/deepseek-r1-distill-llama-70b" },
+    { provider: "groq", model: "llama-3.3-70b-versatile" },
+    { provider: "openrouter", model: "google/gemini-2.5-flash" },
+    { provider: "gemini", model: "gemini-2.0-flash" },
+  ],
+};
+
+async function callOpenAICompatible(
+  endpointUrl: string,
+  apiKey: string,
+  model: string,
+  messages: Array<{ role: string; content: string }>,
+  maxTokens = 1000,
+  extraHeaders: Record<string, string> = {},
+): Promise<string> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+  try {
+    const res = await fetch(endpointUrl, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        ...extraHeaders,
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature: 0.7,
+        max_tokens: maxTokens,
+      }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!res.ok) {
+      const errorText = await res.text().catch(() => "");
+      console.warn(`[Agent Router] ${model} on ${endpointUrl} returned HTTP ${res.status}:`, errorText.slice(0, 150));
+      return "";
+    }
+
+    const json = await res.json();
+    let content = json.choices?.[0]?.message?.content || "";
+    // Clean any DeepSeek-R1 thinking tokens
+    content = content.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+    return content;
+  } catch (err) {
+    clearTimeout(timeoutId);
+    console.warn(`[Agent Router] Failed call to ${endpointUrl} for ${model}:`, err);
+    return "";
+  }
+}
+
+async function callGeminiDirect(
+  geminiKey: string,
+  model: string,
+  fullPrompt: string,
+  maxTokens = 1000,
+): Promise<string> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ role: "user", parts: [{ text: fullPrompt }] }],
+          generationConfig: {
+            maxOutputTokens: maxTokens,
+            temperature: 0.7,
+          },
+        }),
+        signal: controller.signal,
+      },
+    );
+
+    clearTimeout(timeoutId);
+
+    if (!res.ok) {
+      const errorText = await res.text().catch(() => "");
+      console.warn(`[Agent Router] Gemini returned HTTP ${res.status}:`, errorText.slice(0, 150));
+      return "";
+    }
+
+    const json = await res.json();
+    return json.candidates?.[0]?.content?.parts?.[0]?.text || "";
+  } catch (err) {
+    clearTimeout(timeoutId);
+    console.warn(`[Agent Router] Failed call to Gemini direct:`, err);
+    return "";
+  }
+}
+
 /**
  * Executes a collaborative consultation across the specified agent roles in parallel.
+ * Utilizes a multi-model smart router with automatic provider failover:
+ * Groq LPUs -> OpenRouter -> Gemini Direct -> Domain Fallback.
  */
 export async function consultAgentTeam(
   prompt: string,
   context: ProjectContext,
   roles: AgentRole[] = ["chief_architect", "code_specialist", "interior_designer", "cost_estimator"],
 ): Promise<AgentMessage[]> {
-  const geminiKey = process.env.GEMINI_API_KEY;
+  const groqKey = process.env.GROQ_API_KEY;
   const openRouterKey = process.env.OPENROUTER_API_KEY;
+  const geminiKey = process.env.GEMINI_API_KEY;
+  const nvidiaKey = process.env.NVIDIA_API_KEY;
 
   const contextSummary = `
 Project Context:
@@ -148,65 +275,73 @@ Project Context:
   const results = await Promise.all(
     roles.map(async (role) => {
       const profile = AGENT_PROFILES[role];
+      const routes = AGENT_MODEL_ROUTES[role] || [
+        { provider: "openrouter", model: "google/gemini-2.5-flash" },
+      ];
+
+      const systemPrompt = `${profile.systemPrompt}\n\n${contextSummary}\n\nYou are consulting as ${profile.name} (${profile.title}) on the user's project. Answer the user's question directly and authoritatively in 1-2 focused paragraphs with real architectural specifics and actionable guidance. Format with clean natural typography and avoid using raw markdown asterisks (**) for bolding.`;
+
       let responseText = "";
 
-      // 1. Try Gemini API directly if key is available
-      if (geminiKey) {
-        try {
-          const fullPrompt = `${profile.systemPrompt}\n\n${contextSummary}\n\nUser Question/Brief:\n"${prompt}"\n\nProvide your expert feedback in 1-2 concise, actionable paragraphs with specific architectural recommendations answering this exact question. Format with clear, natural typography and avoid using raw markdown asterisks (**) for bolding.`;
-          const res = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                contents: [{ role: "user", parts: [{ text: fullPrompt }] }],
-              }),
-            },
+      for (const route of routes) {
+        if (route.provider === "groq" && groqKey) {
+          responseText = await callOpenAICompatible(
+            "https://api.groq.com/openai/v1/chat/completions",
+            groqKey,
+            route.model,
+            [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: prompt },
+            ],
+            1000,
           );
-          if (res.ok) {
-            const json = await res.json();
-            responseText = json.candidates?.[0]?.content?.parts?.[0]?.text || "";
-          }
-        } catch (err) {
-          console.error(`Gemini direct call for ${role} failed:`, err);
+          if (responseText) break;
         }
-      }
 
-      // 2. Try OpenRouter (Gemini 2.5 Flash / GPT-4o-mini)
-      if (!responseText && openRouterKey) {
-        try {
-          const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-            method: "POST",
-            headers: {
-              "Authorization": `Bearer ${openRouterKey}`,
-              "Content-Type": "application/json",
+        if (route.provider === "openrouter" && openRouterKey) {
+          responseText = await callOpenAICompatible(
+            "https://openrouter.ai/api/v1/chat/completions",
+            openRouterKey,
+            route.model,
+            [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: prompt },
+            ],
+            1000,
+            {
               "HTTP-Referer": "https://atelieros-cloud.vercel.app",
               "X-Title": "AtelierOS Architectural Studio",
             },
-            body: JSON.stringify({
-              model: "google/gemini-2.5-flash",
-              messages: [
-                {
-                  role: "system",
-                  content: `${profile.systemPrompt}\n\n${contextSummary}\n\nYou are consulting as ${profile.name} (${profile.title}) on the user's project. Answer the user's question directly and concisely in 1-2 focused paragraphs with real architectural specifics and actionable guidance. Format with clean natural typography and avoid using raw markdown asterisks (**) for bolding.`,
-                },
-                { role: "user", content: prompt },
-              ],
-              temperature: 0.7,
-              max_tokens: 400,
-            }),
-          });
-          if (res.ok) {
-            const json = await res.json();
-            responseText = json.choices?.[0]?.message?.content || "";
-          }
-        } catch (err) {
-          console.error(`OpenRouter call for ${role} failed:`, err);
+          );
+          if (responseText) break;
+        }
+
+        if (route.provider === "nvidia" && nvidiaKey) {
+          responseText = await callOpenAICompatible(
+            "https://integrate.api.nvidia.com/v1/chat/completions",
+            nvidiaKey,
+            route.model,
+            [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: prompt },
+            ],
+            1000,
+          );
+          if (responseText) break;
+        }
+
+        if (route.provider === "gemini" && geminiKey) {
+          responseText = await callGeminiDirect(
+            geminiKey,
+            route.model,
+            `${systemPrompt}\n\nUser Question/Brief:\n"${prompt}"`,
+            1000,
+          );
+          if (responseText) break;
         }
       }
 
-      // 3. Dynamic domain fallback if all API calls are unavailable
+      // 3. Dynamic domain fallback if all API calls are unavailable or rate-limited
       if (!responseText) {
         responseText = generateContextualFallback(role, prompt, context);
       }
@@ -220,7 +355,7 @@ Project Context:
         content: responseText,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       } as AgentMessage;
-    })
+    }),
   );
 
   return results;
