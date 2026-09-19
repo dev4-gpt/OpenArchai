@@ -17,7 +17,11 @@ export const metadata: Metadata = {
   description: "AI Operating System for Architects & Interior Designers.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html
       lang="en"

@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { floorPlanStore, useFloorPlanStore } from "./state/floor-plan-store";
-import type { Point, Wall, Door, Window, Room } from "./types";
+import type { Point, Wall, Door, Window, Room, FurnitureItem } from "./types";
 import { metersToUnit, unitLabel, type UnitSystem } from "@/lib/units";
+import { parseDxfContent } from "@/lib/dxf-import";
 
 export function EditorCanvas({ unitSystem = "metric" }: { unitSystem?: UnitSystem }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -14,7 +15,7 @@ export function EditorCanvas({ unitSystem = "metric" }: { unitSystem?: UnitSyste
   const [hoveredDeleteId, setHoveredDeleteId] = useState<string | null>(null);
 
   const { floorPlan, tool, drawingPoints, snapPoint, selectedIds } = state;
-  const { zoom, panOffset, walls, doors, windows, rooms } = floorPlan;
+  const { zoom, panOffset, walls, doors, windows, rooms, furniture = [] } = floorPlan;
 
   // Convert screen coordinates to world coordinates (meters)
   const screenToWorld = useCallback(
@@ -221,6 +222,61 @@ export function EditorCanvas({ unitSystem = "metric" }: { unitSystem?: UnitSyste
       ctx.setLineDash([]);
     }
 
+    // 6.5. Render Furniture Elements
+    for (const item of furniture) {
+      const isSelected = selectedIds.includes(item.id);
+      const isDeleteHover = tool === "eraser" && hoveredDeleteId === item.id;
+      const center = worldToScreen(item.position.x, item.position.y);
+      const w = item.width * zoom;
+      const d = item.depth * zoom;
+
+      ctx.save();
+      ctx.translate(center.x, center.y);
+      ctx.rotate((item.rotation * Math.PI) / 180);
+
+      ctx.fillStyle = isDeleteHover ? "#fee2e2" : isSelected ? "#fef3c7" : "#faf5ef";
+      ctx.strokeStyle = isDeleteHover ? "#ef4444" : isSelected ? "#d97706" : "#8c786a";
+      ctx.lineWidth = isSelected || isDeleteHover ? 2 : 1.5;
+
+      ctx.beginPath();
+      ctx.roundRect(-w / 2, -d / 2, w, d, 4);
+      ctx.fill();
+      ctx.stroke();
+
+      if (item.type === "sofa") {
+        ctx.strokeStyle = "#a89485";
+        ctx.lineWidth = 1;
+        ctx.strokeRect(-w / 2 + 3, -d / 2 + 3, w - 6, d / 3);
+      } else if (item.type === "bed") {
+        ctx.fillStyle = "#ffffff";
+        ctx.strokeStyle = "#a89485";
+        ctx.lineWidth = 1;
+        const pw = Math.max(4, (w - 12) / 2);
+        ctx.fillRect(-w / 2 + 4, -d / 2 + 4, pw, d * 0.28);
+        ctx.strokeRect(-w / 2 + 4, -d / 2 + 4, pw, d * 0.28);
+        ctx.fillRect(2, -d / 2 + 4, pw, d * 0.28);
+        ctx.strokeRect(2, -d / 2 + 4, pw, d * 0.28);
+      } else if (item.type === "table") {
+        ctx.strokeStyle = "#b8a596";
+        ctx.lineWidth = 1;
+        ctx.strokeRect(-w / 2 + 3, -d / 2 + 3, w - 6, d - 6);
+      } else if (item.type === "sanitaryware") {
+        ctx.strokeStyle = "#a89485";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, Math.max(2, w / 2 - 3), Math.max(2, d / 2 - 3), 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      ctx.fillStyle = isDeleteHover ? "#ef4444" : isSelected ? "#b45309" : "#635246";
+      ctx.font = "bold 9px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(item.tag || item.name, 0, 0);
+
+      ctx.restore();
+    }
+
     // 7. Active drawing wall preview
     if (drawingPoints.length === 1 && mousePos) {
       const p1 = worldToScreen(drawingPoints[0].x, drawingPoints[0].y);
@@ -265,6 +321,7 @@ export function EditorCanvas({ unitSystem = "metric" }: { unitSystem?: UnitSyste
     doors,
     windows,
     rooms,
+    furniture,
     zoom,
     panOffset,
     drawingPoints,
@@ -300,13 +357,13 @@ export function EditorCanvas({ unitSystem = "metric" }: { unitSystem?: UnitSyste
     } else if (tool === "window") {
       floorPlanStore.addWindow(snap);
     } else if (tool === "eraser") {
-      const targetId = findElementAt(rawWorld, walls, doors, windows, rooms);
+      const targetId = findElementAt(rawWorld, walls, doors, windows, rooms, furniture);
       if (targetId) {
         floorPlanStore.deleteElement(targetId);
         setHoveredDeleteId(null);
       }
     } else if (tool === "select") {
-      const foundId = findElementAt(rawWorld, walls, doors, windows, rooms);
+      const foundId = findElementAt(rawWorld, walls, doors, windows, rooms, furniture);
       if (foundId) {
         floorPlanStore.selectElement(foundId, e.shiftKey);
       } else {
@@ -334,7 +391,7 @@ export function EditorCanvas({ unitSystem = "metric" }: { unitSystem?: UnitSyste
     floorPlanStore.setSnapPoint(snap);
 
     if (tool === "eraser") {
-      const hitId = findElementAt(rawWorld, walls, doors, windows, rooms);
+      const hitId = findElementAt(rawWorld, walls, doors, windows, rooms, furniture);
       setHoveredDeleteId(hitId);
     } else if (hoveredDeleteId) {
       setHoveredDeleteId(null);
@@ -357,6 +414,11 @@ export function EditorCanvas({ unitSystem = "metric" }: { unitSystem?: UnitSyste
       floorPlanStore.clearSelection();
     } else if (e.key === "Backspace" || e.key === "Delete") {
       floorPlanStore.deleteSelected();
+    } else if (e.key === "r" || e.key === "R") {
+      const selectedFurn = furniture.find((f) => selectedIds.includes(f.id));
+      if (selectedFurn) {
+        floorPlanStore.rotateFurniture(selectedFurn.id);
+      }
     } else if (e.key === "z" && (e.metaKey || e.ctrlKey)) {
       if (e.shiftKey) {
         floorPlanStore.redo();
@@ -366,10 +428,48 @@ export function EditorCanvas({ unitSystem = "metric" }: { unitSystem?: UnitSyste
     }
   }
 
+  function handleDragOver(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    const file = e.dataTransfer.files?.[0];
+    if (!file || !file.name.toLowerCase().endsWith(".dxf")) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      if (!text) return;
+      try {
+        const parsed = parseDxfContent(text);
+        if (parsed.walls.length > 0) {
+          floorPlanStore.loadPlan({
+            walls: parsed.walls,
+            doors: [],
+            windows: [],
+            rooms: [],
+            furniture: [],
+            gridSize: 0.5,
+            panOffset: { x: 300, y: 250 },
+            zoom: 35,
+          });
+        }
+      } catch (err) {
+        console.error("Failed to drop DXF:", err);
+      }
+    };
+    reader.readAsText(file);
+  }
+
   return (
     <div
       tabIndex={0}
       onKeyDown={handleKeyDown}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
       className={`relative h-[500px] w-full overflow-hidden rounded-b-lg bg-[#faf8f4] outline-none ${
         tool === "eraser" ? "cursor-pointer" : "cursor-crosshair"
       }`}
@@ -387,10 +487,10 @@ export function EditorCanvas({ unitSystem = "metric" }: { unitSystem?: UnitSyste
         {tool === "wall"
           ? "Click to place wall points. Press Escape to finish."
           : tool === "select"
-          ? "Click wall/opening to select. Backspace to delete."
+          ? "Click item to select. 'R' key to rotate furniture. Backspace to delete."
           : tool === "eraser"
-          ? "Click any wall, door, or window to delete it."
-          : `Click to place ${tool}.`}
+          ? "Click any element to delete it."
+          : `Click to place ${tool}. Drag & drop AutoCAD .DXF file directly onto canvas to import.`}
       </div>
     </div>
   );
@@ -402,9 +502,16 @@ function findElementAt(
   walls: Wall[],
   doors: Door[],
   windows: Window[],
-  rooms: Room[]
+  rooms: Room[],
+  furniture: FurnitureItem[] = []
 ): string | null {
-  // Check doors and windows first (points)
+  // Check furniture first (clickable bounds)
+  for (const f of furniture) {
+    if (Math.hypot(f.position.x - pt.x, f.position.y - pt.y) < Math.max(f.width, f.depth) / 2 + 0.2) {
+      return f.id;
+    }
+  }
+  // Check doors and windows next (points)
   for (const d of doors) {
     if (Math.hypot(d.position.x - pt.x, d.position.y - pt.y) < 0.5) {
       return d.id;

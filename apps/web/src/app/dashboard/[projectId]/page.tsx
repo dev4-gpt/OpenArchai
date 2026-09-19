@@ -15,6 +15,9 @@ import { CommandHistory } from "@/components/voice-assistant/command-history";
 import { CostPanel } from "./cost-panel";
 import { CompliancePanel } from "./compliance-panel";
 import { AgentTeamModal } from "./agent-team-modal";
+import { FFESchedulePanel } from "@/components/ffe/ffe-schedule-panel";
+import { MoodboardTrigger } from "@/components/moodboard/moodboard-modal";
+import type { ConstructionElements } from "@/components/floor-plan-editor/export/to-elements";
 import type { UnitSystem } from "@/lib/units";
 
 export default async function ProjectPage({
@@ -65,13 +68,6 @@ export default async function ProjectPage({
     .eq("project_id", projectId)
     .order("created_at", { ascending: false });
 
-  type ConstructionElements = {
-    walls: { start: [number, number]; end: [number, number] }[];
-    doors: { position: [number, number]; width_m: number | null }[];
-    windows: { position: [number, number]; width_m: number | null }[];
-    floor_bounds: { min_x: number; min_y: number; max_x: number; max_y: number };
-  };
-
   const constructionModels = (constructionModelsRaw ?? []).map((m) => ({
     id: m.id,
     status: m.status,
@@ -110,6 +106,8 @@ export default async function ProjectPage({
               <span>🖥️</span>
               <span>Presentation</span>
             </Link>
+
+            <MoodboardTrigger />
 
             <AgentTeamModal
               projectName={project.name}
@@ -180,6 +178,13 @@ export default async function ProjectPage({
 
         {/* Bill of Quantities & Cost Estimation */}
         <CostPanel
+          elements={constructionModels[0]?.elements}
+          region={region}
+          projectName={project.name}
+        />
+
+        {/* FF&E Schedule */}
+        <FFESchedulePanel
           elements={constructionModels[0]?.elements}
           region={region}
           projectName={project.name}

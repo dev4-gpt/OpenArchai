@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { PresentationClient } from "./presentation-client";
 import { getModelSignedUrl, getRenderSignedUrl } from "../model-actions";
+import { getDemoProjectData } from "@/lib/demo-data";
 import type { ConstructionElements } from "@/components/floor-plan-editor/export/to-elements";
 
 export default async function PresentationPage({
@@ -10,6 +11,21 @@ export default async function PresentationPage({
   params: Promise<{ projectId: string }>;
 }) {
   const { projectId } = await params;
+
+  if (projectId === "demo") {
+    const demo = await getDemoProjectData();
+    return (
+      <PresentationClient
+        project={demo.project}
+        models={demo.modelUrl ? [{ id: "demo_m1", gltf_storage_path: "demo" }] : []}
+        renders={demo.renderUrl ? [{ id: "demo_r1", image_storage_path: "demo", prompt_style: demo.renderStyle || "Modern Luxury" }] : []}
+        elements={demo.constructionElements}
+        signedModelUrl={demo.modelUrl}
+        signedRenderUrls={demo.renderUrl ? [{ prompt: demo.renderStyle || "Modern Luxury", url: demo.renderUrl }] : []}
+      />
+    );
+  }
+
   const supabase = await createClient();
 
   const { data: project } = await supabase

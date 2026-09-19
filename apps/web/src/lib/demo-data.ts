@@ -42,6 +42,13 @@ const DEFAULT_DEMO_FLOORPLAN: FloorPlan = {
       area: 15,
     },
   ],
+  furniture: [
+    { id: "f1", ffeId: "ffe_sectional_sofa", name: "Sectional Sofa", type: "sofa", position: { x: 1.5, y: 1.8 }, width: 2.4, depth: 1.0, rotation: 0 },
+    { id: "f2", ffeId: "ffe_coffee_table", name: "Noguchi Coffee Table", type: "table", position: { x: 1.5, y: 0.9 }, width: 1.2, depth: 0.6, rotation: 0 },
+    { id: "f3", ffeId: "ffe_king_bed", name: "King Platform Bed", type: "bed", position: { x: 3.8, y: 1.8 }, width: 1.9, depth: 2.1, rotation: 0 },
+    { id: "f4", ffeId: "ffe_eames_lounge", name: "Eames Lounge Chair", type: "chair", position: { x: 2.9, y: 0.8 }, width: 0.85, depth: 0.85, rotation: 0 },
+    { id: "f5", ffeId: "ffe_dining_table", name: "Oak Dining Table", type: "table", position: { x: 0.6, y: 0.6 }, width: 1.2, depth: 0.8, rotation: 90 },
+  ],
   gridSize: 0.5,
   panOffset: { x: 160, y: 140 },
   zoom: 40,
@@ -59,6 +66,13 @@ const DEFAULT_DEMO_ELEMENTS: ConstructionElements = {
   ],
   windows: [
     { position: [5, 1.5] as [number, number], width_m: 1.2 },
+  ],
+  furniture: [
+    { id: "f1", ffeId: "ffe_sectional_sofa", name: "Sectional Sofa", type: "sofa", position: [1.5, 1.8], width_m: 2.4, depth_m: 1.0, rotation_deg: 0 },
+    { id: "f2", ffeId: "ffe_coffee_table", name: "Noguchi Coffee Table", type: "table", position: [1.5, 0.9], width_m: 1.2, depth_m: 0.6, rotation_deg: 0 },
+    { id: "f3", ffeId: "ffe_king_bed", name: "King Platform Bed", type: "bed", position: [3.8, 1.8], width_m: 1.9, depth_m: 2.1, rotation_deg: 0 },
+    { id: "f4", ffeId: "ffe_eames_lounge", name: "Eames Lounge Chair", type: "chair", position: [2.9, 0.8], width_m: 0.85, depth_m: 0.85, rotation_deg: 0 },
+    { id: "f5", ffeId: "ffe_dining_table", name: "Oak Dining Table", type: "table", position: [0.6, 0.6], width_m: 1.2, depth_m: 0.8, rotation_deg: 90 },
   ],
   floor_bounds: { min_x: 0, min_y: 0, max_x: 5, max_y: 3 },
 };

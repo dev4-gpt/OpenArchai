@@ -3,21 +3,139 @@
 import { Suspense, Component, type ReactNode, useState, useRef, useEffect } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, useGLTF, Environment, Bounds, Center, ContactShadows, Html, Line } from "@react-three/drei";
-import { Vector3, PerspectiveCamera as PerspectiveCameraType, WebGLRenderer } from "three";
+import { Vector3, PerspectiveCamera as PerspectiveCameraType, WebGLRenderer, MeshStandardMaterial, Color } from "three";
 import { metersToUnit, unitLabel } from "@/lib/units";
 
-// --- Icons ---
-const TopIcon = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="12" cy="12" r="2"/></svg>;
-const FrontIcon = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 15h18"/></svg>;
-const PerspectiveIcon = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>;
-const ResetIcon = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>;
-const MeasureIcon = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="8" width="18" height="8" rx="1"/><path d="M7 8v4"/><path d="M11 8v4"/><path d="M15 8v4"/></svg>;
-const ScreenshotIcon = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>;
-const FullscreenIcon = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>;
-const ExitFullscreenIcon = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/></svg>;
+export interface MaterialPreset {
+  id: string;
+  name: string;
+  category: "flooring" | "walls";
+  colorHex: string;
+  roughness: number;
+  metalness: number;
+}
 
-function Model({ url, onPointerDown }: { url: string; onPointerDown?: (e: any) => void }) {
+export const FLOORING_SWAPS: MaterialPreset[] = [
+  { id: "fl_italian_statuario", name: "Italian Statuario Marble", category: "flooring", colorHex: "#f8f7f5", roughness: 0.15, metalness: 0.05 },
+  { id: "fl_kota_stone", name: "Kota Stone (Honed)", category: "flooring", colorHex: "#7a8a7c", roughness: 0.8, metalness: 0.0 },
+  { id: "fl_herringbone_oak", name: "Herringbone Oak Wood", category: "flooring", colorHex: "#b58a5b", roughness: 0.45, metalness: 0.0 },
+];
+
+export const WALL_SWAPS: MaterialPreset[] = [
+  { id: "wl_asian_paints_royale", name: "Asian Paints Royale", category: "walls", colorHex: "#f5f0eb", roughness: 0.85, metalness: 0.0 },
+  { id: "wl_raw_concrete", name: "Raw Concrete", category: "walls", colorHex: "#949699", roughness: 0.9, metalness: 0.05 },
+  { id: "wl_fluted_wood", name: "Fluted Wood Panels", category: "walls", colorHex: "#7a5332", roughness: 0.5, metalness: 0.02 },
+];
+
+export type CircadianPreset = "morning" | "afternoon" | "golden" | "evening";
+
+export const CIRCADIAN_CONFIGS: Record<
+  CircadianPreset,
+  {
+    label: string;
+    temp: string;
+    icon: string;
+    dirLight: { pos: [number, number, number]; color: string; intensity: number };
+    ambientLight: { color: string; intensity: number };
+    bg: string;
+    env: "dawn" | "apartment" | "sunset" | "night";
+    showWarmRecessed: boolean;
+  }
+> = {
+  morning: {
+    label: "Morning Sun",
+    temp: "5000K",
+    icon: "🌅",
+    dirLight: { pos: [12, 6, 8], color: "#fff6ea", intensity: 1.3 },
+    ambientLight: { color: "#eef4ff", intensity: 0.8 },
+    bg: "#f2f6fc",
+    env: "dawn",
+    showWarmRecessed: false,
+  },
+  afternoon: {
+    label: "Afternoon Haze",
+    temp: "4000K",
+    icon: "☀️",
+    dirLight: { pos: [3, 14, 5], color: "#fff9e6", intensity: 1.5 },
+    ambientLight: { color: "#fdfbf7", intensity: 0.7 },
+    bg: "#f5f2ec",
+    env: "apartment",
+    showWarmRecessed: false,
+  },
+  golden: {
+    label: "Golden Hour",
+    temp: "3200K",
+    icon: "🌇",
+    dirLight: { pos: [-12, 3, 6], color: "#ffb066", intensity: 1.2 },
+    ambientLight: { color: "#ffe4cc", intensity: 0.65 },
+    bg: "#fef3e7",
+    env: "sunset",
+    showWarmRecessed: false,
+  },
+  evening: {
+    label: "Evening Recessed",
+    temp: "2700K",
+    icon: "🌙",
+    dirLight: { pos: [0, 2, 0], color: "#281b14", intensity: 0.2 },
+    ambientLight: { color: "#111827", intensity: 0.35 },
+    bg: "#0b0f19",
+    env: "night",
+    showWarmRecessed: true,
+  },
+};
+
+function Model({
+  url,
+  flooringPreset,
+  wallPreset,
+  onPointerDown,
+}: {
+  url: string;
+  flooringPreset?: MaterialPreset;
+  wallPreset?: MaterialPreset;
+  onPointerDown?: (e: any) => void;
+}) {
   const { scene } = useGLTF(url);
+
+  useEffect(() => {
+    if (!scene) return;
+    scene.traverse((child: any) => {
+      if (child.isMesh && child.geometry) {
+        child.geometry.computeBoundingBox();
+        const box = child.geometry.boundingBox;
+        const name = (child.name || "").toLowerCase();
+        const matName = (child.material?.name || "").toLowerCase();
+
+        const isFloor =
+          name.includes("floor") ||
+          name.includes("slab") ||
+          matName.includes("floor") ||
+          (box && box.max.y - box.min.y < 0.25);
+
+        const isWall =
+          name.includes("wall") ||
+          matName.includes("wall") ||
+          (box && box.max.y - box.min.y >= 0.25);
+
+        if (isFloor && flooringPreset) {
+          child.material = new MeshStandardMaterial({
+            color: new Color(flooringPreset.colorHex),
+            roughness: flooringPreset.roughness,
+            metalness: flooringPreset.metalness,
+          });
+          child.material.needsUpdate = true;
+        } else if (isWall && wallPreset) {
+          child.material = new MeshStandardMaterial({
+            color: new Color(wallPreset.colorHex),
+            roughness: wallPreset.roughness,
+            metalness: wallPreset.metalness,
+          });
+          child.material.needsUpdate = true;
+        }
+      }
+    });
+  }, [scene, flooringPreset, wallPreset]);
+
   return <primitive object={scene} onPointerDown={onPointerDown} />;
 }
 
@@ -51,6 +169,72 @@ class ViewerErrorBoundary extends Component<{ children: ReactNode }, { hasError:
   }
 }
 
+function TopIcon() {
+  return (
+    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M12 19V5M5 12l7-7 7 7" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function FrontIcon() {
+  return (
+    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+    </svg>
+  );
+}
+
+function PerspectiveIcon() {
+  return (
+    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ResetIcon() {
+  return (
+    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M3 3v5h5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function MeasureIcon() {
+  return (
+    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M2 12h20M7 12v3M12 12v3M17 12v3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ScreenshotIcon() {
+  return (
+    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="12" cy="13" r="4" />
+    </svg>
+  );
+}
+
+function FullscreenIcon() {
+  return (
+    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ExitFullscreenIcon() {
+  return (
+    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M4 14h6v6m10-10h-6V4m0 6 7-7M3 21l7-7" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export function ModelViewer({ 
   url, 
   unitSystem = "metric" 
@@ -66,6 +250,12 @@ export function ModelViewer({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isMeasuring, setIsMeasuring] = useState(false);
   const [measurePoints, setMeasurePoints] = useState<Vector3[]>([]);
+  const [circadian, setCircadian] = useState<CircadianPreset>("afternoon");
+  const [selectedFlooring, setSelectedFlooring] = useState<MaterialPreset>(FLOORING_SWAPS[0]);
+  const [selectedWall, setSelectedWall] = useState<MaterialPreset>(WALL_SWAPS[0]);
+  const [showMaterialDrawer, setShowMaterialDrawer] = useState(false);
+
+  const currentLighting = CIRCADIAN_CONFIGS[circadian];
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -130,6 +320,7 @@ export function ModelViewer({
 
   return (
     <div ref={containerRef} className={`relative w-full overflow-hidden rounded-lg border border-border bg-surface ${isFullscreen ? 'h-screen' : 'h-96'}`}>
+      {/* Top Controls Bar */}
       <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 rounded-lg bg-surface/80 backdrop-blur-sm p-1.5 shadow-sm border border-border">
         {/* View Presets */}
         <div className="flex items-center gap-0.5 border-r border-border pr-1.5">
@@ -155,6 +346,111 @@ export function ModelViewer({
         </div>
       </div>
 
+      {/* Bottom Left: Circadian Lighting Simulation Bar */}
+      <div className="absolute bottom-2 left-2 z-10 flex items-center gap-1 rounded-lg bg-surface/85 backdrop-blur-sm p-1 shadow-sm border border-border text-xs">
+        <span className="px-1 text-[10px] font-bold text-muted uppercase tracking-wider hidden sm:inline">Sun:</span>
+        {(Object.keys(CIRCADIAN_CONFIGS) as CircadianPreset[]).map((key) => {
+          const cfg = CIRCADIAN_CONFIGS[key];
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setCircadian(key)}
+              className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
+                circadian === key
+                  ? "bg-accent text-accent-foreground font-semibold shadow-xs"
+                  : "text-muted hover:text-foreground hover:bg-surface/50"
+              }`}
+              title={`${cfg.label} (${cfg.temp})`}
+            >
+              <span>{cfg.icon}</span>
+              <span className="hidden md:inline">{cfg.label}</span>
+              <span className="text-[9px] opacity-75 font-mono">({cfg.temp})</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Bottom Right: Live Material Swapper Palette Trigger */}
+      <div className="absolute bottom-2 right-2 z-10 flex flex-col items-end gap-2">
+        {showMaterialDrawer && (
+          <div className="w-72 rounded-xl border border-border bg-surface/95 backdrop-blur-md p-3 shadow-lg space-y-3 text-xs mb-1">
+            <div className="flex items-center justify-between border-b border-border pb-2">
+              <span className="font-bold text-foreground flex items-center gap-1.5">
+                <span>🎨</span> Live Material Swapper
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowMaterialDrawer(false)}
+                className="text-muted hover:text-foreground text-xs"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Flooring Swaps */}
+            <div className="space-y-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted">Flooring:</span>
+              <div className="grid grid-cols-1 gap-1">
+                {FLOORING_SWAPS.map((f) => (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onClick={() => setSelectedFlooring(f)}
+                    className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg border text-left transition-all ${
+                      selectedFlooring.id === f.id
+                        ? "border-accent bg-accent/10 font-semibold text-accent"
+                        : "border-border/60 hover:border-accent/40 text-foreground"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="h-3 w-3 rounded-full border border-black/20" style={{ backgroundColor: f.colorHex }} />
+                      <span className="truncate">{f.name}</span>
+                    </div>
+                    {selectedFlooring.id === f.id && <span className="text-[10px]">✓</span>}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Wall Swaps */}
+            <div className="space-y-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted">Wall Finishes:</span>
+              <div className="grid grid-cols-1 gap-1">
+                {WALL_SWAPS.map((w) => (
+                  <button
+                    key={w.id}
+                    type="button"
+                    onClick={() => setSelectedWall(w)}
+                    className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg border text-left transition-all ${
+                      selectedWall.id === w.id
+                        ? "border-accent bg-accent/10 font-semibold text-accent"
+                        : "border-border/60 hover:border-accent/40 text-foreground"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="h-3 w-3 rounded-full border border-black/20" style={{ backgroundColor: w.colorHex }} />
+                      <span className="truncate">{w.name}</span>
+                    </div>
+                    {selectedWall.id === w.id && <span className="text-[10px]">✓</span>}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={() => setShowMaterialDrawer(!showMaterialDrawer)}
+          className="flex items-center gap-1.5 rounded-lg bg-surface/90 backdrop-blur-sm px-3 py-1.5 text-xs font-semibold text-foreground hover:border-accent/40 shadow-sm border border-border transition-colors"
+        >
+          <span>🎨</span>
+          <span>Material Swapper</span>
+          <span className="text-[10px] font-mono text-accent">({selectedFlooring.name.split(" ")[0]} / {selectedWall.name.split(" ")[0]})</span>
+        </button>
+      </div>
+
       <Canvas 
         camera={{ position: [6, 6, 6], fov: 45 }} 
         dpr={[1, 2]}
@@ -164,14 +460,30 @@ export function ModelViewer({
           cameraRef.current = camera as PerspectiveCameraType;
         }}
       >
-        <color attach="background" args={["#f5f2ec"]} />
-        <ambientLight intensity={0.7} />
-        <directionalLight position={[5, 10, 5]} intensity={1} />
+        <color attach="background" args={[currentLighting.bg]} />
+        <ambientLight color={currentLighting.ambientLight.color} intensity={currentLighting.ambientLight.intensity} />
+        <directionalLight
+          position={currentLighting.dirLight.pos}
+          color={currentLighting.dirLight.color}
+          intensity={currentLighting.dirLight.intensity}
+        />
+        {currentLighting.showWarmRecessed && (
+          <>
+            <pointLight position={[0, 2.5, 0]} color="#ff9e42" intensity={3.5} distance={10} />
+            <pointLight position={[2, 2.2, 2]} color="#ffaa55" intensity={2.5} distance={8} />
+            <pointLight position={[-2, 2.2, -2]} color="#ffaa55" intensity={2.5} distance={8} />
+          </>
+        )}
         <ViewerErrorBoundary>
           <Suspense fallback={<Loader />}>
             <Bounds fit clip observe margin={1.3}>
               <Center>
-                <Model url={url} onPointerDown={handlePointerDown} />
+                <Model
+                  url={url}
+                  flooringPreset={selectedFlooring}
+                  wallPreset={selectedWall}
+                  onPointerDown={handlePointerDown}
+                />
               </Center>
             </Bounds>
             {measurePoints.length === 2 && (
@@ -184,8 +496,8 @@ export function ModelViewer({
                 </Html>
               </>
             )}
-            <Environment preset="apartment" />
-            <ContactShadows position={[0, -0.01, 0]} opacity={0.35} scale={12} blur={2} far={10} />
+            <Environment preset={currentLighting.env} />
+            <ContactShadows position={[0, -0.01, 0]} opacity={circadian === "evening" ? 0.15 : 0.35} scale={12} blur={2} far={10} />
           </Suspense>
         </ViewerErrorBoundary>
         <OrbitControls ref={controlsRef} makeDefault enableDamping dampingFactor={0.08} minDistance={2} maxDistance={40} />

@@ -6,6 +6,17 @@ export interface ConstructionElements {
   windows: { position: [number, number]; width_m: number | null }[];
   floor_bounds: { min_x: number; min_y: number; max_x: number; max_y: number };
   units_source?: string;
+  furniture?: {
+    id: string;
+    ffeId?: string;
+    name: string;
+    type: string;
+    position: [number, number];
+    width_m: number;
+    depth_m: number;
+    rotation_deg?: number;
+    tag?: string;
+  }[];
 }
 
 /**
@@ -26,6 +37,18 @@ export function floorPlanToElements(plan: FloorPlan): ConstructionElements {
   const windows = plan.windows.map((w) => ({
     position: [w.position.x, w.position.y] as [number, number],
     width_m: w.width,
+  }));
+
+  const furniture = (plan.furniture || []).map((f) => ({
+    id: f.id,
+    ffeId: f.ffeId,
+    name: f.name,
+    type: f.type,
+    position: [f.position.x, f.position.y] as [number, number],
+    width_m: f.width,
+    depth_m: f.depth,
+    rotation_deg: f.rotation,
+    tag: f.tag,
   }));
 
   let min_x = 0;
@@ -52,5 +75,6 @@ export function floorPlanToElements(plan: FloorPlan): ConstructionElements {
     windows,
     floor_bounds: { min_x, min_y, max_x, max_y },
     units_source: "editor_metric",
+    furniture,
   };
 }

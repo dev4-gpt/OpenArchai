@@ -1,5 +1,5 @@
 import { useState, useCallback, useSyncExternalStore } from "react";
-import type { FloorPlan, EditorTool, Point, Wall, Door, Window, Room } from "../types";
+import type { FloorPlan, EditorTool, Point, Wall, Door, Window, Room, FurnitureItem } from "../types";
 
 export interface EditorState {
   tool: EditorTool;
@@ -16,6 +16,7 @@ const initialFloorPlan: FloorPlan = {
   doors: [],
   windows: [],
   rooms: [],
+  furniture: [],
   gridSize: 0.5, // meters
   panOffset: { x: 300, y: 250 },
   zoom: 35, // pixels per meter
@@ -201,6 +202,35 @@ export const floorPlanStore = {
     emitChange();
   },
 
+  addFurniture: (item: Omit<FurnitureItem, "id"> & { id?: string }) => {
+    const newId = item.id || `furn_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
+    const newItem: FurnitureItem = { ...item, id: newId };
+    const updated = pushUndo(currentState);
+    currentState = {
+      ...updated,
+      selectedIds: [newId],
+      floorPlan: {
+        ...updated.floorPlan,
+        furniture: [...(updated.floorPlan.furniture || []), newItem],
+      },
+    };
+    emitChange();
+  },
+
+  rotateFurniture: (id: string) => {
+    const updated = pushUndo(currentState);
+    currentState = {
+      ...updated,
+      floorPlan: {
+        ...updated.floorPlan,
+        furniture: (updated.floorPlan.furniture || []).map((f) =>
+          f.id === id ? { ...f, rotation: (f.rotation + 90) % 360 } : f,
+        ),
+      },
+    };
+    emitChange();
+  },
+
   deleteElement: (id: string) => {
     const updated = pushUndo(currentState);
     currentState = {
@@ -212,6 +242,7 @@ export const floorPlanStore = {
         doors: updated.floorPlan.doors.filter((d) => d.id !== id),
         windows: updated.floorPlan.windows.filter((win) => win.id !== id),
         rooms: updated.floorPlan.rooms.filter((r) => r.id !== id),
+        furniture: (updated.floorPlan.furniture || []).filter((f) => f.id !== id),
       },
     };
     emitChange();
@@ -230,14 +261,15 @@ export const floorPlanStore = {
         doors: updated.floorPlan.doors.filter((d) => !ids.has(d.id)),
         windows: updated.floorPlan.windows.filter((win) => !ids.has(win.id)),
         rooms: updated.floorPlan.rooms.filter((r) => !ids.has(r.id)),
+        furniture: (updated.floorPlan.furniture || []).filter((f) => !ids.has(f.id)),
       },
     };
     emitChange();
   },
 
   clearPlan: () => {
-    const { walls, doors, windows, rooms } = currentState.floorPlan;
-    if (walls.length === 0 && doors.length === 0 && windows.length === 0 && rooms.length === 0) {
+    const { walls, doors, windows, rooms, furniture = [] } = currentState.floorPlan;
+    if (walls.length === 0 && doors.length === 0 && windows.length === 0 && rooms.length === 0 && furniture.length === 0) {
       return;
     }
     const updated = pushUndo(currentState);
@@ -251,6 +283,7 @@ export const floorPlanStore = {
         doors: [],
         windows: [],
         rooms: [],
+        furniture: [],
       },
     };
     emitChange();
@@ -301,7 +334,10 @@ export const floorPlanStore = {
   loadPlan: (plan: FloorPlan) => {
     currentState = {
       ...currentState,
-      floorPlan: plan,
+      floorPlan: {
+        ...plan,
+        furniture: plan.furniture || [],
+      },
       selectedIds: [],
       drawingPoints: [],
       undoStack: [],

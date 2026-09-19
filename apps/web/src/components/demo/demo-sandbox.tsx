@@ -12,6 +12,8 @@ import { VoiceProvider } from "@/components/voice-assistant/voice-provider";
 import { VoiceButton } from "@/components/voice-assistant/voice-button";
 import { CommandHistory } from "@/components/voice-assistant/command-history";
 import { Button } from "@/components/ui/button";
+import { FFESchedulePanel } from "@/components/ffe/ffe-schedule-panel";
+import { MoodboardTrigger } from "@/components/moodboard/moodboard-modal";
 import type { DemoProjectData } from "@/lib/demo-data";
 
 export function DemoSandbox({ demoData }: { demoData: DemoProjectData }) {
@@ -102,6 +104,18 @@ export function DemoSandbox({ demoData }: { demoData: DemoProjectData }) {
             </div>
 
             <div className="flex items-center gap-2">
+              <Link
+                href="/dashboard/demo/presentation"
+                className="flex items-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-foreground hover:border-accent/40 shadow-xs transition-colors"
+              >
+                <span>🖥️</span>
+                <span>Presentation</span>
+              </Link>
+
+              <MoodboardTrigger
+                onApplyPrompt={(prompt) => setSelectedStyle(prompt)}
+              />
+
               <AgentTeamModal
                 projectName={demoData.project.name}
                 region={demoData.project.region}
@@ -230,7 +244,14 @@ export function DemoSandbox({ demoData }: { demoData: DemoProjectData }) {
             projectName={demoData.project.name}
           />
 
-          {/* Section 6: Upload Floor Plan CTA */}
+          {/* Section 6: Automated FF&E Procurement Schedule */}
+          <FFESchedulePanel
+            elements={demoData.constructionElements}
+            region={demoData.project.region}
+            projectName={demoData.project.name}
+          />
+
+          {/* Section 7: Upload Floor Plan CTA */}
           <div className="rounded-lg border border-border bg-surface p-5 text-center space-y-3">
             <h3 className="text-sm font-semibold">Have your own floor plan drawing?</h3>
             <p className="text-xs text-muted max-w-md mx-auto">

@@ -36,11 +36,24 @@ export type Room = {
   direction?: "N" | "NE" | "E" | "SE" | "S" | "SW" | "W" | "NW" | "center";
 };
 
+export type FurnitureItem = {
+  id: string;
+  ffeId?: string; // Links to FFE_CATALOG (e.g. "ffe_eames_lounge")
+  name: string;
+  type: "sofa" | "bed" | "table" | "chair" | "credenza" | "wardrobe" | "lamp" | "sanitaryware" | "custom";
+  position: Point; // Center coordinates in meters
+  width: number; // meters
+  depth: number; // meters
+  rotation: number; // degrees: 0, 90, 180, 270
+  tag?: string; // e.g. "FF-01"
+};
+
 export type FloorPlan = {
   walls: Wall[];
   doors: Door[];
   windows: Window[];
   rooms: Room[];
+  furniture?: FurnitureItem[];
   // Grid settings
   gridSize: number; // meters per grid cell (default 0.5m = ~1.6ft)
   // Canvas transform
@@ -54,6 +67,7 @@ export type EditorTool =
   | "door"
   | "window"
   | "room"
+  | "furniture"
   | "dimension"
   | "eraser";
 
