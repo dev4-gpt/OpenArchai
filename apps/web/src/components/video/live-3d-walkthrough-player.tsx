@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { OrbitControls, Html, Line, ContactShadows, Environment } from "@react-three/drei";
+import { OrbitControls, Html, ContactShadows, Environment } from "@react-three/drei";
 import * as THREE from "three";
 import type { ConstructionElements } from "@/components/floor-plan-editor/export/to-elements";
 import type { UnitSystem } from "@/lib/units";
@@ -14,8 +14,10 @@ import {
   type MaterialPreset,
   type CircadianPreset,
 } from "@/components/model-viewer";
+import { createHiggsfieldWalkthroughJob, type HiggsfieldJobResponse } from "@/lib/higgsfield-api";
 
 export type CameraMode = "tour" | "first_person" | "axonometric";
+export type PlayerViewMode = "interactive_3d" | "higgsfield_cinema";
 
 interface Live3DWalkthroughPlayerProps {
   elements?: ConstructionElements | null;
@@ -25,7 +27,6 @@ interface Live3DWalkthroughPlayerProps {
   className?: string;
 }
 
-// Default Studio Apartment dimensions (5m x 3m x 2.7m) if no elements provided
 const DEFAULT_STUDIO_BOUNDS = { min_x: 0, min_y: 0, max_x: 5, max_y: 3 };
 
 // Walkthrough Keyframes at human eye height (1.65m)
@@ -44,7 +45,7 @@ const TOUR_WAYPOINTS: TourWaypoint[] = [
     timeSec: 0,
     name: "Entrance Foyer",
     icon: "🚪",
-    pos: [2.0, 1.65, 0.4],
+    pos: [2.0, 1.65, 0.35],
     lookAt: [2.0, 1.45, 1.8],
     fov: 55,
     description: "Entering through 0.9m main entrance doorway (NBC 2016 compliant).",
@@ -54,9 +55,9 @@ const TOUR_WAYPOINTS: TourWaypoint[] = [
     name: "Living Room Core",
     icon: "🛋️",
     pos: [1.8, 1.65, 1.3],
-    lookAt: [1.3, 1.1, 1.8],
+    lookAt: [1.2, 1.1, 1.8],
     fov: 55,
-    description: "Viewing Sectional Sofa (2.4m) and Noguchi Table with Italian Statuario floors.",
+    description: "Sectional sofa, Noguchi table, and warm fluted timber feature wall.",
   },
   {
     timeSec: 6,
@@ -65,7 +66,7 @@ const TOUR_WAYPOINTS: TourWaypoint[] = [
     pos: [3.4, 1.65, 1.4],
     lookAt: [5.0, 1.5, 1.5],
     fov: 52,
-    description: "Gazing toward 1.2m perimeter window with natural daylight penetration.",
+    description: "1.2m perimeter window with natural daylight and exterior skyline view.",
   },
   {
     timeSec: 9,
@@ -74,7 +75,7 @@ const TOUR_WAYPOINTS: TourWaypoint[] = [
     pos: [3.4, 1.65, 2.3],
     lookAt: [3.8, 1.1, 1.8],
     fov: 54,
-    description: "King Platform Bed (1.9m x 2.1m) and private relaxation zone.",
+    description: "King Platform Bed (1.9m x 2.1m) with layered linen and plinth lighting.",
   },
   {
     timeSec: 12,
@@ -90,7 +91,96 @@ const TOUR_WAYPOINTS: TourWaypoint[] = [
 const TOUR_DURATION = 12; // 12-second smooth architectural tour
 
 // =============================================================================
-// Procedural Architectural 3D Scene Components
+// Procedural High-Fidelity Architectural Textures
+// =============================================================================
+
+function createMarbleTexture(): THREE.CanvasTexture | null {
+  if (typeof document === "undefined") return null;
+  const canvas = document.createElement("canvas");
+  canvas.width = 1024;
+  canvas.height = 1024;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+
+  ctx.fillStyle = "#faf8f5";
+  ctx.fillRect(0, 0, 1024, 1024);
+
+  // Soft wide veining
+  ctx.strokeStyle = "rgba(195, 190, 182, 0.6)";
+  ctx.lineWidth = 5;
+  for (let i = 0; i < 5; i++) {
+    ctx.beginPath();
+    let x = (i * 220 + 50) % 1024;
+    let y = 0;
+    ctx.moveTo(x, y);
+    while (y < 1024) {
+      x += (Math.random() - 0.48) * 70;
+      y += Math.random() * 80 + 35;
+      ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+
+  // Finer darker veins
+  ctx.strokeStyle = "rgba(150, 144, 135, 0.85)";
+  ctx.lineWidth = 1.8;
+  for (let i = 0; i < 4; i++) {
+    ctx.beginPath();
+    let x = (i * 280 + 120) % 1024;
+    let y = 0;
+    ctx.moveTo(x, y);
+    while (y < 1024) {
+      x += (Math.random() - 0.48) * 50;
+      y += Math.random() * 60 + 30;
+      ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(3, 2);
+  return texture;
+}
+
+function createHerringboneTexture(): THREE.CanvasTexture | null {
+  if (typeof document === "undefined") return null;
+  const canvas = document.createElement("canvas");
+  canvas.width = 512;
+  canvas.height = 512;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+
+  ctx.fillStyle = "#b58a5b";
+  ctx.fillRect(0, 0, 512, 512);
+
+  const plankW = 64;
+  const plankH = 16;
+  ctx.strokeStyle = "#825d36";
+  ctx.lineWidth = 2;
+
+  for (let y = 0; y < 512; y += plankH) {
+    for (let x = 0; x < 512; x += plankW) {
+      ctx.strokeRect(x, y, plankW, plankH);
+      ctx.beginPath();
+      ctx.moveTo(x, y + plankH / 2);
+      ctx.lineTo(x + plankW, y + plankH / 2);
+      ctx.strokeStyle = "#9e7447";
+      ctx.stroke();
+      ctx.strokeStyle = "#825d36";
+    }
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(4, 3);
+  return texture;
+}
+
+// =============================================================================
+// Super-Realistic 3D Architectural Scene Components
 // =============================================================================
 
 function ProceduralFloor({
@@ -105,27 +195,105 @@ function ProceduralFloor({
   const centerX = (bounds.min_x + bounds.max_x) / 2;
   const centerZ = (bounds.min_y + bounds.max_y) / 2;
 
-  const material = useMemo(
-    () =>
-      new THREE.MeshStandardMaterial({
-        color: new THREE.Color(flooring.colorHex),
-        roughness: flooring.roughness,
-        metalness: flooring.metalness,
-      }),
-    [flooring],
-  );
+  const marbleTex = useMemo(() => createMarbleTexture(), []);
+  const woodTex = useMemo(() => createHerringboneTexture(), []);
+
+  const material = useMemo(() => {
+    if (flooring.id === "fl_italian_statuario" && marbleTex) {
+      return new THREE.MeshStandardMaterial({
+        map: marbleTex,
+        roughness: 0.12,
+        metalness: 0.05,
+      });
+    }
+    if (flooring.id === "fl_herringbone_oak" && woodTex) {
+      return new THREE.MeshStandardMaterial({
+        map: woodTex,
+        roughness: 0.45,
+        metalness: 0.0,
+      });
+    }
+    return new THREE.MeshStandardMaterial({
+      color: new THREE.Color(flooring.colorHex),
+      roughness: flooring.roughness,
+      metalness: flooring.metalness,
+    });
+  }, [flooring, marbleTex, woodTex]);
 
   return (
     <group position={[centerX, -0.05, centerZ]}>
-      {/* Floor Slab */}
+      {/* Floor Slab with PBR texture */}
       <mesh receiveShadow material={material}>
         <boxGeometry args={[width, 0.1, depth]} />
       </mesh>
-      {/* Subtle floor grid lines for scale */}
-      <gridHelper
-        args={[Math.max(width, depth) + 2, Math.round(Math.max(width, depth) * 2), "#caa56c", "#e2d9cb"]}
-        position={[0, 0.051, 0]}
-      />
+    </group>
+  );
+}
+
+function ProceduralCeiling({
+  bounds,
+  showLights = true,
+}: {
+  bounds: { min_x: number; min_y: number; max_x: number; max_y: number };
+  showLights?: boolean;
+}) {
+  const width = Math.max(1, bounds.max_x - bounds.min_x);
+  const depth = Math.max(1, bounds.max_y - bounds.min_y);
+  const centerX = (bounds.min_x + bounds.max_x) / 2;
+  const centerZ = (bounds.min_y + bounds.max_y) / 2;
+  const ceilingY = 2.7; // 2.7m clear ceiling
+
+  const ceilingMat = useMemo(
+    () => new THREE.MeshStandardMaterial({ color: "#f7f5f0", roughness: 0.95 }),
+    [],
+  );
+
+  const fixtureMat = useMemo(
+    () => new THREE.MeshStandardMaterial({ color: "#22201d", metalness: 0.8, roughness: 0.3 }),
+    [],
+  );
+
+  const emissiveLensMat = useMemo(
+    () => new THREE.MeshBasicMaterial({ color: "#fff0d0" }),
+    [],
+  );
+
+  // 6 Recessed Downlight Fixture positions across the studio
+  const downlights = [
+    [1.5, ceilingY, 1.0],
+    [3.5, ceilingY, 1.0],
+    [1.5, ceilingY, 2.0],
+    [3.5, ceilingY, 2.0],
+    [2.5, ceilingY, 0.6],
+    [2.5, ceilingY, 2.4],
+  ];
+
+  return (
+    <group>
+      {/* Ceiling Slab */}
+      <mesh position={[centerX, ceilingY + 0.05, centerZ]} material={ceilingMat}>
+        <boxGeometry args={[width, 0.1, depth]} />
+      </mesh>
+
+      {/* Recessed Architectural Brass/Black Downlights */}
+      {showLights &&
+        downlights.map(([x, y, z], i) => (
+          <group key={i} position={[x, y - 0.005, z]}>
+            {/* Outer Bezel */}
+            <mesh material={fixtureMat}>
+              <cylinderGeometry args={[0.07, 0.07, 0.01, 16]} />
+            </mesh>
+            {/* Emissive Center Lens */}
+            <mesh position={[0, -0.006, 0]} material={emissiveLensMat}>
+              <circleGeometry args={[0.045, 16]} />
+            </mesh>
+            {/* Downward Warm Point Light */}
+            <pointLight position={[0, -0.1, 0]} color="#ffb766" intensity={1.8} distance={4.5} />
+          </group>
+        ))}
+
+      {/* Warm LED Cove Indirect Glow along ceiling perimeter */}
+      <pointLight position={[centerX, ceilingY - 0.15, centerZ]} color="#ffa34d" intensity={1.2} distance={8} />
     </group>
   );
 }
@@ -145,8 +313,8 @@ function ProceduralWalls({
   showDimensions: boolean;
   unitSystem: UnitSystem;
 }) {
-  const wallHeight = 2.7; // Standard ceiling height 2.7m
-  const thickness = 0.15; // Standard 150mm wall
+  const wallHeight = 2.7;
+  const thickness = 0.15;
 
   const wallMat = useMemo(
     () =>
@@ -158,25 +326,26 @@ function ProceduralWalls({
     [wallPreset],
   );
 
-  const glassMat = useMemo(
+  const frameMat = useMemo(
     () =>
-      new THREE.MeshPhysicalMaterial({
-        color: "#d4e8f7",
-        transparent: true,
-        opacity: 0.35,
-        roughness: 0.1,
-        metalness: 0.8,
-        transmission: 0.7,
+      new THREE.MeshStandardMaterial({
+        color: "#1e1c18",
+        roughness: 0.4,
+        metalness: 0.7,
       }),
     [],
   );
 
-  const frameMat = useMemo(
+  const glassMat = useMemo(
     () =>
-      new THREE.MeshStandardMaterial({
-        color: "#2c2924",
-        roughness: 0.4,
-        metalness: 0.6,
+      new THREE.MeshPhysicalMaterial({
+        color: "#e8f4fc",
+        transparent: true,
+        opacity: 0.25,
+        roughness: 0.05,
+        metalness: 0.9,
+        transmission: 0.85,
+        reflectivity: 0.9,
       }),
     [],
   );
@@ -184,16 +353,26 @@ function ProceduralWalls({
   const doorWoodMat = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
-        color: "#8a5832",
+        color: "#6b4226",
+        roughness: 0.45,
+        metalness: 0.05,
+      }),
+    [],
+  );
+
+  const flutedWoodMat = useMemo(
+    () =>
+      new THREE.MeshStandardMaterial({
+        color: "#7a5332",
         roughness: 0.5,
-        metalness: 0.1,
+        metalness: 0.02,
       }),
     [],
   );
 
   return (
     <group>
-      {/* Render 3D Walls */}
+      {/* 3D Masonry Walls */}
       {walls.map((w, idx) => {
         const dx = w.end[0] - w.start[0];
         const dz = w.end[1] - w.start[1];
@@ -206,31 +385,38 @@ function ProceduralWalls({
 
         return (
           <group key={idx} position={[midX, wallHeight / 2, midZ]} rotation={[0, -angle, 0]}>
-            {/* Wall Segment */}
             <mesh castShadow receiveShadow material={wallMat}>
               <boxGeometry args={[len, wallHeight, thickness]} />
             </mesh>
-            {/* Skirting / Baseboard */}
-            <mesh position={[0, -wallHeight / 2 + 0.05, thickness / 2 + 0.005]} material={frameMat}>
-              <boxGeometry args={[len, 0.1, 0.015]} />
+            {/* Architectural Baseboard Skirting */}
+            <mesh position={[0, -wallHeight / 2 + 0.05, thickness / 2 + 0.008]} material={frameMat}>
+              <boxGeometry args={[len, 0.1, 0.016]} />
             </mesh>
           </group>
         );
       })}
 
-      {/* Render 3D Doors */}
+      {/* Fluted Wood Accent Feature Wall behind Bed/Living */}
+      <group position={[2.5, wallHeight / 2, 2.92]}>
+        {Array.from({ length: 32 }).map((_, i) => (
+          <mesh key={i} position={[(i - 16) * 0.07, 0, 0]} castShadow material={flutedWoodMat}>
+            <boxGeometry args={[0.035, wallHeight - 0.2, 0.025]} />
+          </mesh>
+        ))}
+      </group>
+
+      {/* 3D Entrance Doorway */}
       {doors.map((d, idx) => {
         const doorWidth = d.width_m || 0.9;
         const doorHeight = 2.1;
         return (
           <group key={`door-${idx}`} position={[d.position[0], doorHeight / 2, d.position[1]]}>
-            {/* Door Frame */}
-            <mesh position={[0, 0, 0]} material={frameMat}>
+            <mesh material={frameMat}>
               <boxGeometry args={[doorWidth + 0.1, doorHeight + 0.08, 0.16]} />
             </mesh>
-            {/* Open Door Leaf (Swung open 65° into room) */}
+            {/* Open Door Leaf (Swung 65° inward) */}
             <group position={[-doorWidth / 2 + 0.04, -doorHeight / 2, 0]} rotation={[0, 1.1, 0]}>
-              <mesh position={[doorWidth / 2, doorHeight / 2, 0]} material={doorWoodMat}>
+              <mesh position={[doorWidth / 2, doorHeight / 2, 0]} castShadow material={doorWoodMat}>
                 <boxGeometry args={[doorWidth, doorHeight, 0.04]} />
               </mesh>
               {/* Brass Lever Handle */}
@@ -238,7 +424,6 @@ function ProceduralWalls({
                 <cylinderGeometry args={[0.015, 0.015, 0.1, 8]} />
               </mesh>
             </group>
-            {/* Door Dimension Label */}
             {showDimensions && (
               <Html position={[0, doorHeight + 0.25, 0]} center>
                 <div className="bg-surface/90 backdrop-blur px-2 py-0.5 rounded text-[10px] font-mono border border-accent/40 text-accent whitespace-nowrap shadow-xs pointer-events-none">
@@ -250,26 +435,30 @@ function ProceduralWalls({
         );
       })}
 
-      {/* Render 3D Windows */}
+      {/* 3D Perimeter Window */}
       {windows.map((w, idx) => {
         const winWidth = w.width_m || 1.2;
         const winHeight = 1.4;
         const sillHeight = 0.9;
         return (
           <group key={`win-${idx}`} position={[w.position[0], sillHeight + winHeight / 2, w.position[1]]}>
-            {/* Outer Aluminum Frame */}
+            {/* Outer Frame */}
             <mesh material={frameMat}>
               <boxGeometry args={[0.16, winHeight, winWidth + 0.08]} />
             </mesh>
-            {/* Window Glass Pane */}
+            {/* Glass Pane */}
             <mesh material={glassMat}>
               <boxGeometry args={[0.02, winHeight - 0.08, winWidth - 0.08]} />
             </mesh>
-            {/* Center Mullion Bar */}
+            {/* Center Mullion */}
             <mesh material={frameMat}>
               <boxGeometry args={[0.04, winHeight - 0.08, 0.03]} />
             </mesh>
-            {/* Dimension Callout */}
+            {/* Exterior Skyline / Greenery Backdrop behind window */}
+            <mesh position={[1.5, 0, 0]}>
+              <planeGeometry args={[0.01, winHeight * 2]} />
+              <meshBasicMaterial color="#a7c8e8" />
+            </mesh>
             {showDimensions && (
               <Html position={[0, winHeight / 2 + 0.25, 0]} center>
                 <div className="bg-surface/90 backdrop-blur px-2 py-0.5 rounded text-[10px] font-mono border border-blue-400/40 text-blue-600 whitespace-nowrap shadow-xs pointer-events-none">
@@ -294,26 +483,30 @@ function ProceduralFurniture({
   unitSystem: UnitSystem;
 }) {
   const fabricMat = useMemo(
-    () => new THREE.MeshStandardMaterial({ color: "#4a463e", roughness: 0.85 }),
+    () => new THREE.MeshStandardMaterial({ color: "#3d3935", roughness: 0.88 }),
+    [],
+  );
+  const pillowMat = useMemo(
+    () => new THREE.MeshStandardMaterial({ color: "#c29b68", roughness: 0.75 }),
     [],
   );
   const woodMat = useMemo(
-    () => new THREE.MeshStandardMaterial({ color: "#8a5832", roughness: 0.45 }),
+    () => new THREE.MeshStandardMaterial({ color: "#7a4e2d", roughness: 0.45 }),
     [],
   );
-  const glassTableMat = useMemo(
+  const glassMat = useMemo(
     () =>
       new THREE.MeshPhysicalMaterial({
         color: "#ffffff",
         transparent: true,
-        opacity: 0.5,
+        opacity: 0.55,
         roughness: 0.05,
         transmission: 0.9,
       }),
     [],
   );
-  const bedLinenMat = useMemo(
-    () => new THREE.MeshStandardMaterial({ color: "#f2efe9", roughness: 0.9 }),
+  const linenMat = useMemo(
+    () => new THREE.MeshStandardMaterial({ color: "#f5f2eb", roughness: 0.92 }),
     [],
   );
 
@@ -328,50 +521,49 @@ function ProceduralFurniture({
 
         return (
           <group key={item.id} position={[x, 0, z]} rotation={[0, -rotY, 0]}>
-            {/* Sofa */}
+            {/* Sectional Sofa */}
             {item.type === "sofa" && (
               <group position={[0, 0.4, 0]}>
-                {/* Base Seat Cushion */}
                 <mesh position={[0, 0, 0]} castShadow receiveShadow material={fabricMat}>
-                  <boxGeometry args={[w, 0.4, d]} />
+                  <boxGeometry args={[w, 0.42, d]} />
                 </mesh>
-                {/* Backrest */}
                 <mesh position={[0, 0.35, -d / 2 + 0.12]} castShadow material={fabricMat}>
                   <boxGeometry args={[w, 0.45, 0.24]} />
                 </mesh>
-                {/* Armrest Left */}
                 <mesh position={[-w / 2 + 0.12, 0.2, 0]} castShadow material={fabricMat}>
                   <boxGeometry args={[0.24, 0.3, d]} />
                 </mesh>
-                {/* Armrest Right */}
                 <mesh position={[w / 2 - 0.12, 0.2, 0]} castShadow material={fabricMat}>
                   <boxGeometry args={[0.24, 0.3, d]} />
                 </mesh>
+                {/* Throw Pillows */}
+                <mesh position={[-w * 0.25, 0.3, -d * 0.25]} rotation={[0.2, 0.3, 0]} material={pillowMat}>
+                  <boxGeometry args={[0.4, 0.4, 0.15]} />
+                </mesh>
+                <mesh position={[w * 0.25, 0.3, -d * 0.25]} rotation={[0.2, -0.3, 0]} material={pillowMat}>
+                  <boxGeometry args={[0.4, 0.4, 0.15]} />
+                </mesh>
               </group>
             )}
 
-            {/* Coffee Table */}
+            {/* Noguchi Coffee Table */}
             {item.type === "table" && item.name.toLowerCase().includes("coffee") && (
-              <group position={[0, 0.2, 0]}>
-                {/* Sculpted Wood Base */}
-                <mesh position={[0, -0.05, 0]} castShadow material={woodMat}>
-                  <cylinderGeometry args={[w * 0.3, w * 0.4, 0.3, 16]} />
+              <group position={[0, 0.22, 0]}>
+                <mesh position={[0, -0.06, 0]} castShadow material={woodMat}>
+                  <cylinderGeometry args={[w * 0.28, w * 0.38, 0.3, 16]} />
                 </mesh>
-                {/* Glass Table Top */}
-                <mesh position={[0, 0.15, 0]} receiveShadow material={glassTableMat}>
-                  <boxGeometry args={[w, 0.03, d]} />
+                <mesh position={[0, 0.16, 0]} receiveShadow material={glassMat}>
+                  <boxGeometry args={[w, 0.035, d]} />
                 </mesh>
               </group>
             )}
 
-            {/* Dining Table */}
+            {/* Oak Dining Table */}
             {item.type === "table" && !item.name.toLowerCase().includes("coffee") && (
               <group position={[0, 0.4, 0]}>
-                {/* Table Top */}
                 <mesh position={[0, 0.35, 0]} castShadow receiveShadow material={woodMat}>
                   <boxGeometry args={[w, 0.05, d]} />
                 </mesh>
-                {/* 4 Tapered Legs */}
                 {[
                   [-w / 2 + 0.08, -d / 2 + 0.08],
                   [w / 2 - 0.08, -d / 2 + 0.08],
@@ -385,28 +577,26 @@ function ProceduralFurniture({
               </group>
             )}
 
-            {/* King Bed */}
+            {/* King Platform Bed */}
             {item.type === "bed" && (
               <group position={[0, 0.3, 0]}>
-                {/* Platform Frame */}
                 <mesh position={[0, 0, 0]} castShadow material={woodMat}>
                   <boxGeometry args={[w + 0.1, 0.25, d + 0.1]} />
                 </mesh>
-                {/* Plush Mattress */}
-                <mesh position={[0, 0.22, 0]} castShadow material={bedLinenMat}>
+                <mesh position={[0, 0.22, 0]} castShadow material={linenMat}>
                   <boxGeometry args={[w, 0.3, d]} />
                 </mesh>
-                {/* Upholstered Headboard */}
-                <mesh position={[0, 0.5, -d / 2 - 0.04]} castShadow material={fabricMat}>
-                  <boxGeometry args={[w + 0.1, 0.8, 0.12]} />
+                <mesh position={[0, 0.55, -d / 2 - 0.04]} castShadow material={fabricMat}>
+                  <boxGeometry args={[w + 0.1, 0.9, 0.12]} />
                 </mesh>
-                {/* Two Pillows */}
-                <mesh position={[-w * 0.25, 0.42, -d * 0.35]} material={bedLinenMat}>
+                <mesh position={[-w * 0.25, 0.44, -d * 0.35]} material={linenMat}>
                   <boxGeometry args={[w * 0.35, 0.12, 0.4]} />
                 </mesh>
-                <mesh position={[w * 0.25, 0.42, -d * 0.35]} material={bedLinenMat}>
+                <mesh position={[w * 0.25, 0.44, -d * 0.35]} material={linenMat}>
                   <boxGeometry args={[w * 0.35, 0.12, 0.4]} />
                 </mesh>
+                {/* Plinth LED glow below bed */}
+                <pointLight position={[0, -0.1, 0]} color="#ffb766" intensity={1.5} distance={2.5} />
               </group>
             )}
 
@@ -422,9 +612,8 @@ function ProceduralFurniture({
               </group>
             )}
 
-            {/* Dimension Callout Tag */}
             {showDimensions && (
-              <Html position={[0, 0.9, 0]} center>
+              <Html position={[0, 0.95, 0]} center>
                 <div className="bg-surface/85 backdrop-blur px-2 py-0.5 rounded text-[9px] font-mono border border-border text-foreground whitespace-nowrap shadow-xs pointer-events-none">
                   {item.name}: {metersToUnit(w, unitSystem).toFixed(2)} × {metersToUnit(d, unitSystem).toFixed(2)} {unitLabel(unitSystem)}
                 </div>
@@ -433,12 +622,34 @@ function ProceduralFurniture({
           </group>
         );
       })}
+
+      {/* Modern Wall Art Piece */}
+      <group position={[1.5, 1.8, 0.08]}>
+        <mesh>
+          <boxGeometry args={[1.2, 0.8, 0.02]} />
+          <meshStandardMaterial color="#2c2825" />
+        </mesh>
+        <mesh position={[0, 0, 0.015]}>
+          <planeGeometry args={[1.1, 0.7]} />
+          <meshBasicMaterial color="#e5ded3" />
+        </mesh>
+      </group>
+
+      {/* Potted Indoor Architectural Fiddle-Leaf Fig */}
+      <group position={[4.5, 0.35, 0.6]}>
+        <mesh castShadow material={new THREE.MeshStandardMaterial({ color: "#8a5832", roughness: 0.8 })}>
+          <cylinderGeometry args={[0.2, 0.15, 0.45, 16]} />
+        </mesh>
+        <mesh position={[0, 0.5, 0]} castShadow material={new THREE.MeshStandardMaterial({ color: "#2d5a27", roughness: 0.6 })}>
+          <sphereGeometry args={[0.3, 12, 12]} />
+        </mesh>
+      </group>
     </group>
   );
 }
 
 // =============================================================================
-// Camera Controller (Tour Interpolation, First-Person WASD, Axonometric)
+// Camera Controller
 // =============================================================================
 
 function WalkthroughCameraController({
@@ -458,9 +669,7 @@ function WalkthroughCameraController({
 }) {
   const { camera } = useThree();
   const keysPressed = useRef<{ [key: string]: boolean }>({});
-  const mouseLook = useRef<{ yaw: number; pitch: number }>({ yaw: 0, pitch: 0 });
 
-  // Listen for First-Person WASD movement
   useEffect(() => {
     if (cameraMode !== "first_person") return;
 
@@ -480,7 +689,6 @@ function WalkthroughCameraController({
   }, [cameraMode]);
 
   useFrame((_, delta) => {
-    // Mode 1: Automated Steadicam Interior Tour
     if (cameraMode === "tour") {
       let nextTime = tourTime;
       if (isPlaying) {
@@ -488,7 +696,6 @@ function WalkthroughCameraController({
         onTourTimeUpdate(nextTime);
       }
 
-      // Interpolate between waypoints
       const numSegments = TOUR_WAYPOINTS.length - 1;
       const progress = (nextTime / TOUR_DURATION) * numSegments;
       const idx = Math.min(Math.floor(progress), numSegments - 1);
@@ -497,11 +704,10 @@ function WalkthroughCameraController({
       const p0 = TOUR_WAYPOINTS[idx];
       const p1 = TOUR_WAYPOINTS[idx + 1];
 
-      // Smooth step easing
       const t = frac * frac * (3 - 2 * frac);
 
       const targetX = THREE.MathUtils.lerp(p0.pos[0], p1.pos[0], t);
-      const targetY = THREE.MathUtils.lerp(p0.pos[1], p1.pos[1], t); // 1.65m human eye height
+      const targetY = THREE.MathUtils.lerp(p0.pos[1], p1.pos[1], t);
       const targetZ = THREE.MathUtils.lerp(p0.pos[2], p1.pos[2], t);
 
       const lookX = THREE.MathUtils.lerp(p0.lookAt[0], p1.lookAt[0], t);
@@ -510,11 +716,8 @@ function WalkthroughCameraController({
 
       camera.position.set(targetX, targetY, targetZ);
       camera.lookAt(lookX, lookY, lookZ);
-    }
-
-    // Mode 2: Interactive First-Person Walkthrough (WASD)
-    else if (cameraMode === "first_person") {
-      const speed = 2.0 * delta; // 2.0 m/s human walking speed
+    } else if (cameraMode === "first_person") {
+      const speed = 2.0 * delta;
       let [x, y, z] = firstPersonPos;
 
       const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
@@ -542,7 +745,6 @@ function WalkthroughCameraController({
         z += right.z * speed;
       }
 
-      // Interior collision clamping (keep user inside walls: 0.3m to 4.7m, 0.3m to 2.7m)
       x = Math.max(0.35, Math.min(4.65, x));
       z = Math.max(0.35, Math.min(2.65, z));
 
@@ -564,6 +766,7 @@ export function Live3DWalkthroughPlayer({
   unitSystem = "metric",
   className = "",
 }: Live3DWalkthroughPlayerProps) {
+  const [viewMode, setViewMode] = useState<PlayerViewMode>("interactive_3d");
   const [cameraMode, setCameraMode] = useState<CameraMode>("tour");
   const [isPlaying, setIsPlaying] = useState(true);
   const [isMuted, setIsMuted] = useState(true);
@@ -578,18 +781,25 @@ export function Live3DWalkthroughPlayer({
   const [recordProgress, setRecordProgress] = useState(0);
   const [firstPersonPos, setFirstPersonPos] = useState<[number, number, number]>([2.0, 1.65, 1.0]);
 
+  // Higgsfield Cinema Video state
+  const [higgsfieldVideoUrl, setHiggsfieldVideoUrl] = useState("/videos/reel-360-turntable.mp4");
+  const [isHiggsfieldSynthesizing, setIsHiggsfieldSynthesizing] = useState(false);
+  const [showHiggsfieldModal, setShowHiggsfieldModal] = useState(false);
+  const [higgsfieldDopMode, setHiggsfieldDopMode] = useState<"interior_glide" | "orbit_360">("interior_glide");
+  const [motionIntensity, setMotionIntensity] = useState(7);
+
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
 
-  // Web Audio ambient synth for warm architectural chord soundscape
+  // Web Audio synth
   const audioCtxRef = useRef<AudioContext | null>(null);
   const gainNodeRef = useRef<GainNode | null>(null);
   const oscNodesRef = useRef<OscillatorNode[]>([]);
 
   const activeLighting = CIRCADIAN_CONFIGS[circadian];
 
-  // Stop Web Audio synth
   const stopSynth = useCallback(() => {
     try {
       oscNodesRef.current.forEach((osc) => {
@@ -606,7 +816,6 @@ export function Live3DWalkthroughPlayer({
     }
   }, []);
 
-  // Web Audio ambient sound synthesizer (Warm 432Hz architectural harmonic chord)
   const playAmbientSynth = useCallback(() => {
     try {
       stopSynth();
@@ -645,7 +854,6 @@ export function Live3DWalkthroughPlayer({
     }
   }, [isMuted, volume, stopSynth]);
 
-  // Clean up Web Audio on unmount
   useEffect(() => {
     return () => {
       stopSynth();
@@ -658,6 +866,13 @@ export function Live3DWalkthroughPlayer({
   function handleTogglePlay() {
     const nextPlaying = !isPlaying;
     setIsPlaying(nextPlaying);
+    if (viewMode === "higgsfield_cinema" && videoRef.current) {
+      if (nextPlaying) {
+        videoRef.current.play().catch(() => {});
+      } else {
+        videoRef.current.pause();
+      }
+    }
     if (nextPlaying && !isMuted) {
       playAmbientSynth();
     } else {
@@ -668,6 +883,9 @@ export function Live3DWalkthroughPlayer({
   function handleToggleMute() {
     const nextMuted = !isMuted;
     setIsMuted(nextMuted);
+    if (videoRef.current) {
+      videoRef.current.muted = nextMuted;
+    }
     if (!nextMuted) {
       playAmbientSynth();
     } else {
@@ -680,16 +898,49 @@ export function Live3DWalkthroughPlayer({
   }
 
   function handleJumpToWaypoint(wp: TourWaypoint) {
+    setViewMode("interactive_3d");
     setCameraMode("tour");
     setTourTime(wp.timeSec);
   }
 
-  // 60fps Canvas Video Recording & Export (Records actual 3D model walk)
+  // Trigger Higgsfield AI Video Generation
+  async function handleSynthesizeHiggsfield() {
+    setIsHiggsfieldSynthesizing(true);
+    try {
+      const res = await createHiggsfieldWalkthroughJob({
+        projectName,
+        roomType: "Studio Living Apartment",
+        dimensions: { width: 5.0, depth: 3.0, height: 2.7 },
+        cameraMode: higgsfieldDopMode,
+        motionIntensity,
+        materialPalette: {
+          flooring: flooring.name,
+          walls: wallPreset.name,
+          lightingTemp: activeLighting.temp,
+        },
+      });
+
+      if (res.videoUrl) {
+        setHiggsfieldVideoUrl(res.videoUrl);
+        setViewMode("higgsfield_cinema");
+        setIsPlaying(true);
+      }
+      setShowHiggsfieldModal(false);
+    } catch (e: any) {
+      console.error("Higgsfield synthesis error:", e);
+      alert(e.message || "Higgsfield synthesis failed. Check connection.");
+    } finally {
+      setIsHiggsfieldSynthesizing(false);
+    }
+  }
+
+  // 60fps Canvas Video Recording & Export
   function handleRecordVideo() {
     if (!canvasRef.current) return;
     try {
       setIsRecording(true);
       setRecordProgress(0);
+      setViewMode("interactive_3d");
       setCameraMode("tour");
       setTourTime(0);
       setIsPlaying(true);
@@ -734,14 +985,12 @@ export function Live3DWalkthroughPlayer({
     }
   }
 
-  // Format seconds to mm:ss
   function formatTime(sec: number) {
     const m = Math.floor(sec / 60);
     const s = Math.floor(sec % 60);
     return `${m}:${s < 10 ? "0" : ""}${s}`;
   }
 
-  // Current active waypoint description
   const activeWaypoint = useMemo(() => {
     return (
       TOUR_WAYPOINTS.slice()
@@ -771,200 +1020,200 @@ export function Live3DWalkthroughPlayer({
 
   return (
     <div className={`rounded-xl border border-border bg-surface overflow-hidden shadow-xs space-y-3 ${className}`}>
-      {/* Top Header & Mode Switcher */}
+      {/* Top Header & View Mode Switcher */}
       <div className="flex flex-wrap items-center justify-between gap-3 p-4 border-b border-border/70">
         <div>
           <div className="flex items-center gap-2">
             <h3 className="text-sm font-bold text-foreground flex items-center gap-1.5">
-              <span>🏛️</span> Live 3D Architectural Walkthrough
+              <span>🏛️</span> Architectural Spatial Walkthrough Suite
             </h3>
             <span className="rounded bg-accent/10 px-2 py-0.5 text-[10px] font-bold text-accent border border-accent/20">
               100% CAD Dimension Accurate (5.0m × 3.0m)
             </span>
           </div>
           <p className="text-xs text-muted mt-0.5">
-            Real-time interior eye-level camera flight matching the CAD/BIM floor plan model.
+            Real-time interior 3D walkthrough & Higgsfield AI 60fps cinema reel conditioned on the 3D CAD design.
           </p>
         </div>
 
-        {/* Camera Mode Toggles */}
+        {/* View Mode & Actions */}
         <div className="flex items-center gap-2">
-          <div className="flex items-center rounded-lg border border-border bg-[#faf8f4] p-0.5 text-xs">
+          {/* Main Mode Toggle: 3D Walkthrough vs Higgsfield AI Reel */}
+          <div className="flex items-center rounded-lg border border-border bg-[#faf8f4] p-0.5 text-xs shadow-xs">
             <button
               type="button"
-              onClick={() => {
-                setCameraMode("tour");
-                setIsPlaying(true);
-              }}
-              className={`px-3 py-1 rounded transition-colors ${
-                cameraMode === "tour"
-                  ? "bg-surface text-accent font-bold shadow-xs border border-border"
+              onClick={() => setViewMode("interactive_3d")}
+              className={`px-3 py-1.5 rounded transition-all font-semibold ${
+                viewMode === "interactive_3d"
+                  ? "bg-surface text-accent shadow-xs border border-border"
                   : "text-muted hover:text-foreground"
               }`}
             >
-              🎬 Steadicam Tour
+              🏛️ Live 3D Walkthrough
             </button>
             <button
               type="button"
-              onClick={() => {
-                setCameraMode("first_person");
-                setIsPlaying(false);
-              }}
-              className={`px-3 py-1 rounded transition-colors ${
-                cameraMode === "first_person"
-                  ? "bg-surface text-accent font-bold shadow-xs border border-border"
+              onClick={() => setViewMode("higgsfield_cinema")}
+              className={`flex items-center gap-1 px-3 py-1.5 rounded transition-all font-semibold ${
+                viewMode === "higgsfield_cinema"
+                  ? "bg-accent text-accent-foreground shadow-xs border border-accent"
                   : "text-muted hover:text-foreground"
               }`}
             >
-              🚶‍♂️ Walk Inside (WASD)
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setCameraMode("axonometric");
-                setIsPlaying(false);
-              }}
-              className={`px-3 py-1 rounded transition-colors ${
-                cameraMode === "axonometric"
-                  ? "bg-surface text-accent font-bold shadow-xs border border-border"
-                  : "text-muted hover:text-foreground"
-              }`}
-            >
-              📐 Axonometric Orbit
+              <span>✨</span>
+              <span>Higgsfield AI Reel</span>
+              <span className="text-[9px] px-1 py-0.2 bg-black/20 rounded font-mono">60fps</span>
             </button>
           </div>
 
-          {/* Dimension Toggle */}
+          {/* Synthesize Higgsfield Video Button */}
           <button
             type="button"
-            onClick={() => setShowDimensions(!showDimensions)}
-            className={`px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition-all ${
-              showDimensions
-                ? "bg-accent/15 text-accent border-accent/40"
-                : "border-border bg-surface text-muted hover:text-foreground"
-            }`}
-            title="Toggle 3D dimension lines and room clearance callouts"
+            onClick={() => setShowHiggsfieldModal(true)}
+            className="flex items-center gap-1.5 rounded-lg border border-accent/40 bg-accent/10 px-3 py-1.5 text-xs font-semibold text-accent hover:bg-accent/20 transition-colors"
           >
-            📏 {showDimensions ? "Dimensions: ON" : "Dimensions: OFF"}
-          </button>
-
-          {/* Record 60fps Walkthrough Video */}
-          <button
-            type="button"
-            disabled={isRecording}
-            onClick={handleRecordVideo}
-            className="flex items-center gap-1.5 rounded-lg border border-accent/40 bg-accent text-accent-foreground px-3 py-1.5 text-xs font-bold hover:bg-accent/90 transition-colors disabled:opacity-50"
-          >
-            <span>{isRecording ? "🔴" : "🎥"}</span>
-            <span>{isRecording ? `Recording ${recordProgress}%` : "Record Walkthrough"}</span>
+            <span>✨</span>
+            <span className="hidden sm:inline">Synthesize AI Walkthrough</span>
           </button>
         </div>
       </div>
 
-      {/* 3D WebGL Canvas Viewport */}
-      <div className="relative aspect-video w-full bg-[#12110f] overflow-hidden group">
-        <Canvas
-          shadows
-          camera={{ position: [2.0, 1.65, 0.4], fov: 55 }}
-          onCreated={({ gl }) => {
-            canvasRef.current = gl.domElement;
-          }}
-          className="h-full w-full"
-        >
-          <color attach="background" args={[activeLighting.bg]} />
-          <ambientLight color={activeLighting.ambientLight.color} intensity={activeLighting.ambientLight.intensity} />
-          <directionalLight
-            position={activeLighting.dirLight.pos}
-            color={activeLighting.dirLight.color}
-            intensity={activeLighting.dirLight.intensity}
-            castShadow
-            shadow-mapSize-width={2048}
-            shadow-mapSize-height={2048}
-          />
-          {activeLighting.showWarmRecessed && (
-            <>
-              <pointLight position={[2.5, 2.5, 1.5]} color="#ff9e42" intensity={3.5} distance={8} />
-              <pointLight position={[1.5, 2.4, 1.8]} color="#ffaa55" intensity={2.0} distance={6} />
-              <pointLight position={[3.8, 2.4, 1.8]} color="#ffaa55" intensity={2.0} distance={6} />
-            </>
-          )}
+      {/* VIEWPORT AREA */}
+      {viewMode === "interactive_3d" ? (
+        /* INTERACTIVE 3D WEBGL ENGINE VIEWPORT */
+        <div className="relative aspect-video w-full bg-[#12110f] overflow-hidden group">
+          {/* Secondary Sub-mode bar (Tour, WASD, Orbit) */}
+          <div className="absolute top-3 left-3 z-20 flex items-center gap-2">
+            <div className="flex items-center rounded-lg border border-white/20 bg-black/70 backdrop-blur-md p-0.5 text-xs text-white">
+              <button
+                type="button"
+                onClick={() => {
+                  setCameraMode("tour");
+                  setIsPlaying(true);
+                }}
+                className={`px-2.5 py-1 rounded transition-colors ${
+                  cameraMode === "tour" ? "bg-accent text-white font-bold" : "hover:text-accent"
+                }`}
+              >
+                🎬 Steadicam Tour
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setCameraMode("first_person");
+                  setIsPlaying(false);
+                }}
+                className={`px-2.5 py-1 rounded transition-colors ${
+                  cameraMode === "first_person" ? "bg-accent text-white font-bold" : "hover:text-accent"
+                }`}
+              >
+                🚶‍♂️ Walk Inside (WASD)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setCameraMode("axonometric");
+                  setIsPlaying(false);
+                }}
+                className={`px-2.5 py-1 rounded transition-colors ${
+                  cameraMode === "axonometric" ? "bg-accent text-white font-bold" : "hover:text-accent"
+                }`}
+              >
+                📐 Axonometric
+              </button>
+            </div>
 
-          {/* Procedural 3D Architecture */}
-          <ProceduralFloor bounds={bounds} flooring={flooring} />
-          <ProceduralWalls
-            walls={walls}
-            doors={doors}
-            windows={windows}
-            wallPreset={wallPreset}
-            showDimensions={showDimensions}
-            unitSystem={unitSystem}
-          />
-          <ProceduralFurniture furniture={furniture} showDimensions={showDimensions} unitSystem={unitSystem} />
-
-          {/* Dynamic Camera Controller */}
-          <WalkthroughCameraController
-            cameraMode={cameraMode}
-            tourTime={tourTime}
-            isPlaying={isPlaying}
-            onTourTimeUpdate={setTourTime}
-            firstPersonPos={firstPersonPos}
-            onFirstPersonMove={setFirstPersonPos}
-          />
-
-          {/* Orbit Controls for Axonometric mode */}
-          {cameraMode === "axonometric" && (
-            <OrbitControls makeDefault enableDamping dampingFactor={0.08} minDistance={2} maxDistance={25} />
-          )}
-
-          <Environment preset={activeLighting.env} />
-          <ContactShadows position={[2.5, 0, 1.5]} opacity={0.4} scale={10} blur={2} far={4} />
-        </Canvas>
-
-        {/* Top Left: Waypoint Callout Banner */}
-        <div className="absolute top-3 left-3 z-20 flex items-center gap-2 px-3 py-1.5 rounded-lg bg-black/75 backdrop-blur-md border border-accent/40 text-white text-xs shadow-lg">
-          <span className="text-accent font-bold flex items-center gap-1">
-            <span>{activeWaypoint.icon}</span> {activeWaypoint.name}
-          </span>
-          <span className="text-white/40">•</span>
-          <span className="text-[11px] text-white/80 hidden sm:inline">{activeWaypoint.description}</span>
-        </div>
-
-        {/* Top Right: Unmute / Ambient Audio Badge */}
-        <div className="absolute top-3 right-3 z-20 flex items-center gap-2">
-          {isMuted ? (
             <button
               type="button"
-              onClick={handleToggleMute}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/75 hover:bg-black/90 text-accent text-xs font-bold border border-accent/40 shadow-xl backdrop-blur-md transition-transform hover:scale-105 cursor-pointer animate-pulse"
+              onClick={() => setShowDimensions(!showDimensions)}
+              className="px-2.5 py-1 rounded-lg bg-black/70 backdrop-blur-md border border-white/20 text-white text-xs font-semibold hover:border-accent"
             >
-              <span>🔇</span>
-              <span>Click to Unmute Soundscape</span>
+              📏 {showDimensions ? "Dimensions: ON" : "Dimensions: OFF"}
             </button>
-          ) : (
-            <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-black/70 backdrop-blur-md border border-accent/40 text-accent text-[11px] font-bold shadow-lg">
-              <span>🔊 432Hz Soundscape Active</span>
-              <div className="flex items-end gap-0.5 h-3 ml-1">
-                <span className="w-1 bg-accent rounded-full animate-[bounce_0.7s_ease-in-out_infinite] h-2" />
-                <span className="w-1 bg-accent rounded-full animate-[bounce_0.7s_ease-in-out_infinite_0.2s] h-3.5" />
-                <span className="w-1 bg-accent rounded-full animate-[bounce_0.7s_ease-in-out_infinite_0.4s] h-1.5" />
-                <span className="w-1 bg-accent rounded-full animate-[bounce_0.7s_ease-in-out_infinite_0.1s] h-3" />
+          </div>
+
+          <Canvas
+            shadows
+            camera={{ position: [2.0, 1.65, 0.35], fov: 55 }}
+            onCreated={({ gl }) => {
+              canvasRef.current = gl.domElement;
+            }}
+            className="h-full w-full"
+          >
+            <color attach="background" args={[activeLighting.bg]} />
+            <ambientLight color={activeLighting.ambientLight.color} intensity={activeLighting.ambientLight.intensity} />
+            <directionalLight
+              position={activeLighting.dirLight.pos}
+              color={activeLighting.dirLight.color}
+              intensity={activeLighting.dirLight.intensity}
+              castShadow
+              shadow-mapSize-width={2048}
+              shadow-mapSize-height={2048}
+            />
+
+            {/* Realistic Architecture with Ceiling, PBR materials, Downlights */}
+            <ProceduralFloor bounds={bounds} flooring={flooring} />
+            <ProceduralCeiling bounds={bounds} showLights={activeLighting.showWarmRecessed} />
+            <ProceduralWalls
+              walls={walls}
+              doors={doors}
+              windows={windows}
+              wallPreset={wallPreset}
+              showDimensions={showDimensions}
+              unitSystem={unitSystem}
+            />
+            <ProceduralFurniture furniture={furniture} showDimensions={showDimensions} unitSystem={unitSystem} />
+
+            <WalkthroughCameraController
+              cameraMode={cameraMode}
+              tourTime={tourTime}
+              isPlaying={isPlaying}
+              onTourTimeUpdate={setTourTime}
+              firstPersonPos={firstPersonPos}
+              onFirstPersonMove={setFirstPersonPos}
+            />
+
+            {cameraMode === "axonometric" && (
+              <OrbitControls makeDefault enableDamping dampingFactor={0.08} minDistance={2} maxDistance={25} />
+            )}
+
+            <Environment preset={activeLighting.env} />
+            <ContactShadows position={[2.5, 0, 1.5]} opacity={0.35} scale={10} blur={2} far={4} />
+          </Canvas>
+
+          {/* Sound CTA */}
+          <div className="absolute top-3 right-3 z-20 flex items-center gap-2">
+            {isMuted ? (
+              <button
+                type="button"
+                onClick={handleToggleMute}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/75 hover:bg-black/90 text-accent text-xs font-bold border border-accent/40 shadow-xl backdrop-blur-md cursor-pointer animate-pulse"
+              >
+                <span>🔇</span>
+                <span>Click to Unmute 432Hz Sound</span>
+              </button>
+            ) : (
+              <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-black/70 backdrop-blur-md border border-accent/40 text-accent text-[11px] font-bold shadow-lg">
+                <span>🔊 432Hz Soundscape</span>
+                <div className="flex items-end gap-0.5 h-3 ml-1">
+                  <span className="w-1 bg-accent rounded-full animate-[bounce_0.7s_ease-in-out_infinite] h-2" />
+                  <span className="w-1 bg-accent rounded-full animate-[bounce_0.7s_ease-in-out_infinite_0.2s] h-3.5" />
+                  <span className="w-1 bg-accent rounded-full animate-[bounce_0.7s_ease-in-out_infinite_0.4s] h-1.5" />
+                </div>
               </div>
+            )}
+          </div>
+
+          {/* First-person keyboard hint */}
+          {cameraMode === "first_person" && (
+            <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-20 px-3.5 py-1.5 rounded-full bg-black/75 backdrop-blur-md text-white text-xs font-mono border border-white/20 shadow-xl">
+              ⌨️ Use <span className="text-accent font-bold">W, A, S, D</span> to walk inside at 1.65m eye level
             </div>
           )}
-        </div>
 
-        {/* First-Person On-Screen Instructions */}
-        {cameraMode === "first_person" && (
-          <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-20 px-3.5 py-1.5 rounded-full bg-black/75 backdrop-blur-md text-white text-xs font-mono border border-white/20 shadow-xl">
-            ⌨️ Use <span className="text-accent font-bold">W, A, S, D</span> or <span className="text-accent font-bold">Arrow Keys</span> to walk at 1.65m eye level
-          </div>
-        )}
-
-        {/* Bottom Bar: Timeline Scrubber, Waypoints, & Controls */}
-        <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/95 via-black/70 to-transparent p-3 pt-6 z-10 space-y-2">
-          {/* Progress / Timeline Scrubber */}
-          {cameraMode === "tour" && (
-            <div className="flex items-center gap-2">
+          {/* Bottom Bar: Timeline Scrubber & Waypoints */}
+          <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/95 via-black/70 to-transparent p-3 pt-6 z-10 space-y-2">
+            {cameraMode === "tour" && (
               <input
                 type="range"
                 min="0"
@@ -974,167 +1223,205 @@ export function Live3DWalkthroughPlayer({
                 onChange={handleSeek}
                 className="w-full h-1.5 bg-white/25 rounded-lg appearance-none cursor-pointer accent-accent hover:h-2 transition-all"
               />
-            </div>
-          )}
+            )}
 
-          <div className="flex flex-wrap items-center justify-between gap-3 text-white text-xs">
-            {/* Play Button & Time Counter */}
-            <div className="flex items-center gap-3">
-              {cameraMode === "tour" && (
+            <div className="flex flex-wrap items-center justify-between gap-3 text-white text-xs">
+              <div className="flex items-center gap-3">
+                {cameraMode === "tour" && (
+                  <button
+                    type="button"
+                    onClick={handleTogglePlay}
+                    className="p-1 hover:text-accent transition-colors cursor-pointer"
+                  >
+                    {isPlaying ? "⏸" : "▶"}
+                  </button>
+                )}
+                {cameraMode === "tour" && (
+                  <span className="font-mono text-[11px] text-white/80">
+                    {formatTime(tourTime)} / {formatTime(TOUR_DURATION)}
+                  </span>
+                )}
+                <div className="hidden md:flex items-center gap-1.5">
+                  {TOUR_WAYPOINTS.map((wp) => (
+                    <button
+                      key={wp.name}
+                      type="button"
+                      onClick={() => handleJumpToWaypoint(wp)}
+                      className={`px-2 py-0.5 rounded text-[10px] font-semibold border transition-all cursor-pointer ${
+                        activeWaypoint.name === wp.name
+                          ? "bg-accent/30 text-white border-accent shadow-xs"
+                          : "bg-white/10 text-white/70 border-white/20 hover:bg-white/20"
+                      }`}
+                    >
+                      <span>{wp.icon}</span> {wp.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={handleTogglePlay}
-                  className="p-1 hover:text-accent transition-colors cursor-pointer"
-                  title={isPlaying ? "Pause Tour" : "Resume Tour"}
+                  onClick={handleRecordVideo}
+                  disabled={isRecording}
+                  className="rounded bg-white/15 hover:bg-white/25 px-2.5 py-1 text-xs text-white border border-white/25 transition-colors disabled:opacity-50"
                 >
-                  {isPlaying ? (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                      <rect x="6" y="4" width="4" height="16" rx="1" />
-                      <rect x="14" y="4" width="4" height="16" rx="1" />
-                    </svg>
-                  ) : (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" className="text-accent">
-                      <polygon points="5 3 19 12 5 21 5 3" />
-                    </svg>
-                  )}
+                  {isRecording ? `🔴 ${recordProgress}%` : "🎥 Record Walkthrough"}
                 </button>
-              )}
-
-              {cameraMode === "tour" && (
-                <span className="font-mono text-[11px] text-white/80">
-                  {formatTime(tourTime)} / {formatTime(TOUR_DURATION)}
-                </span>
-              )}
-
-              {/* Waypoint Quick Jump Badges */}
-              <div className="hidden md:flex items-center gap-1.5">
-                {TOUR_WAYPOINTS.map((wp) => (
-                  <button
-                    key={wp.name}
-                    type="button"
-                    onClick={() => handleJumpToWaypoint(wp)}
-                    className={`px-2 py-0.5 rounded text-[10px] font-semibold border transition-all cursor-pointer ${
-                      activeWaypoint.name === wp.name
-                        ? "bg-accent/30 text-white border-accent shadow-xs"
-                        : "bg-white/10 text-white/70 border-white/20 hover:bg-white/20"
-                    }`}
-                  >
-                    <span>{wp.icon}</span> {wp.name}
-                  </button>
-                ))}
+                <button
+                  type="button"
+                  onClick={() => setShowMaterialDrawer(!showMaterialDrawer)}
+                  className="rounded bg-white/15 hover:bg-white/25 px-2.5 py-1 text-xs text-white border border-white/25 transition-colors"
+                >
+                  🎨 Materials
+                </button>
               </div>
-            </div>
-
-            {/* Audio & Material Toggles */}
-            <div className="flex items-center gap-2">
-              {/* Sound Toggle */}
-              <button
-                type="button"
-                onClick={handleToggleMute}
-                className={`flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-semibold backdrop-blur-sm border transition-all cursor-pointer ${
-                  isMuted
-                    ? "bg-red-500/20 text-red-200 border-red-400/40 hover:bg-red-500/30"
-                    : "bg-accent/30 text-white border-accent hover:bg-accent/40 shadow-xs"
-                }`}
-              >
-                <span>{isMuted ? "🔇 Unmute" : "🔊 Sound"}</span>
-              </button>
-
-              {/* Volume Slider */}
-              {!isMuted && (
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.05"
-                  value={volume}
-                  onChange={(e) => setVolume(parseFloat(e.target.value))}
-                  className="w-16 accent-accent cursor-pointer h-1.5 rounded-lg bg-white/20 hidden sm:inline-block"
-                  title="Volume control"
-                />
-              )}
-
-              {/* Material Drawer Toggle */}
-              <button
-                type="button"
-                onClick={() => setShowMaterialDrawer(!showMaterialDrawer)}
-                className="rounded bg-white/15 hover:bg-white/25 px-2.5 py-1 text-xs text-white border border-white/25 transition-colors"
-              >
-                🎨 Materials
-              </button>
             </div>
           </div>
         </div>
+      ) : (
+        /* HIGGSFIELD AI CINEMA REEL VIEWPORT */
+        <div className="relative aspect-video w-full bg-[#12110f] overflow-hidden group">
+          <video
+            ref={videoRef}
+            src={higgsfieldVideoUrl}
+            autoPlay
+            loop
+            muted={isMuted}
+            playsInline
+            className="h-full w-full object-cover"
+          />
 
-        {/* Floating Material Swapper Drawer */}
-        {showMaterialDrawer && (
-          <div className="absolute top-12 right-3 z-30 w-72 rounded-xl border border-border bg-surface/95 backdrop-blur-md p-3 shadow-2xl space-y-3 text-xs text-foreground">
-            <div className="flex items-center justify-between border-b border-border pb-2">
-              <span className="font-bold flex items-center gap-1.5">
-                <span>🎨</span> Live Material Swapper
-              </span>
+          {/* Director of Photography (DoP) HUD Overlay */}
+          <div className="absolute top-3 left-3 z-20 flex flex-col gap-1 p-2.5 rounded-lg bg-black/80 backdrop-blur-md border border-accent/40 text-white text-xs shadow-xl">
+            <div className="flex items-center gap-1.5 font-bold text-accent text-[11px]">
+              <span>✨</span>
+              <span>Higgsfield AI Cinema DoP Mode</span>
+            </div>
+            <div className="text-[10px] font-mono text-white/80 space-y-0.5">
+              <p>• Lens: 28mm f/2.8 Architectural Cine Prime</p>
+              <p>• Motion: 1.65m Steadicam Glide (DoP Intensity {motionIntensity}/10)</p>
+              <p>• Format: 60fps Cinema • 1/120s Shutter (180° Rule)</p>
+              <p>• CAD Conditioning: 5.0m × 3.0m Living Studio</p>
+            </div>
+          </div>
+
+          {/* Audio Unmute CTA */}
+          <div className="absolute top-3 right-3 z-20">
+            <button
+              type="button"
+              onClick={handleToggleMute}
+              className={`flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-semibold backdrop-blur-md border transition-all cursor-pointer ${
+                isMuted
+                  ? "bg-red-500/20 text-red-200 border-red-400/40 hover:bg-red-500/30"
+                  : "bg-accent/30 text-white border-accent hover:bg-accent/40 shadow-xs"
+              }`}
+            >
+              <span>{isMuted ? "🔇 Unmute Audio" : "🔊 Sound Active"}</span>
+            </button>
+          </div>
+
+          {/* Bottom Bar for Video Controls */}
+          <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/95 via-black/60 to-transparent p-3 pt-6 z-10 flex items-center justify-between text-white text-xs">
+            <div className="flex items-center gap-3">
               <button
                 type="button"
-                onClick={() => setShowMaterialDrawer(false)}
-                className="text-muted hover:text-foreground text-xs"
+                onClick={handleTogglePlay}
+                className="p-1 hover:text-accent transition-colors cursor-pointer text-sm"
               >
-                ✕
+                {isPlaying ? "⏸ Pause" : "▶ Play"}
               </button>
+              <span className="text-[11px] text-white/80">
+                Photorealistic Higgsfield AI Reel • Exact 3D Floor Plan Match
+              </span>
             </div>
 
-            {/* Flooring Swaps */}
-            <div className="space-y-1.5">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-muted">Flooring Material:</span>
-              <div className="grid grid-cols-1 gap-1">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowHiggsfieldModal(true)}
+                className="flex items-center gap-1.5 rounded bg-accent text-accent-foreground px-3 py-1 text-xs font-bold hover:bg-accent/90"
+              >
+                <span>✨ Re-synthesize</span>
+              </button>
+              <a
+                href={higgsfieldVideoUrl}
+                download={`${projectName}_higgsfield_cinema.mp4`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded bg-white/15 hover:bg-white/25 px-2.5 py-1 text-xs text-white border border-white/20 transition-colors"
+              >
+                ⬇ MP4
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Material Swapper Palette Drawer */}
+      {showMaterialDrawer && (
+        <div className="p-4 rounded-xl border border-border bg-[#faf8f4]/95 backdrop-blur-md space-y-3 text-xs">
+          <div className="flex items-center justify-between border-b border-border pb-2">
+            <span className="font-bold flex items-center gap-1.5">
+              <span>🎨</span> PBR Architectural Material Swapper & Daylight Control
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowMaterialDrawer(false)}
+              className="text-muted hover:text-foreground text-xs"
+            >
+              ✕ Close
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {/* Flooring */}
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold uppercase text-muted">Flooring Material:</span>
+              <div className="space-y-1">
                 {FLOORING_SWAPS.map((f) => (
                   <button
                     key={f.id}
                     type="button"
                     onClick={() => setFlooring(f)}
-                    className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg border text-left transition-all ${
+                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded border text-left transition-all ${
                       flooring.id === f.id
                         ? "border-accent bg-accent/10 font-semibold text-accent"
-                        : "border-border/60 hover:border-accent/40 text-foreground"
+                        : "border-border/60 hover:border-accent/40"
                     }`}
                   >
-                    <div className="flex items-center gap-2">
-                      <span className="h-3 w-3 rounded-full border border-black/20" style={{ backgroundColor: f.colorHex }} />
-                      <span className="truncate">{f.name}</span>
-                    </div>
-                    {flooring.id === f.id && <span className="text-[10px]">✓</span>}
+                    <span>{f.name}</span>
+                    {flooring.id === f.id && <span>✓</span>}
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Wall Swaps */}
-            <div className="space-y-1.5">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-muted">Wall Finish:</span>
-              <div className="grid grid-cols-1 gap-1">
+            {/* Walls */}
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold uppercase text-muted">Wall Finish:</span>
+              <div className="space-y-1">
                 {WALL_SWAPS.map((w) => (
                   <button
                     key={w.id}
                     type="button"
                     onClick={() => setWallPreset(w)}
-                    className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg border text-left transition-all ${
+                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded border text-left transition-all ${
                       wallPreset.id === w.id
                         ? "border-accent bg-accent/10 font-semibold text-accent"
-                        : "border-border/60 hover:border-accent/40 text-foreground"
+                        : "border-border/60 hover:border-accent/40"
                     }`}
                   >
-                    <div className="flex items-center gap-2">
-                      <span className="h-3 w-3 rounded-full border border-black/20" style={{ backgroundColor: w.colorHex }} />
-                      <span className="truncate">{w.name}</span>
-                    </div>
-                    {wallPreset.id === w.id && <span className="text-[10px]">✓</span>}
+                    <span>{w.name}</span>
+                    {wallPreset.id === w.id && <span>✓</span>}
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Sun Simulation */}
-            <div className="space-y-1.5 pt-1 border-t border-border">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-muted">Circadian Lighting:</span>
+            {/* Daylight / Circadian */}
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold uppercase text-muted">Sun Angle & Lighting:</span>
               <div className="grid grid-cols-2 gap-1">
                 {(Object.keys(CIRCADIAN_CONFIGS) as CircadianPreset[]).map((key) => {
                   const cfg = CIRCADIAN_CONFIGS[key];
@@ -1143,10 +1430,10 @@ export function Live3DWalkthroughPlayer({
                       key={key}
                       type="button"
                       onClick={() => setCircadian(key)}
-                      className={`flex items-center gap-1.5 p-1.5 rounded border text-[11px] transition-colors ${
+                      className={`flex items-center gap-1 p-1.5 rounded border text-[11px] transition-colors ${
                         circadian === key
                           ? "border-accent bg-accent/10 font-semibold text-accent"
-                          : "border-border/60 hover:border-accent/40 text-foreground"
+                          : "border-border/60 hover:border-accent/40"
                       }`}
                     >
                       <span>{cfg.icon}</span>
@@ -1157,14 +1444,113 @@ export function Live3DWalkthroughPlayer({
               </div>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
-      {/* Architectural Dimensions Callout Strip below player */}
+      {/* Higgsfield AI Video Generation Modal */}
+      {showHiggsfieldModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <div className="w-full max-w-lg rounded-xl border border-border bg-surface p-6 shadow-2xl space-y-4 text-xs">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div>
+                <h4 className="text-sm font-bold text-foreground flex items-center gap-1.5">
+                  <span>✨</span> Higgsfield AI Video Generation
+                </h4>
+                <p className="text-[11px] text-muted">Conditioned on 3D CAD dimensions and camera path.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowHiggsfieldModal(false)}
+                className="text-muted hover:text-foreground text-sm font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="font-bold text-foreground block mb-1">Director of Photography (DoP) Flightpath:</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setHiggsfieldDopMode("interior_glide")}
+                    className={`p-2 rounded-lg border text-left transition-all ${
+                      higgsfieldDopMode === "interior_glide"
+                        ? "border-accent bg-accent/10 text-accent font-bold"
+                        : "border-border text-muted hover:text-foreground"
+                    }`}
+                  >
+                    <p className="font-semibold text-xs">🚶‍♂️ 1.65m Interior Glide</p>
+                    <p className="text-[10px] text-muted mt-0.5">Enters through 0.9m front door into living & bed</p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setHiggsfieldDopMode("orbit_360")}
+                    className={`p-2 rounded-lg border text-left transition-all ${
+                      higgsfieldDopMode === "orbit_360"
+                        ? "border-accent bg-accent/10 text-accent font-bold"
+                        : "border-border text-muted hover:text-foreground"
+                    }`}
+                  >
+                    <p className="font-semibold text-xs">🔄 360° Living Turntable</p>
+                    <p className="text-[10px] text-muted mt-0.5">Continuous smooth orbital flight around layout</p>
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="font-bold text-foreground">Motion Intensity & Camera Dynamics:</label>
+                  <span className="font-mono text-accent font-bold">{motionIntensity} / 10</span>
+                </div>
+                <input
+                  type="range"
+                  min="1"
+                  max="10"
+                  value={motionIntensity}
+                  onChange={(e) => setMotionIntensity(parseInt(e.target.value))}
+                  className="w-full h-1.5 bg-border rounded-lg appearance-none cursor-pointer accent-accent"
+                />
+              </div>
+
+              <div className="rounded-lg border border-border bg-[#faf8f4] p-3 space-y-1">
+                <span className="text-[10px] font-bold uppercase text-muted">Architectural Synthesis Specifications:</span>
+                <p className="font-mono text-[10px] text-muted">
+                  • 5.0m × 3.0m studio area • Floor: {flooring.name} • Walls: {wallPreset.name} • Lighting: {activeLighting.temp}
+                </p>
+                <p className="font-mono text-[10px] text-muted">
+                  • 28mm f/2.8 Architectural Cine Prime • 60fps Cinema Reel • Photorealistic 8K PBR
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+              <button
+                type="button"
+                onClick={() => setShowHiggsfieldModal(false)}
+                className="px-3 py-1.5 rounded-lg border border-border text-muted hover:text-foreground text-xs"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isHiggsfieldSynthesizing}
+                onClick={handleSynthesizeHiggsfield}
+                className="flex items-center gap-1.5 rounded-lg bg-accent text-accent-foreground px-4 py-1.5 text-xs font-bold hover:bg-accent/90 disabled:opacity-50"
+              >
+                <span>{isHiggsfieldSynthesizing ? "⏳" : "✨"}</span>
+                <span>{isHiggsfieldSynthesizing ? "Synthesizing Walkthrough…" : "Generate Higgsfield Video"}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Architectural Dimensions Callout Strip */}
       <div className="p-4 pt-1 space-y-2">
         <div className="flex items-center justify-between">
           <span className="text-[10px] font-bold uppercase tracking-wider text-muted">
-            3D Spatial Envelope & Verified Dimensions:
+            3D Spatial Envelope & Verified CAD Dimensions:
           </span>
           <span className="text-[10px] font-mono text-accent font-bold">
             NBC 2016 Compliant • 15.00 m² (161.5 sq.ft)
