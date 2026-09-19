@@ -1,10 +1,8 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import {
   SAMPLE_CINEMATIC_REELS,
-  generateCameraPath,
-  type CameraChoreographyMode,
   type VideoWalkthroughReel,
 } from "@/lib/video-walkthrough";
 
@@ -19,13 +17,16 @@ export function VideoReelPlayer({
   initialReels = SAMPLE_CINEMATIC_REELS,
   className = "",
 }: VideoReelPlayerProps) {
-  const [reels, setReels] = useState<VideoWalkthroughReel[]>(initialReels);
+  const [reels] = useState<VideoWalkthroughReel[]>(initialReels);
   const [selectedReelIndex, setSelectedReelIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
-  const [volume, setVolume] = useState(0.8);
+  const [isMuted, setIsMuted] = useState(true); // Default muted to allow instant browser autoplay
+  const [volume, setVolume] = useState(0.85);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(12);
   const [isGenerating, setIsGenerating] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  const [showSoundPrompt, setShowSoundPrompt] = useState(true);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -35,7 +36,7 @@ export function VideoReelPlayer({
   const activeReel = reels[selectedReelIndex] || reels[0];
 
   // Stop Web Audio synth
-  function stopSynth() {
+  const stopSynth = useCallback(() => {
     try {
       oscNodesRef.current.forEach((osc) => {
         try {
@@ -49,13 +50,16 @@ export function VideoReelPlayer({
     } catch {
       // ignore
     }
-  }
+  }, []);
 
-  // Web Audio ambient sound synthesizer (Warm 432Hz architectural chord drone)
-  function playAmbientSynth() {
+  // Web Audio ambient synthesizer (Warm 432Hz harmonic architectural chord drone)
+  const playAmbientSynth = useCallback(() => {
     try {
       stopSynth();
-      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const AudioCtx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext })
+          .webkitAudioContext;
       if (!AudioCtx) return;
 
       if (!audioCtxRef.current) {
@@ -67,11 +71,15 @@ export function VideoReelPlayer({
       }
 
       const gain = ctx.createGain();
-      gain.gain.setValueAtTime(isMuted ? 0 : volume * 0.15, ctx.currentTime);
+      gain.gain.setValueAtTime(0.001, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(
+        isMuted ? 0 : volume * 0.12,
+        ctx.currentTime + 0.3,
+      );
       gain.connect(ctx.destination);
       gainNodeRef.current = gain;
 
-      // Harmonic architectural frequencies (A2=110Hz, E3=164.81Hz, A3=220Hz, C#4=277.18Hz, E4=329.63Hz)
+      // Harmonic 432Hz architectural chord (A2=110Hz, E3=164.81Hz, A3=220Hz, C#4=277.18Hz, E4=329.63Hz)
       const freqs = [110, 164.81, 220, 277.18, 329.63];
       const oscs = freqs.map((f, i) => {
         const osc = ctx.createOscillator();
@@ -86,8 +94,36 @@ export function VideoReelPlayer({
     } catch (e) {
       console.warn("Web Audio ambient synth init:", e);
     }
-  }
+  }, [isMuted, volume, stopSynth]);
 
+  // Autoplay on mount and whenever active reel changes
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    video.muted = isMuted;
+    video.volume = isMuted ? 0 : volume;
+
+    const playPromise = video.play();
+    if (playPromise !== undefined) {
+      playPromise
+        .then(() => {
+          setIsPlaying(true);
+          setLoadError(false);
+          if (!isMuted) {
+            playAmbientSynth();
+          }
+        })
+        .catch(() => {
+          // If unmuted autoplay blocked by browser policy, fallback to muted autoplay
+          video.muted = true;
+          setIsMuted(true);
+          video.play().then(() => setIsPlaying(true)).catch(() => {});
+        });
+    }
+  }, [selectedReelIndex, isMuted, volume, playAmbientSynth]);
+
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
       stopSynth();
@@ -95,57 +131,44 @@ export function VideoReelPlayer({
         audioCtxRef.current.close().catch(() => {});
       }
     };
-  }, []);
+  }, [stopSynth]);
 
-  // Sync mute and volume state to video and synth
+  // Sync volume state
   useEffect(() => {
     if (videoRef.current) {
       videoRef.current.muted = isMuted;
       videoRef.current.volume = isMuted ? 0 : volume;
     }
     if (gainNodeRef.current && audioCtxRef.current) {
-      gainNodeRef.current.gain.setValueAtTime(
-        isMuted ? 0 : volume * 0.15,
-        audioCtxRef.current.currentTime,
+      gainNodeRef.current.gain.linearRampToValueAtTime(
+        isMuted ? 0 : volume * 0.12,
+        audioCtxRef.current.currentTime + 0.1,
       );
     }
   }, [isMuted, volume]);
 
-  function togglePlay() {
-    if (!videoRef.current) return;
+  function handleTogglePlay() {
+    const video = videoRef.current;
+    if (!video) return;
 
     if (isPlaying) {
-      videoRef.current.pause();
+      video.pause();
       setIsPlaying(false);
       stopSynth();
     } else {
-      setLoadError(false);
-      videoRef.current.muted = isMuted;
-      videoRef.current.volume = isMuted ? 0 : volume;
-
-      videoRef.current
-        .play()
-        .then(() => {
-          setIsPlaying(true);
-          if (!isMuted) {
-            playAmbientSynth();
-          }
-        })
-        .catch((err) => {
-          console.warn("Initial unmuted play blocked, attempting fallback:", err);
-          // Retry muted if browser policy blocked audio playback
-          if (videoRef.current) {
-            videoRef.current.muted = true;
-            setIsMuted(true);
-            videoRef.current.play().then(() => setIsPlaying(true));
-          }
-        });
+      video.play().then(() => {
+        setIsPlaying(true);
+        if (!isMuted) {
+          playAmbientSynth();
+        }
+      }).catch(() => {});
     }
   }
 
-  function toggleMute() {
+  function handleToggleMute() {
     const nextMuted = !isMuted;
     setIsMuted(nextMuted);
+    setShowSoundPrompt(false);
 
     if (videoRef.current) {
       videoRef.current.muted = nextMuted;
@@ -159,15 +182,63 @@ export function VideoReelPlayer({
     }
   }
 
+  function handleUnmuteClick(e: React.MouseEvent) {
+    e.stopPropagation();
+    setIsMuted(false);
+    setShowSoundPrompt(false);
+    if (videoRef.current) {
+      videoRef.current.muted = false;
+      videoRef.current.volume = volume;
+      if (!isPlaying) {
+        videoRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
+      }
+    }
+    playAmbientSynth();
+  }
+
   function handleModeSelect(index: number) {
     setSelectedReelIndex(index);
-    setIsPlaying(false);
+    setCurrentTime(0);
     setLoadError(false);
-    stopSynth();
     if (videoRef.current) {
       videoRef.current.currentTime = 0;
-      videoRef.current.pause();
     }
+  }
+
+  function handleTimeUpdate() {
+    if (videoRef.current) {
+      setCurrentTime(videoRef.current.currentTime);
+    }
+  }
+
+  function handleLoadedMetadata() {
+    if (videoRef.current && videoRef.current.duration) {
+      setDuration(videoRef.current.duration);
+    }
+  }
+
+  function handleSeek(e: React.ChangeEvent<HTMLInputElement>) {
+    const targetTime = parseFloat(e.target.value);
+    setCurrentTime(targetTime);
+    if (videoRef.current) {
+      videoRef.current.currentTime = targetTime;
+    }
+  }
+
+  function handleFullscreen() {
+    const videoContainer = videoRef.current?.parentElement;
+    if (!videoContainer) return;
+    if (!document.fullscreenElement) {
+      videoContainer.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen().catch(() => {});
+    }
+  }
+
+  function formatTime(sec: number) {
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return `${m}:${s < 10 ? "0" : ""}${s}`;
   }
 
   function handleGenerateNew() {
@@ -194,7 +265,7 @@ export function VideoReelPlayer({
             </span>
           </div>
           <p className="text-xs text-muted mt-0.5">
-            Ultra-smooth camera flight paths choreographed from the 3D model geometry.
+            Photorealistic architectural flight paths with ambient 432Hz acoustic soundscape.
           </p>
         </div>
 
@@ -212,7 +283,7 @@ export function VideoReelPlayer({
                     : "text-muted hover:text-foreground"
                 }`}
               >
-                {r.mode === "orbit_360" ? "360° Orbit" : "Interior Glide"}
+                {r.mode === "orbit_360" ? "360° Turntable" : "Twilight Glide"}
               </button>
             ))}
           </div>
@@ -229,106 +300,194 @@ export function VideoReelPlayer({
         </div>
       </div>
 
-      {/* Video Viewport */}
+      {/* Video Viewport Container */}
       <div className="relative aspect-video w-full bg-[#141311] overflow-hidden group">
         <video
           ref={videoRef}
           src={activeReel.videoUrl}
           poster={activeReel.thumbnailUrl}
-          loop
+          autoPlay
           muted={isMuted}
+          loop
           playsInline
           onPlay={() => setIsPlaying(true)}
           onPause={() => setIsPlaying(false)}
+          onTimeUpdate={handleTimeUpdate}
+          onLoadedMetadata={handleLoadedMetadata}
           onError={() => setLoadError(true)}
-          className="h-full w-full object-cover"
+          className="h-full w-full object-cover cursor-pointer"
+          onClick={handleTogglePlay}
         />
 
-        {/* Play / Pause Center Overlay */}
+        {/* Floating Callout: Prompt to Unmute Audio when muted */}
+        {isMuted && showSoundPrompt && isPlaying && (
+          <div className="absolute top-4 left-4 z-20">
+            <button
+              type="button"
+              onClick={handleUnmuteClick}
+              className="flex items-center gap-2 px-3.5 py-2 rounded-full bg-black/75 hover:bg-black/90 text-accent text-xs font-bold border border-accent/40 shadow-xl backdrop-blur-md transition-transform hover:scale-105 cursor-pointer animate-pulse"
+            >
+              <span>🔊</span>
+              <span>Click to Unmute 432Hz Soundscape</span>
+            </button>
+          </div>
+        )}
+
+        {/* Audio Equalizer Indicator (Active when unmuted) */}
+        {!isMuted && isPlaying && (
+          <div className="absolute top-4 right-4 z-20 flex items-center gap-2 px-3 py-1 rounded-full bg-black/70 backdrop-blur-md border border-accent/40 text-accent text-[11px] font-bold shadow-lg">
+            <span>🔊 432Hz Ambient Soundscape</span>
+            <div className="flex items-end gap-0.5 h-3 ml-1">
+              <span className="w-1 bg-accent rounded-full animate-[bounce_0.7s_ease-in-out_infinite] h-2" />
+              <span className="w-1 bg-accent rounded-full animate-[bounce_0.7s_ease-in-out_infinite_0.2s] h-3.5" />
+              <span className="w-1 bg-accent rounded-full animate-[bounce_0.7s_ease-in-out_infinite_0.4s] h-1.5" />
+              <span className="w-1 bg-accent rounded-full animate-[bounce_0.7s_ease-in-out_infinite_0.1s] h-3" />
+            </div>
+          </div>
+        )}
+
+        {/* Center Big Play/Pause Overlay Button (Fades out when playing, reappears on hover) */}
         <button
           type="button"
-          onClick={togglePlay}
-          className="absolute inset-0 flex items-center justify-center bg-black/25 group-hover:bg-black/40 transition-colors cursor-pointer"
+          onClick={handleTogglePlay}
+          className={`absolute inset-0 flex items-center justify-center transition-opacity cursor-pointer ${
+            isPlaying ? "opacity-0 group-hover:opacity-100 bg-black/20" : "opacity-100 bg-black/40"
+          }`}
         >
-          <div className="h-16 w-16 rounded-full bg-white/95 backdrop-blur-sm flex items-center justify-center text-foreground shadow-2xl hover:scale-105 transition-transform border border-black/10">
+          <div className="h-16 w-16 rounded-full bg-white/95 backdrop-blur-md flex items-center justify-center text-foreground shadow-2xl hover:scale-110 transition-transform border border-black/10">
             {isPlaying ? (
               <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
                 <rect x="6" y="4" width="4" height="16" rx="1" />
                 <rect x="14" y="4" width="4" height="16" rx="1" />
               </svg>
             ) : (
-              <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor" className="ml-1 text-accent">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" className="ml-1 text-accent">
                 <polygon points="5 3 19 12 5 21 5 3" />
               </svg>
             )}
           </div>
         </button>
 
-        {/* Audio Equalizer Wave Animation (Visible when playing with sound) */}
-        {!isMuted && isPlaying && (
-          <div className="absolute top-3 right-3 flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/60 backdrop-blur-md border border-accent/40 text-accent text-[11px] font-bold shadow-lg">
-            <span>🔊 432Hz Ambient Soundscape</span>
-            <div className="flex items-end gap-0.5 h-3.5 ml-1">
-              <span className="w-1 bg-accent rounded-full animate-[bounce_0.8s_ease-in-out_infinite] h-2" />
-              <span className="w-1 bg-accent rounded-full animate-[bounce_0.8s_ease-in-out_infinite_0.2s] h-3.5" />
-              <span className="w-1 bg-accent rounded-full animate-[bounce_0.8s_ease-in-out_infinite_0.4s] h-1.5" />
-              <span className="w-1 bg-accent rounded-full animate-[bounce_0.8s_ease-in-out_infinite_0.1s] h-3" />
-            </div>
+        {/* Load Error Fallback */}
+        {loadError && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/85 text-white p-6 space-y-3">
+            <span className="text-2xl">⚠️</span>
+            <p className="text-sm font-semibold">Video walkthough reel loading failed</p>
+            <button
+              type="button"
+              onClick={() => {
+                setLoadError(false);
+                if (videoRef.current) {
+                  videoRef.current.load();
+                  videoRef.current.play().catch(() => {});
+                }
+              }}
+              className="px-3 py-1.5 rounded bg-accent text-accent-foreground text-xs font-bold"
+            >
+              Retry Playback
+            </button>
           </div>
         )}
 
-        {/* Bottom Bar Info & Audio Controls */}
-        <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent p-4 flex items-center justify-between text-white text-xs">
-          <div>
-            <p className="font-semibold text-sm flex items-center gap-2">
-              <span>{activeReel.title}</span>
-              {isPlaying && (
-                <span className="text-[10px] uppercase font-bold text-accent tracking-wider animate-pulse">
-                  • Playing
-                </span>
-              )}
-            </p>
-            <p className="text-[11px] text-white/75 font-mono truncate max-w-md">{activeReel.prompt}</p>
+        {/* Bottom Control Bar & Timeline */}
+        <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/95 via-black/70 to-transparent p-3 pt-6 z-10 space-y-2">
+          {/* Progress / Timeline Scrubber */}
+          <div className="flex items-center gap-2">
+            <input
+              type="range"
+              min="0"
+              max={duration || 12}
+              step="0.1"
+              value={currentTime}
+              onChange={handleSeek}
+              className="w-full h-1 bg-white/25 rounded-lg appearance-none cursor-pointer accent-accent hover:h-1.5 transition-all"
+            />
           </div>
 
-          <div className="flex items-center gap-2.5">
-            {/* Sound Mute/Unmute Button */}
-            <button
-              type="button"
-              onClick={toggleMute}
-              className={`flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-semibold backdrop-blur-sm border transition-all cursor-pointer ${
-                isMuted
-                  ? "bg-red-500/20 text-red-200 border-red-400/40 hover:bg-red-500/30"
-                  : "bg-accent/30 text-white border-accent hover:bg-accent/40 shadow-xs"
-              }`}
-            >
-              <span>{isMuted ? "🔇 Unmute Sound" : "🔊 Sound On"}</span>
-            </button>
+          <div className="flex flex-wrap items-center justify-between gap-3 text-white text-xs">
+            {/* Play Button & Time Counter */}
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={handleTogglePlay}
+                className="p-1 hover:text-accent transition-colors cursor-pointer"
+                title={isPlaying ? "Pause" : "Play"}
+              >
+                {isPlaying ? (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                    <rect x="6" y="4" width="4" height="16" rx="1" />
+                    <rect x="14" y="4" width="4" height="16" rx="1" />
+                  </svg>
+                ) : (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" className="text-accent">
+                    <polygon points="5 3 19 12 5 21 5 3" />
+                  </svg>
+                )}
+              </button>
 
-            {/* Volume Slider */}
-            {!isMuted && (
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.05"
-                value={volume}
-                onChange={(e) => setVolume(parseFloat(e.target.value))}
-                className="w-16 accent-accent cursor-pointer h-1.5 rounded-lg bg-white/20"
-                title="Volume control"
-              />
-            )}
+              <span className="font-mono text-[11px] text-white/80">
+                {formatTime(currentTime)} / {formatTime(duration)}
+              </span>
 
-            {/* Download MP4 */}
-            <a
-              href={activeReel.videoUrl}
-              download={`${projectName}_walkthrough.mp4`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="rounded bg-white/20 px-3 py-1.5 text-xs text-white hover:bg-white/30 backdrop-blur-xs border border-white/30 transition-colors"
-            >
-              ⬇ Download MP4
-            </a>
+              <span className="hidden sm:inline text-white/40">•</span>
+
+              <span className="hidden sm:inline font-semibold text-white/90 truncate max-w-xs">
+                {activeReel.title}
+              </span>
+            </div>
+
+            {/* Audio Controls & Actions */}
+            <div className="flex items-center gap-2">
+              {/* Sound Toggle */}
+              <button
+                type="button"
+                onClick={handleToggleMute}
+                className={`flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-semibold backdrop-blur-sm border transition-all cursor-pointer ${
+                  isMuted
+                    ? "bg-red-500/20 text-red-200 border-red-400/40 hover:bg-red-500/30"
+                    : "bg-accent/30 text-white border-accent hover:bg-accent/40 shadow-xs"
+                }`}
+              >
+                <span>{isMuted ? "🔇 Unmute" : "🔊 Sound"}</span>
+              </button>
+
+              {/* Volume Slider */}
+              {!isMuted && (
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={volume}
+                  onChange={(e) => setVolume(parseFloat(e.target.value))}
+                  className="w-16 accent-accent cursor-pointer h-1.5 rounded-lg bg-white/20 hidden md:inline-block"
+                  title="Volume control"
+                />
+              )}
+
+              {/* Fullscreen Button */}
+              <button
+                type="button"
+                onClick={handleFullscreen}
+                className="rounded bg-white/10 hover:bg-white/20 p-1.5 text-white/90 border border-white/20 transition-colors"
+                title="Fullscreen video"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
+                </svg>
+              </button>
+
+              {/* Download MP4 */}
+              <a
+                href={activeReel.videoUrl}
+                download={`${projectName}_walkthrough.mp4`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded bg-white/10 hover:bg-white/20 px-2.5 py-1 text-[11px] text-white border border-white/20 transition-colors"
+              >
+                ⬇ MP4
+              </a>
+            </div>
           </div>
         </div>
       </div>
