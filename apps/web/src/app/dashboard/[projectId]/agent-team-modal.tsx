@@ -5,6 +5,112 @@ import type { AgentMessage, AgentRole, ProjectContext } from "@/lib/agents-orche
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
+function parseInlineFormatting(text: string, isUser = false): React.ReactNode[] {
+  // Matches **bold text** and *italic text*
+  const regex = /(\*\*(.+?)\*\*)|(\*(.+?)\*)/g;
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.substring(lastIndex, match.index).replace(/\*\*/g, "").replace(/\*/g, ""));
+    }
+    if (match[2]) {
+      parts.push(
+        <strong
+          key={`${match.index}-b`}
+          className={isUser ? "font-bold text-inherit" : "font-semibold text-foreground"}
+        >
+          {match[2]}
+        </strong>,
+      );
+    } else if (match[4]) {
+      parts.push(
+        <em key={`${match.index}-i`} className="italic">
+          {match[4]}
+        </em>,
+      );
+    }
+    lastIndex = regex.lastIndex;
+  }
+
+  if (lastIndex < text.length) {
+    const remaining = text.substring(lastIndex).replace(/\*\*/g, "").replace(/\*/g, "");
+    parts.push(remaining);
+  }
+
+  return parts;
+}
+
+function FormattedMessage({ text, isUser = false }: { text: string; isUser?: boolean }) {
+  const lines = text.split("\n");
+
+  return (
+    <div className={`space-y-1.5 leading-relaxed text-[11px] ${isUser ? "text-inherit" : "text-foreground"}`}>
+      {lines.map((line, lineIdx) => {
+        const trimmed = line.trim();
+        if (!trimmed) {
+          return <div key={lineIdx} className="h-1" />;
+        }
+
+        // Header: ## or ###
+        if (trimmed.startsWith("### ") || trimmed.startsWith("## ")) {
+          const headerText = trimmed.replace(/^#+\s*/, "").replace(/\*\*/g, "");
+          return (
+            <h4
+              key={lineIdx}
+              className={`font-bold pt-1 text-xs ${isUser ? "text-inherit" : "text-foreground"}`}
+            >
+              {headerText}
+            </h4>
+          );
+        }
+
+        // Bullet point: * or -
+        const isBullet = /^[*-]\s+/.test(trimmed);
+        // Numbered list item: 1. or 2.
+        const isNumbered = /^\d+\.\s+/.test(trimmed);
+
+        const content = isBullet
+          ? trimmed.replace(/^[*-]\s+/, "")
+          : isNumbered
+          ? trimmed.replace(/^\d+\.\s+/, "")
+          : trimmed;
+
+        const parts = parseInlineFormatting(content, isUser);
+
+        if (isBullet) {
+          return (
+            <div key={lineIdx} className="flex items-start gap-1.5 pl-2">
+              <span className={`font-bold select-none ${isUser ? "text-inherit opacity-80" : "text-accent"}`}>•</span>
+              <span className="flex-1">{parts}</span>
+            </div>
+          );
+        }
+
+        if (isNumbered) {
+          const num = trimmed.match(/^(\d+)\./)?.[1] || "•";
+          return (
+            <div key={lineIdx} className="flex items-start gap-1.5 pl-2">
+              <span
+                className={`font-bold select-none min-w-[14px] ${
+                  isUser ? "text-inherit opacity-80" : "text-accent"
+                }`}
+              >
+                {num}.
+              </span>
+              <span className="flex-1">{parts}</span>
+            </div>
+          );
+        }
+
+        return <p key={lineIdx}>{parts}</p>;
+      })}
+    </div>
+  );
+}
+
 export function AgentTeamModal({
   projectName,
   region = "india",
@@ -260,7 +366,9 @@ export function AgentTeamModal({
                             <span className="font-bold">You (Project Architect)</span>
                             <span>{m.timestamp}</span>
                           </div>
-                          <p className="leading-relaxed whitespace-pre-wrap font-medium text-[11px]">{m.content}</p>
+                          <div className="pt-0.5">
+                            <FormattedMessage text={m.content} isUser={true} />
+                          </div>
                         </div>
                       </div>
                     );
@@ -284,8 +392,8 @@ export function AgentTeamModal({
                           </div>
                           <span className="text-[10px] text-muted">{m.timestamp}</span>
                         </div>
-                        <div className="text-foreground leading-relaxed whitespace-pre-wrap pt-1 text-[11px]">
-                          {m.content}
+                        <div className="pt-1">
+                          <FormattedMessage text={m.content} isUser={false} />
                         </div>
                       </div>
                     </div>

@@ -153,7 +153,7 @@ Project Context:
       // 1. Try Gemini API directly if key is available
       if (geminiKey) {
         try {
-          const fullPrompt = `${profile.systemPrompt}\n\n${contextSummary}\n\nUser Question/Brief:\n"${prompt}"\n\nProvide your expert feedback in 1-2 concise, actionable paragraphs with specific architectural recommendations answering this exact question.`;
+          const fullPrompt = `${profile.systemPrompt}\n\n${contextSummary}\n\nUser Question/Brief:\n"${prompt}"\n\nProvide your expert feedback in 1-2 concise, actionable paragraphs with specific architectural recommendations answering this exact question. Format with clear, natural typography and avoid using raw markdown asterisks (**) for bolding.`;
           const res = await fetch(
             `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`,
             {
@@ -189,7 +189,7 @@ Project Context:
               messages: [
                 {
                   role: "system",
-                  content: `${profile.systemPrompt}\n\n${contextSummary}\n\nYou are consulting as ${profile.name} (${profile.title}) on the user's project. Answer the user's question directly and concisely in 1-2 focused paragraphs with real architectural specifics and actionable guidance.`,
+                  content: `${profile.systemPrompt}\n\n${contextSummary}\n\nYou are consulting as ${profile.name} (${profile.title}) on the user's project. Answer the user's question directly and concisely in 1-2 focused paragraphs with real architectural specifics and actionable guidance. Format with clean natural typography and avoid using raw markdown asterisks (**) for bolding.`,
                 },
                 { role: "user", content: prompt },
               ],
