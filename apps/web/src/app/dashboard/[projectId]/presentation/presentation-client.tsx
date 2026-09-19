@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ModelViewer } from "@/components/model-viewer";
 import { calculateProjectCost } from "@/lib/cost-calculator";
 import { evaluateCompliance } from "@/lib/compliance-engine";
+import { Live3DWalkthroughPlayer } from "@/components/video/live-3d-walkthrough-player";
 import { VideoReelPlayer } from "@/components/video/video-reel-player";
 import { generateFFESchedule } from "@/lib/ffe-catalog";
 import type { ConstructionElements } from "@/components/floor-plan-editor/export/to-elements";
@@ -216,34 +217,15 @@ export function PresentationClient({
       </section>
 
       {/* ========================================================================= */}
-      {/* 1. Spatial 3D Form & Interactive Walkthrough                              */}
-      {/* ========================================================================= */}
-      <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-muted flex items-center gap-1.5">
-            <span>🏛️</span> 1. Spatial 3D Envelope & Material Lighting Walkthrough
-          </h2>
-          <span className="text-[11px] text-muted">
-            Live Material Swapper • Circadian Sun Simulation (Day vs. Night)
-          </span>
-        </div>
-
-        {signedModelUrl ? (
-          <div className="h-[460px] w-full overflow-hidden rounded-xl border border-border bg-surface shadow-sm print:hidden">
-            <ModelViewer url={signedModelUrl} unitSystem={unitSystem} />
-          </div>
-        ) : (
-          <div className="flex h-64 items-center justify-center rounded-xl border border-dashed border-border bg-surface text-xs text-muted">
-            3D model generation in progress…
-          </div>
-        )}
-      </section>
-
-      {/* ========================================================================= */}
-      {/* 2. Cinematic Video Walkthrough Reel (Higgsfield AI & OpenMontage)         */}
+      {/* 1. Live 3D Architectural Walkthrough & Spatial Envelope                 */}
       {/* ========================================================================= */}
       <section className="space-y-3 print:hidden">
-        <VideoReelPlayer projectName={project.name} />
+        <Live3DWalkthroughPlayer
+          elements={elements}
+          signedModelUrl={signedModelUrl}
+          projectName={project.name}
+          unitSystem={unitSystem}
+        />
       </section>
 
       {/* ========================================================================= */}
