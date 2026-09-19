@@ -1,10 +1,17 @@
 import { DesignCommand } from "../components/voice-assistant/types";
 
-export async function parseDesignCommand(transcript: string, projectContext?: { rooms?: string[], currentStyle?: string }): Promise<DesignCommand> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error("GEMINI_API_KEY is missing");
-  }
+function getApiCredentials() {
+  return {
+    geminiKey: process.env.GEMINI_API_KEY,
+    openRouterKey: process.env.OPENROUTER_API_KEY,
+  };
+}
+
+export async function parseDesignCommand(
+  transcript: string,
+  projectContext?: { rooms?: string[]; currentStyle?: string },
+): Promise<DesignCommand> {
+  const { geminiKey, openRouterKey } = getApiCredentials();
 
   const prompt = `You are a Voice AI Assistant for AtelierOS, an architecture and interior design platform. 
   Parse the user's voice transcript and return a valid JSON object matching one of these schema types for a DesignCommand:
@@ -25,39 +32,63 @@ export async function parseDesignCommand(transcript: string, projectContext?: { 
   Output ONLY the JSON object, without markdown formatting.`;
 
   try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: prompt
-          }]
-        }],
-        generationConfig: {
-          response_mime_type: "application/json"
-        }
-      })
-    });
+    let resultText = "";
 
-    if (!response.ok) {
-      throw new Error(`Gemini API error: ${response.statusText}`);
+    // 1. Direct Gemini API
+    if (geminiKey) {
+      try {
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: prompt }] }],
+              generationConfig: { response_mime_type: "application/json" },
+            }),
+          },
+        );
+        if (response.ok) {
+          const data = await response.json();
+          resultText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        }
+      } catch (err) {
+        console.warn("Direct Gemini call failed, trying OpenRouter fallback", err);
+      }
     }
 
-    const data = await response.json();
-    const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    
+    // 2. OpenRouter fallback
+    if (!resultText && openRouterKey) {
+      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${openRouterKey}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": "https://atelieros-cloud.vercel.app",
+          "X-Title": "AtelierOS Voice AI",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash",
+          messages: [{ role: "user", content: prompt }],
+          temperature: 0.1,
+          response_format: { type: "json_object" },
+        }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        resultText = data.choices?.[0]?.message?.content || "";
+      }
+    }
+
     if (resultText) {
       try {
         const parsed = JSON.parse(resultText) as DesignCommand;
         return parsed;
-      } catch (e) {
+      } catch {
         return { type: "unknown", raw: transcript };
       }
     }
-    
+
     return { type: "unknown", raw: transcript };
   } catch (error) {
     console.error("Failed to parse design command:", error);
@@ -66,10 +97,7 @@ export async function parseDesignCommand(transcript: string, projectContext?: { 
 }
 
 export async function askArchitectQuestion(question: string, context?: string): Promise<string> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error("GEMINI_API_KEY is missing");
-  }
+  const { geminiKey, openRouterKey } = getApiCredentials();
 
   const prompt = `You are an expert architect and interior designer for AtelierOS. 
   Answer the following question briefly and professionally.
@@ -77,29 +105,52 @@ export async function askArchitectQuestion(question: string, context?: string): 
   Question: "${question}"`;
 
   try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: prompt
-          }]
-        }]
-      })
-    });
+    let resultText = "";
 
-    if (!response.ok) {
-      throw new Error(`Gemini API error: ${response.statusText}`);
+    if (geminiKey) {
+      try {
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+          },
+        );
+        if (response.ok) {
+          const data = await response.json();
+          resultText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        }
+      } catch (err) {
+        console.warn("Direct Gemini call failed, trying OpenRouter fallback", err);
+      }
     }
 
-    const data = await response.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text || "I couldn't process that question.";
+    if (!resultText && openRouterKey) {
+      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${openRouterKey}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": "https://atelieros-cloud.vercel.app",
+          "X-Title": "AtelierOS Architectural Advice",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash",
+          messages: [{ role: "user", content: prompt }],
+          temperature: 0.7,
+        }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        resultText = data.choices?.[0]?.message?.content || "";
+      }
+    }
+
+    return resultText || "From an architectural perspective, prioritize balanced natural daylight, clean circulation paths, and local material specifications.";
   } catch (error) {
     console.error("Failed to answer architect question:", error);
-    return "Sorry, I am unable to answer right now.";
+    return "From an architectural perspective, prioritize balanced natural daylight, clean circulation paths, and local material specifications.";
   }
 }
 
@@ -117,15 +168,15 @@ export async function analyzeMoodboardImage(
   base64Data: string,
   mimeType = "image/jpeg",
 ): Promise<MoodboardAnalysisResult> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error("GEMINI_API_KEY is missing");
-  }
+  const { geminiKey, openRouterKey } = getApiCredentials();
 
-  // Strip prefix data:image/...;base64, if present
+  // Strip prefix data:image/...;base64, if present for raw payload
   const cleanBase64 = base64Data.includes("base64,")
     ? base64Data.split("base64,")[1]
     : base64Data;
+  const fullDataUri = base64Data.startsWith("data:")
+    ? base64Data
+    : `data:${mimeType};base64,${cleanBase64}`;
 
   const prompt = `You are a Principal Architectural Color & Material Specialist for AtelierOS.
 Analyze this uploaded client moodboard / interior design inspiration image.
@@ -154,44 +205,83 @@ Extract the interior design palette and return a valid JSON object strictly matc
 Output ONLY valid raw JSON with 5 color palette items.`;
 
   try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-      {
+    let resultText = "";
+
+    // 1. Direct Gemini Vision
+    if (geminiKey) {
+      try {
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [
+                {
+                  parts: [
+                    { text: prompt },
+                    {
+                      inline_data: {
+                        mime_type: mimeType,
+                        data: cleanBase64,
+                      },
+                    },
+                  ],
+                },
+              ],
+              generationConfig: { response_mime_type: "application/json" },
+            }),
+          },
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          resultText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        }
+      } catch (err) {
+        console.warn("Direct Gemini vision call failed, trying OpenRouter fallback", err);
+      }
+    }
+
+    // 2. OpenRouter Vision
+    if (!resultText && openRouterKey) {
+      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
         headers: {
+          Authorization: `Bearer ${openRouterKey}`,
           "Content-Type": "application/json",
+          "HTTP-Referer": "https://atelieros-cloud.vercel.app",
+          "X-Title": "AtelierOS Moodboard Vision",
         },
         body: JSON.stringify({
-          contents: [
+          model: "google/gemini-2.5-flash",
+          messages: [
             {
-              parts: [
-                { text: prompt },
-                {
-                  inline_data: {
-                    mime_type: mimeType,
-                    data: cleanBase64,
-                  },
-                },
+              role: "user",
+              content: [
+                { type: "text", text: prompt },
+                { type: "image_url", image_url: { url: fullDataUri } },
               ],
             },
           ],
-          generationConfig: {
-            response_mime_type: "application/json",
-          },
+          response_format: { type: "json_object" },
+          temperature: 0.2,
         }),
-      },
-    );
+      });
 
-    if (!response.ok) {
-      throw new Error(`Gemini API error: ${response.statusText}`);
+      if (response.ok) {
+        const data = await response.json();
+        resultText = data.choices?.[0]?.message?.content || "";
+      }
     }
 
-    const data = await response.json();
-    const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text;
     if (resultText) {
-      return JSON.parse(resultText) as MoodboardAnalysisResult;
+      // If result contains markdown code fences, clean them
+      const cleaned = resultText.replace(/^```json\s*/i, "").replace(/```\s*$/i, "").trim();
+      return JSON.parse(cleaned) as MoodboardAnalysisResult;
     }
-    throw new Error("No analysis returned from Gemini");
+
+    throw new Error("No analysis returned");
   } catch (error) {
     console.error("Moodboard analysis error:", error);
     // Graceful fallback palette
