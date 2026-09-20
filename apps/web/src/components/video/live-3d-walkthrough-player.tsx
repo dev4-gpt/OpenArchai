@@ -781,11 +781,12 @@ export function Live3DWalkthroughPlayer({
   const [recordProgress, setRecordProgress] = useState(0);
   const [firstPersonPos, setFirstPersonPos] = useState<[number, number, number]>([2.0, 1.65, 1.0]);
 
-  // Higgsfield Cinema Video state
+  // Higgsfield & Open Video Cinema state
   const [higgsfieldVideoUrl, setHiggsfieldVideoUrl] = useState("/videos/reel-360-turntable.mp4");
   const [isHiggsfieldSynthesizing, setIsHiggsfieldSynthesizing] = useState(false);
   const [showHiggsfieldModal, setShowHiggsfieldModal] = useState(false);
   const [higgsfieldDopMode, setHiggsfieldDopMode] = useState<"interior_glide" | "orbit_360">("interior_glide");
+  const [selectedEngine, setSelectedEngine] = useState<"wan_2_1" | "open_higgsfield" | "skyreels_v2" | "direct_cad" | "higgsfield_cloud">("wan_2_1");
   const [motionIntensity, setMotionIntensity] = useState(7);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -903,8 +904,15 @@ export function Live3DWalkthroughPlayer({
     setTourTime(wp.timeSec);
   }
 
-  // Trigger Higgsfield AI Video Generation
+  // Trigger Higgsfield & Open Video Generation
   async function handleSynthesizeHiggsfield() {
+    if (selectedEngine === "direct_cad") {
+      setShowHiggsfieldModal(false);
+      setViewMode("interactive_3d");
+      handleRecordVideo();
+      return;
+    }
+
     setIsHiggsfieldSynthesizing(true);
     try {
       const res = await createHiggsfieldWalkthroughJob({
@@ -913,6 +921,7 @@ export function Live3DWalkthroughPlayer({
         dimensions: { width: 5.0, depth: 3.0, height: 2.7 },
         cameraMode: higgsfieldDopMode,
         motionIntensity,
+        engine: selectedEngine,
         materialPalette: {
           flooring: flooring.name,
           walls: wallPreset.name,
@@ -1468,6 +1477,60 @@ export function Live3DWalkthroughPlayer({
             </div>
 
             <div className="space-y-3">
+              <div>
+                <label className="font-bold text-foreground block mb-1">Synthesis Engine & Architecture:</label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedEngine("wan_2_1")}
+                    className={`p-2 rounded-lg border text-left transition-all ${
+                      selectedEngine === "wan_2_1"
+                        ? "border-accent bg-accent/10 text-accent font-bold"
+                        : "border-border text-muted hover:text-foreground"
+                    }`}
+                  >
+                    <p className="font-semibold text-xs">✨ Wan 2.1 (Depth-Guided)</p>
+                    <p className="text-[10px] text-muted mt-0.5">Wan2GP low-VRAM spatial geometry engine</p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedEngine("direct_cad")}
+                    className={`p-2 rounded-lg border text-left transition-all ${
+                      selectedEngine === "direct_cad"
+                        ? "border-accent bg-accent/10 text-accent font-bold"
+                        : "border-border text-muted hover:text-foreground"
+                    }`}
+                  >
+                    <p className="font-semibold text-xs">📐 100% CAD Direct Stream</p>
+                    <p className="text-[10px] text-muted mt-0.5">Zero hallucination 60fps WebGL capture</p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedEngine("open_higgsfield")}
+                    className={`p-2 rounded-lg border text-left transition-all ${
+                      selectedEngine === "open_higgsfield"
+                        ? "border-accent bg-accent/10 text-accent font-bold"
+                        : "border-border text-muted hover:text-foreground"
+                    }`}
+                  >
+                    <p className="font-semibold text-xs">🎬 Open-Higgsfield AI</p>
+                    <p className="text-[10px] text-muted mt-0.5">Autom8AI open-source Flux cinema studio</p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedEngine("skyreels_v2")}
+                    className={`p-2 rounded-lg border text-left transition-all ${
+                      selectedEngine === "skyreels_v2"
+                        ? "border-accent bg-accent/10 text-accent font-bold"
+                        : "border-border text-muted hover:text-foreground"
+                    }`}
+                  >
+                    <p className="font-semibold text-xs">🎥 SkyReels-V2</p>
+                    <p className="text-[10px] text-muted mt-0.5">Skywork long-form coherent cinema</p>
+                  </button>
+                </div>
+              </div>
+
               <div>
                 <label className="font-bold text-foreground block mb-1">Director of Photography (DoP) Flightpath:</label>
                 <div className="grid grid-cols-2 gap-2">

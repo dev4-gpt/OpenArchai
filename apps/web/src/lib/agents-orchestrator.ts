@@ -126,13 +126,15 @@ function generateContextualFallback(role: AgentRole, prompt: string, context: Pr
 }
 
 export interface ModelRoute {
-  provider: "groq" | "openrouter" | "gemini" | "nvidia";
+  provider: "groq" | "openrouter" | "gemini" | "nvidia" | "cerebras" | "github" | "mistral" | "custom";
   model: string;
 }
 
 const AGENT_MODEL_ROUTES: Record<AgentRole, ModelRoute[]> = {
   chief_architect: [
+    { provider: "cerebras", model: "llama-3.3-70b" },
     { provider: "groq", model: "llama-3.3-70b-versatile" },
+    { provider: "github", model: "meta-llama-3.1-70b-instruct" },
     { provider: "openrouter", model: "meta-llama/llama-3.3-70b-instruct" },
     { provider: "openrouter", model: "google/gemini-2.5-flash" },
     { provider: "gemini", model: "gemini-2.0-flash" },
@@ -140,18 +142,24 @@ const AGENT_MODEL_ROUTES: Record<AgentRole, ModelRoute[]> = {
   code_specialist: [
     { provider: "gemini", model: "gemini-2.0-flash" },
     { provider: "openrouter", model: "google/gemini-2.5-flash" },
+    { provider: "cerebras", model: "llama-3.3-70b" },
     { provider: "groq", model: "llama-3.3-70b-versatile" },
+    { provider: "github", model: "gpt-4o-mini" },
   ],
   interior_designer: [
     { provider: "openrouter", model: "google/gemini-2.5-flash" },
+    { provider: "mistral", model: "mistral-small-latest" },
     { provider: "openrouter", model: "mistralai/mistral-large-2407" },
     { provider: "gemini", model: "gemini-2.0-flash" },
+    { provider: "cerebras", model: "llama-3.3-70b" },
     { provider: "groq", model: "llama-3.3-70b-versatile" },
   ],
   cost_estimator: [
     { provider: "groq", model: "deepseek-r1-distill-llama-70b" },
     { provider: "openrouter", model: "deepseek/deepseek-r1-distill-llama-70b" },
+    { provider: "cerebras", model: "llama-3.3-70b" },
     { provider: "groq", model: "llama-3.3-70b-versatile" },
+    { provider: "github", model: "meta-llama-3.1-70b-instruct" },
     { provider: "openrouter", model: "google/gemini-2.5-flash" },
     { provider: "gemini", model: "gemini-2.0-flash" },
   ],
@@ -262,6 +270,11 @@ export async function consultAgentTeam(
   const openRouterKey = process.env.OPENROUTER_API_KEY;
   const geminiKey = process.env.GEMINI_API_KEY;
   const nvidiaKey = process.env.NVIDIA_API_KEY;
+  const cerebrasKey = process.env.CEREBRAS_API_KEY;
+  const githubKey = process.env.GITHUB_TOKEN || process.env.GITHUB_MODELS_KEY;
+  const mistralKey = process.env.MISTRAL_API_KEY;
+  const customGatewayUrl = process.env.CUSTOM_LLM_GATEWAY_URL || process.env.OMNIROUTE_URL;
+  const customGatewayKey = process.env.CUSTOM_LLM_API_KEY || process.env.OMNIROUTE_API_KEY || "free-tier";
 
   const contextSummary = `
 Project Context:
@@ -284,10 +297,52 @@ Project Context:
       let responseText = "";
 
       for (const route of routes) {
+        if (route.provider === "cerebras" && cerebrasKey) {
+          responseText = await callOpenAICompatible(
+            "https://api.cerebras.ai/v1/chat/completions",
+            cerebrasKey,
+            route.model,
+            [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: prompt },
+            ],
+            1000,
+          );
+          if (responseText) break;
+        }
+
         if (route.provider === "groq" && groqKey) {
           responseText = await callOpenAICompatible(
             "https://api.groq.com/openai/v1/chat/completions",
             groqKey,
+            route.model,
+            [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: prompt },
+            ],
+            1000,
+          );
+          if (responseText) break;
+        }
+
+        if (route.provider === "github" && githubKey) {
+          responseText = await callOpenAICompatible(
+            "https://models.inference.ai.azure.com/chat/completions",
+            githubKey,
+            route.model,
+            [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: prompt },
+            ],
+            1000,
+          );
+          if (responseText) break;
+        }
+
+        if (route.provider === "mistral" && mistralKey) {
+          responseText = await callOpenAICompatible(
+            "https://api.mistral.ai/v1/chat/completions",
+            mistralKey,
             route.model,
             [
               { role: "system", content: systemPrompt },
@@ -339,6 +394,22 @@ Project Context:
           );
           if (responseText) break;
         }
+      }
+
+      // Universal fallback to custom gateway / OmniRoute if configured
+      if (!responseText && customGatewayUrl) {
+        responseText = await callOpenAICompatible(
+          customGatewayUrl.endsWith("/chat/completions")
+            ? customGatewayUrl
+            : `${customGatewayUrl}/chat/completions`,
+          customGatewayKey,
+          "default",
+          [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: prompt },
+          ],
+          1000,
+        );
       }
 
       // 3. Dynamic domain fallback if all API calls are unavailable or rate-limited

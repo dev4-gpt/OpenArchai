@@ -26,6 +26,7 @@ export interface HiggsfieldGenerationParams {
   motionIntensity?: number; // 1 to 10
   resolution?: "720p" | "1080p" | "4k";
   sourceImageUrl?: string;
+  engine?: "higgsfield_cloud" | "open_higgsfield" | "wan_2_1" | "skyreels_v2" | "direct_cad";
 }
 
 export interface HiggsfieldJobResponse {
