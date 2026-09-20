@@ -190,6 +190,79 @@ TOOLS = [
             },
             "required": ["aesthetic"]
         }
+    },
+    {
+        "name": "calculate_occupancy_loads",
+        "description": "Calculates occupant load, required exit count, and minimum corridor/stair egress widths based on space typology and gross floor area using IBC Table 1004.5 & NBC Part 4.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "area_sqft": {
+                    "type": "number",
+                    "description": "Gross floor area in square feet."
+                },
+                "occupancy_type": {
+                    "type": "string",
+                    "enum": ["residential", "business_office", "assembly_unconcentrated", "mercantile", "educational", "storage"],
+                    "description": "Building occupancy function."
+                },
+                "sprinklered": {
+                    "type": "boolean",
+                    "description": "Whether the building has an NFPA 13 automatic sprinkler system (increases egress capacity and travel distance)."
+                }
+            },
+            "required": ["area_sqft", "occupancy_type"]
+        }
+    },
+    {
+        "name": "evaluate_spatial_archetype",
+        "description": "Evaluates floor plate dimensions, identifies architectural plan archetype (single/double loaded, central core, side core), and calculates estimated Net-to-Gross (NTG) efficiency.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "width_m": {
+                    "type": "number",
+                    "description": "Floor plate width in meters."
+                },
+                "depth_m": {
+                    "type": "number",
+                    "description": "Floor plate depth in meters."
+                },
+                "building_type": {
+                    "type": "string",
+                    "enum": ["residential", "commercial_office", "hotel", "mixed_use"],
+                    "description": "Target building typology."
+                }
+            },
+            "required": ["width_m", "depth_m"]
+        }
+    },
+    {
+        "name": "meltflex_ai_restyle",
+        "description": "Prepares and validates MeltFlex AI interior/exterior photorealistic redesign parameters, virtual staging, or floorplan-to-3D GLB conversion.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "mode": {
+                    "type": "string",
+                    "enum": ["restyle", "virtual_staging", "layout_boost", "floor_restyle", "wall_texture", "floorplan_to_3d", "furniture_3d"],
+                    "description": "MeltFlex operation mode."
+                },
+                "style": {
+                    "type": "string",
+                    "description": "Target design style (e.g. 'Contemporary Indian Luxury', 'Japandi', 'Scandinavian')."
+                },
+                "room_type": {
+                    "type": "string",
+                    "description": "Room type (e.g. 'Living Room', 'Master Bedroom', 'Kitchen')."
+                },
+                "image_url": {
+                    "type": "string",
+                    "description": "Source photo or floorplan URL."
+                }
+            },
+            "required": ["mode", "style"]
+        }
     }
 ]
 
@@ -364,6 +437,129 @@ def handle_tool_call(name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
                 "hardware": "Brushed Brass"
             },
             "recommendation": f"For a {aesthetic} space, pair {flooring['name']} with {wall['name']}."
+        }
+
+    elif name == "calculate_occupancy_loads":
+        area = float(arguments.get("area_sqft", 1000))
+        occ_type = arguments.get("occupancy_type", "residential")
+        sprinklered = bool(arguments.get("sprinklered", True))
+
+        # Occupant Load Factors (sqft per person) under IBC Table 1004.5 & NBC Part 4
+        factors = {
+            "residential": 200.0,
+            "business_office": 150.0,
+            "assembly_unconcentrated": 15.0,
+            "mercantile": 60.0,
+            "educational": 50.0,
+            "storage": 300.0
+        }
+        factor = factors.get(occ_type, 150.0)
+        occupants = max(1, math.ceil(area / factor))
+
+        # Exits required under IBC Section 1006.2
+        if occupants <= 49:
+            required_exits = 1
+        elif occupants <= 500:
+            required_exits = 2
+        elif occupants <= 1000:
+            required_exits = 3
+        else:
+            required_exits = 4
+
+        # Egress width (inches per occupant: 0.2 in for level corridors, 0.3 in for stairs)
+        corridor_factor = 0.15 if sprinklered else 0.20
+        stair_factor = 0.20 if sprinklered else 0.30
+
+        min_corridor_width_in = max(44.0, occupants * corridor_factor)
+        min_stair_width_in = max(44.0, occupants * stair_factor)
+
+        return {
+            "gross_area_sqft": area,
+            "gross_area_sqm": round(area * 0.092903, 2),
+            "occupancy_type": occ_type,
+            "occupant_load_factor": f"{int(factor)} sqft/person",
+            "calculated_occupants": occupants,
+            "minimum_required_exits": required_exits,
+            "minimum_corridor_width": {
+                "inches": round(min_corridor_width_in, 1),
+                "meters": round(min_corridor_width_in * 0.0254, 2)
+            },
+            "minimum_stair_width": {
+                "inches": round(min_stair_width_in, 1),
+                "meters": round(min_stair_width_in * 0.0254, 2)
+            },
+            "standard_references": ["IBC 2021 Table 1004.5", "IBC Section 1006.2", "NBC 2016 Part 4 Table 3"]
+        }
+
+    elif name == "evaluate_spatial_archetype":
+        w = float(arguments.get("width_m", 12.0))
+        d = float(arguments.get("depth_m", 6.0))
+        b_type = arguments.get("building_type", "residential")
+
+        # Determine archetype from depth and ratio
+        aspect = max(w, d) / max(min(w, d), 1.0)
+        min_dim = min(w, d)
+
+        if min_dim <= 9.0:
+            archetype = "Single-Loaded Corridor / Thin Slab"
+            ntg = 0.76
+            circ_desc = "Linear room layout with single-sided corridor. High daylight exposure across 100% of habitable rooms."
+        elif min_dim <= 18.0:
+            archetype = "Double-Loaded Corridor"
+            ntg = 0.83
+            circ_desc = "Central corridor flanked by rooms on both sides. Optimal circulation efficiency for residential/hotel."
+        else:
+            archetype = "Central Core Floor Plate"
+            ntg = 0.79
+            circ_desc = "Deep floor plate radiating around vertical core. Perimeter daylight penetration up to 7-8m."
+
+        usable_area_sqm = round((w * d) * ntg, 1)
+        gross_area_sqm = round(w * d, 1)
+
+        return {
+            "floor_plate_span": f"{w}m x {d}m",
+            "gross_area_sqm": gross_area_sqm,
+            "usable_area_sqm": usable_area_sqm,
+            "classified_archetype": archetype,
+            "estimated_net_to_gross_ntg": f"{int(ntg * 100)}%",
+            "circulation_assessment": circ_desc,
+            "max_daylight_reach_m": 7.5,
+            "recommended_bay_grid": "6.0m x 7.5m or 8.4m x 8.4m",
+            "reference": "Spatial Planning Architecture Skill Archetypes"
+        }
+
+    elif name == "meltflex_ai_restyle":
+        mode = arguments.get("mode", "restyle")
+        style = arguments.get("style", "Contemporary Indian Luxury")
+        room_type = arguments.get("room_type", "Living Room")
+        image_url = arguments.get("image_url", "")
+
+        prompt_lead_ins = {
+            "restyle": f"Redesign this {room_type} in {style} aesthetic, keeping architectural walls and openings intact.",
+            "virtual_staging": f"Furnish this empty {room_type} as a {style} space with bespoke furniture pieces.",
+            "layout_boost": f"Rearrange the existing furniture into an open, ergonomic layout in {style} style.",
+            "floor_restyle": f"Replace the floor with high-end {style} flooring materials while keeping everything else.",
+            "wall_texture": f"Change the wall finish to {style} textures and acoustic panels, preserving architectural structure.",
+            "floorplan_to_3d": f"Convert 2D floorplan into a 3D architectural interior in {style}.",
+            "furniture_3d": f"Generate 3D GLB mesh for {style} furniture."
+        }
+
+        prompt = prompt_lead_ins.get(mode, f"Redesign this space in {style}")
+
+        return {
+            "endpoint": "https://www.meltflexai.com/api/v1/generate" if "3d" not in mode else "https://www.meltflexai.com/api/v1/floorplan-to-3d",
+            "mode": mode,
+            "synthesized_prompt": prompt,
+            "target_style": style,
+            "credits_required": 10 if "3d" not in mode else 100,
+            "payload": {
+                "prompt": prompt,
+                "imageUrl": image_url or "https://atelieros-cloud.vercel.app/images/render-hero.jpg",
+                "designLevel": "pro",
+                "resolution": "2K"
+            },
+            "sdk_command": f"meltflex {mode} --style '{style}'",
+            "status": "ready_for_execution"
         }
 
     return {"error": f"Tool '{name}' not found."}
