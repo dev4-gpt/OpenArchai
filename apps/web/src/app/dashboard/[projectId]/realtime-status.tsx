@@ -199,12 +199,32 @@ export function RealtimeStatus({
                 <div className="flex items-center gap-2">
                   <span className={STATUS_STYLES[model.status]}>{model.status}</span>
                   {model.status === "error" && (
-                    <RetryButton onRetry={() => retryReconstruction(model.id)} />
+                    <RetryButton onRetry={() => retryReconstruction(model.id)} label="⚡ Retry" />
                   )}
                 </div>
               </div>
-              {model.status === "error" && model.error_message && (
-                <p className="mt-1 text-xs text-danger">{model.error_message}</p>
+              {model.status === "error" && (
+                <div className="mt-2 rounded-md border border-danger/20 bg-danger/5 p-2.5 text-xs text-foreground">
+                  {model.error_message && (
+                    <p className="text-danger font-medium">{model.error_message}</p>
+                  )}
+                  <p className="mt-1 text-[11px] text-muted">
+                    Thin-line CAD working drawings and colored vector sheets are automatically thickened & vectorized on retry, or you can jump straight into the Interactive 2D Studio & 3D Walkthrough:
+                  </p>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <RetryButton
+                      onRetry={() => retryReconstruction(model.id)}
+                      label="⚡ Reconstruct with Computer-Vision Fallback"
+                      className="rounded bg-accent px-2.5 py-1 text-xs font-medium text-accent-foreground hover:bg-accent/90 transition-colors"
+                    />
+                    <a
+                      href={`/dashboard/${projectId}/plan`}
+                      className="inline-flex items-center gap-1 rounded border border-border bg-surface px-2.5 py-1 text-xs font-medium text-foreground hover:border-accent hover:text-accent transition-colors"
+                    >
+                      📐 Open in 2D Studio & 3D Space
+                    </a>
+                  </div>
+                </div>
               )}
               {model.status === "done" && model.gltf_storage_path && (
                 <DoneModelViewer gltfStoragePath={model.gltf_storage_path} unitSystem={unitSystem} />

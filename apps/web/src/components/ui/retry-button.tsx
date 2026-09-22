@@ -2,7 +2,15 @@
 
 import { useState } from "react";
 
-export function RetryButton({ onRetry }: { onRetry: () => Promise<void> }) {
+export function RetryButton({
+  onRetry,
+  label = "Retry",
+  className,
+}: {
+  onRetry: () => Promise<void>;
+  label?: string;
+  className?: string;
+}) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -19,14 +27,17 @@ export function RetryButton({ onRetry }: { onRetry: () => Promise<void> }) {
   }
 
   return (
-    <span>
+    <span className="inline-flex items-center gap-1.5">
       <button
         type="button"
         onClick={handleClick}
         disabled={pending}
-        className="text-xs font-medium text-accent underline underline-offset-2 disabled:opacity-50"
+        className={
+          className ??
+          "text-xs font-medium text-accent underline underline-offset-2 disabled:opacity-50 hover:text-accent/80 transition-colors"
+        }
       >
-        {pending ? "Retrying…" : "Retry"}
+        {pending ? "Retrying…" : label}
       </button>
       {error && <p className="mt-1 text-xs text-danger">{error}</p>}
     </span>

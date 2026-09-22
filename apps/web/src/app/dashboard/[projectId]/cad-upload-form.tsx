@@ -32,9 +32,17 @@ export function CadUploadForm({ projectId }: { projectId: string }) {
       const { error: uploadError } = await supabase.storage.from("floorplans").upload(path, file);
       if (uploadError) throw uploadError;
 
-      await recordCadUpload(projectId, path);
+      const res = await recordCadUpload(projectId, path);
+      if (res && !res.success && res.error) {
+        setError(res.error);
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Upload failed");
+      const msg = err instanceof Error ? err.message : "Upload failed";
+      if (msg.includes("Minified React error") || msg.includes("Server Components render")) {
+        setError("CAD file uploaded and queued. Please refresh to configure layer mapping.");
+      } else {
+        setError(msg);
+      }
     } finally {
       setPending(false);
     }

@@ -252,6 +252,12 @@ export function ScaleCalibration({
             {pending ? "Starting…" : "Rebuild with this calibration"}
           </Button>
         )}
+        <a
+          href={`/dashboard/${projectId}/plan`}
+          className="inline-flex items-center gap-1.5 rounded-md border border-accent/40 bg-accent/10 px-3 py-1.5 text-xs font-medium text-accent hover:bg-accent/20 transition-colors"
+        >
+          📐 Open in 2D Studio & 3D Space
+        </a>
       </div>
       {error && <p className="text-xs text-danger">{error}</p>}
     </div>
