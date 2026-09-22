@@ -111,6 +111,89 @@ function FormattedMessage({ text, isUser = false }: { text: string; isUser?: boo
   );
 }
 
+interface AgentSkillProfile {
+  role: AgentRole;
+  name: string;
+  title: string;
+  avatar: string;
+  experience: string;
+  coreSkills: string[];
+  keyStandards: string[];
+  sampleQuestion: string;
+  sourceSkills: string[];
+}
+
+const AGENT_SKILLS_DIRECTORY: AgentSkillProfile[] = [
+  {
+    role: "chief_architect",
+    name: "Vikram Mehta",
+    title: "Lead Architectural Principal",
+    avatar: "📐",
+    experience: "20+ yrs • DLF Phase 5 & South Delhi Luxury Estates",
+    coreSkills: [
+      "Spatial Planning Archetypes (Single/Double Loaded, Central Core)",
+      "Net-to-Gross (NTG) Efficiency Optimization (78–85%)",
+      "6–8m Structural Bay Grids & Lintel Spans",
+      "3D Massing & Zoning Envelopes",
+      "Daylighting & Passive Solar Orientation (7.5m penetration)",
+    ],
+    keyStandards: ["Spatial Planning Archetypes", "NBC 2016 Part 3", "3D Zoning Envelopes"],
+    sampleQuestion: "Review this layout for spatial circulation and optimize the core for 82% Net-to-Gross efficiency.",
+    sourceSkills: ["arch-spatial-planning", "arch-zoning-envelope", "arch-daylighting-design"],
+  },
+  {
+    role: "code_specialist",
+    name: "Ananya Sharma",
+    title: "Building Code & Vastu Consultant",
+    avatar: "📜",
+    experience: "15+ yrs • Regulatory Compliance, DTCP Haryana & Vastu Shastra",
+    coreSkills: [
+      "Statutory Occupant Load Sizing (IBC Table 1004.5 / NBC Part 4)",
+      "Egress Sizing (0.15 in/occ, 0.9m barrier-free doors, 1.2m corridors)",
+      "Classical Vastu 8-Quadrant Zoning (Agni SE, Nairutya SW, Ishanya NE)",
+      "Gurgaon DTCP / HRERA FAR & Ground Coverage Bylaws",
+      "Universal Accessibility (ADA Title III / NBC Barrier-Free)",
+    ],
+    keyStandards: ["NBC 2016 Part 4", "IBC 2021 / ADA Title III", "DTCP Haryana Bylaws", "Vastu Shastra"],
+    sampleQuestion: "Audit our entrance and kitchen positions against Vastu Agni/Ishanya quadrants and verify 0.9m egress corridor compliance.",
+    sourceSkills: ["arch-building-codes", "arch-occupancy-calculator", "arch-building-services"],
+  },
+  {
+    role: "interior_designer",
+    name: "Rohan Varma",
+    title: "Senior Interior & Material Architect",
+    avatar: "🎨",
+    experience: "14+ yrs • Contemporary Indian Luxury & Bespoke Millwork",
+    coreSkills: [
+      "AI Space Restyling & Virtual Staging (MeltFlex AI Framework)",
+      "Tactile Material Pairing (Honed Kota Stone, Makrana, Italian Statuario)",
+      "Circadian Lighting Design (2700K Evening to 5000K Noon)",
+      "Acoustic Fluted Timber Detailing & False Ceiling Coves",
+      "2D Floorplan & Furniture to 3D GLB Model Synthesis",
+    ],
+    keyStandards: ["MeltFlex AI Engine", "Asian Paints Royale Palette", "IS 16655 Lighting"],
+    sampleQuestion: "Recommend a luxury material palette combining honed Kota stone with fluted timber and 2700K recessed lighting.",
+    sourceSkills: ["meltflex-design", "meltflex-3d", "meltflex-furniture", "arch-daylighting-design"],
+  },
+  {
+    role: "cost_estimator",
+    name: "Sunil Bajaj",
+    title: "Chief Quantity Surveyor & Cost Estimator",
+    avatar: "📊",
+    experience: "18+ yrs • Quantity Surveying & Schedule of Rates (NCR / Mumbai)",
+    coreSkills: [
+      "Itemized Civil & Finishes Bill of Quantities (BOQ)",
+      "3-Tier Cost Modeling (Budget / Standard / Premium)",
+      "Value-Engineering Cost Alternates (Kajaria GVT vs Statuario)",
+      "Workplace Programming (Usable vs Gross Area Budgeting)",
+      "Contractor Site Constructability & 10% Contingency Buffers",
+    ],
+    keyStandards: ["Delhi Schedule of Rates (CPWD)", "NBC Part 2 Costing", "EPD Life-Cycle Specs"],
+    sampleQuestion: "How can we value-engineer this specification to save ₹4,50,000 without compromising premium perception?",
+    sourceSkills: ["architect-calculator", "services/cost", "workplace-programmer"],
+  },
+];
+
 export function AgentTeamModal({
   projectName,
   region = "india",
@@ -128,6 +211,7 @@ export function AgentTeamModal({
   const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(false);
   const [messages, setMessages] = useState<AgentMessage[]>([]);
+  const [showSkillsMatrix, setShowSkillsMatrix] = useState(false);
   const [selectedRoles, setSelectedRoles] = useState<AgentRole[]>([
     "chief_architect",
     "code_specialist",
@@ -292,7 +376,7 @@ export function AgentTeamModal({
               </div>
             </div>
 
-            {/* Specialist Selector Bar */}
+            {/* Specialist Selector Bar & Skills Directory Toggle */}
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-surface px-5 py-2 text-xs">
               <div className="flex flex-wrap items-center gap-1.5">
                 <span className="text-muted text-[11px] font-medium mr-1">Consulting:</span>
@@ -322,36 +406,166 @@ export function AgentTeamModal({
                   );
                 })}
               </div>
-              <span className="text-[10px] text-muted hidden sm:inline">Click to toggle agents</span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowSkillsMatrix((prev) => !prev)}
+                  className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] font-semibold transition-all border ${
+                    showSkillsMatrix
+                      ? "border-accent bg-accent text-accent-foreground shadow-xs"
+                      : "border-border bg-[#faf8f4] text-muted hover:text-foreground"
+                  }`}
+                >
+                  <span>📋</span>
+                  <span>{showSkillsMatrix ? "Hide Skills Matrix" : "Co-Worker Skills Matrix"}</span>
+                </button>
+              </div>
             </div>
+
+            {/* Collapsible Co-Worker Agent Skills Matrix */}
+            {showSkillsMatrix && (
+              <div className="border-b border-border bg-[#faf8f4] p-4 max-h-[45vh] overflow-y-auto animate-in fade-in duration-150">
+                <div className="flex items-center justify-between pb-3 border-b border-border/60 mb-3">
+                  <div>
+                    <h3 className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                      <span>🏛️</span> Co-Worker Agent Skills Matrix (78+ Integrated Architectural Skills)
+                    </h3>
+                    <p className="text-[10px] text-muted">
+                      Directly grounded in Abhinavbwj/Skills-Architects, AlpacaLabs, and MeltFlex engineering frameworks.
+                    </p>
+                  </div>
+                  <span className="text-[10px] font-mono text-accent font-bold">4 Active Specialists</span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {AGENT_SKILLS_DIRECTORY.map((profile) => (
+                    <div
+                      key={profile.role}
+                      className="rounded-xl border border-border bg-surface p-3 text-xs space-y-2 shadow-2xs hover:border-accent/40 transition-all"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xl p-1 rounded-lg bg-accent/10 border border-accent/20">
+                            {profile.avatar}
+                          </span>
+                          <div>
+                            <h4 className="font-bold text-foreground text-xs">{profile.name}</h4>
+                            <p className="text-[10px] text-accent font-medium">{profile.title}</p>
+                          </div>
+                        </div>
+                        <span className="text-[9px] text-muted bg-[#faf8f4] border border-border px-1.5 py-0.5 rounded">
+                          {profile.experience}
+                        </span>
+                      </div>
+
+                      {/* Specific Skills */}
+                      <div className="space-y-1">
+                        <span className="text-[9px] font-bold uppercase text-muted tracking-wider">Specific Skills:</span>
+                        <ul className="space-y-0.5">
+                          {profile.coreSkills.map((skill, sIdx) => (
+                            <li key={sIdx} className="text-[10px] text-foreground flex items-start gap-1.5 leading-tight">
+                              <span className="text-accent font-bold">•</span>
+                              <span>{skill}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      {/* Standards */}
+                      <div className="flex flex-wrap items-center gap-1 pt-1 border-t border-border/60">
+                        <span className="text-[9px] text-muted font-bold">Standards:</span>
+                        {profile.keyStandards.map((std, idx) => (
+                          <span
+                            key={idx}
+                            className="rounded bg-[#f5f2ec] px-1.5 py-0.5 text-[9px] font-medium text-foreground border border-border/70"
+                          >
+                            {std}
+                          </span>
+                        ))}
+                      </div>
+
+                      {/* Quick Action */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedRoles([profile.role]);
+                          handleConsult(profile.sampleQuestion);
+                          setShowSkillsMatrix(false);
+                        }}
+                        className="w-full rounded-lg border border-accent/30 bg-accent/5 p-1.5 text-left text-[10px] text-accent hover:bg-accent/15 transition-colors flex items-center justify-between font-medium"
+                      >
+                        <span className="truncate">💡 Ask: &ldquo;{profile.sampleQuestion}&rdquo;</span>
+                        <span className="font-bold text-xs pl-1">➔</span>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Conversation Thread */}
             <div className="flex-1 overflow-y-auto p-5 space-y-4">
               {messages.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-center space-y-4 py-8">
-                  <div className="h-12 w-12 rounded-full bg-accent/10 flex items-center justify-center text-2xl">
-                    👥
-                  </div>
-                  <div className="space-y-1 max-w-md">
-                    <h3 className="text-sm font-semibold text-foreground">
-                      Ask your specialist architectural team
+                <div className="flex flex-col items-center justify-center space-y-4 py-4">
+                  <div className="text-center space-y-1 max-w-lg">
+                    <div className="h-10 w-10 mx-auto rounded-full bg-accent/10 flex items-center justify-center text-xl mb-2">
+                      👥
+                    </div>
+                    <h3 className="text-sm font-bold text-foreground">
+                      Co-Worker Architectural Studio Team
                     </h3>
                     <p className="text-xs text-muted">
-                      Your team of Lead Architect, Code/Vastu Consultant, Interior Designer, and Quantity Surveyor will review your project together.
+                      Consult your 4 specialized AI principals backed by 78+ professional building design, compliance, and visualization skills.
                     </p>
                   </div>
 
+                  {/* 4 Agent Skills Cards in Empty State */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-w-2xl w-full pt-1">
+                    {AGENT_SKILLS_DIRECTORY.map((profile) => (
+                      <div
+                        key={profile.role}
+                        className="rounded-xl border border-border bg-[#faf8f4] p-3 text-left space-y-2 hover:border-accent/40 transition-all"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="text-lg">{profile.avatar}</span>
+                            <div>
+                              <p className="text-xs font-bold text-foreground leading-tight">{profile.name}</p>
+                              <p className="text-[10px] text-accent font-medium">{profile.title}</p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedRoles([profile.role]);
+                              handleConsult(profile.sampleQuestion);
+                            }}
+                            className="rounded bg-accent/10 px-2 py-1 text-[10px] font-bold text-accent hover:bg-accent hover:text-accent-foreground transition-colors"
+                          >
+                            Consult ➔
+                          </button>
+                        </div>
+                        <div className="space-y-0.5 text-[10px] text-muted">
+                          {profile.coreSkills.slice(0, 3).map((sk, idx) => (
+                            <p key={idx} className="truncate">• {sk}</p>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
                   {/* Quick Prompts */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-lg w-full pt-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-2xl w-full pt-2 border-t border-border">
                     {quickPrompts.map((qp) => (
                       <button
                         key={qp}
                         type="button"
                         onClick={() => handleConsult(qp)}
                         disabled={loading}
-                        className="rounded-lg border border-border bg-[#faf8f4] p-2.5 text-left text-xs text-foreground hover:border-accent/50 hover:bg-accent/5 transition-colors disabled:opacity-50"
+                        className="rounded-lg border border-border bg-surface p-2 text-left text-xs text-foreground hover:border-accent/50 hover:bg-accent/5 transition-colors disabled:opacity-50 flex items-center gap-1.5"
                       >
-                        💡 {qp}
+                        <span>💡</span>
+                        <span className="truncate">{qp}</span>
                       </button>
                     ))}
                   </div>
