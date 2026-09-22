@@ -15,7 +15,7 @@ export interface ParsedAction {
 
 export function extractActionsFromText(text: string): { cleanText: string; actions: ParsedAction[] } {
   const actions: ParsedAction[] = [];
-  const actionRegex = /\[ACTION:\s*([^|\]]+)\s*\|\s*([^|\]]+)\s*\|\s*([^\]]+)\]/g;
+  const actionRegex = /\[ACTION:\s*([^|\]\n]+)\s*\|\s*([^|\]\n]+)\s*\|\s*([^\]\n]+)\]/gi;
 
   const cleanText = text
     .replace(actionRegex, (_, label, actionId, payload) => {
@@ -26,6 +26,7 @@ export function extractActionsFromText(text: string): { cleanText: string; actio
       });
       return "";
     })
+    .replace(/\n{3,}/g, "\n\n")
     .trim();
 
   return { cleanText, actions };
@@ -113,45 +114,135 @@ export const SINGLE_LOADED_SPINE_LAYOUT: FloorPlan = {
   zoom: 35,
 };
 
-function parseInlineFormatting(text: string, isUser = false): React.ReactNode[] {
-  // Matches **bold text** and *italic text*
-  const regex = /(\*\*(.+?)\*\*)|(\*(.+?)\*)/g;
+function parseInlineFormatting(
+  text: string,
+  isUser = false,
+  onExecuteAction?: (action: ParsedAction) => void,
+): React.ReactNode[] {
+  // Token regex for:
+  // 1. [ACTION: label | actionId | payload]
+  // 2. [link text](url)
+  // 3. raw https?:// URLs
+  // 4. **bold**
+  // 5. *italic*
+  // 6. `inline code`
+  const tokenRegex =
+    /(\[ACTION:\s*([^|\]\n]+)\s*\|\s*([^|\]\n]+)\s*\|\s*([^\]\n]+)\])|(\[([^\]]+)\]\(([^)]+)\))|(https?:\/\/[^\s<)\]]+)|(\*\*([^*]+)\*\*)|(\*([^*]+)\*)|(`([^`]+)`)/gi;
   const parts: React.ReactNode[] = [];
   let lastIndex = 0;
   let match: RegExpExecArray | null;
 
-  while ((match = regex.exec(text)) !== null) {
+  while ((match = tokenRegex.exec(text)) !== null) {
     if (match.index > lastIndex) {
-      parts.push(text.substring(lastIndex, match.index).replace(/\*\*/g, "").replace(/\*/g, ""));
+      parts.push(text.substring(lastIndex, match.index));
     }
-    if (match[2]) {
+
+    if (match[1]) {
+      // 1. Interactive Action Trigger Chip
+      const label = match[2].trim();
+      const actionId = match[3].trim();
+      const payload = match[4].trim();
+      parts.push(
+        <button
+          key={`${match.index}-act`}
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onExecuteAction?.({ label, actionId, payload });
+          }}
+          className="inline-flex items-center gap-1.5 my-1 mx-1 rounded-lg border-2 border-accent bg-accent/15 hover:bg-accent hover:text-accent-foreground px-2.5 py-1 text-[11px] font-bold text-accent transition-all cursor-pointer shadow-xs active:scale-95"
+          title={`Click to execute ${label}`}
+        >
+          <span>⚡</span>
+          <span>{label}</span>
+          <span className="text-[10px] opacity-75 font-mono">➔</span>
+        </button>,
+      );
+    } else if (match[5]) {
+      // 2. Markdown Link [label](url)
+      const linkText = match[6];
+      const href = match[7];
+      parts.push(
+        <a
+          key={`${match.index}-link`}
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-accent underline font-semibold hover:text-accent/80 transition-colors inline-flex items-center gap-0.5 cursor-pointer"
+        >
+          <span>{linkText}</span>
+          <span className="text-[9px]">↗</span>
+        </a>,
+      );
+    } else if (match[8]) {
+      // 3. Raw URL
+      let url = match[8];
+      let trailingPunct = "";
+      if (/[.,;:!?\]]$/.test(url)) {
+        trailingPunct = url.slice(-1);
+        url = url.slice(0, -1);
+      }
+      parts.push(
+        <a
+          key={`${match.index}-url`}
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-accent underline font-semibold hover:text-accent/80 transition-colors inline-flex items-center gap-0.5 break-all cursor-pointer"
+        >
+          <span>{url}</span>
+          <span className="text-[9px]">↗</span>
+        </a>,
+      );
+      if (trailingPunct) parts.push(trailingPunct);
+    } else if (match[9]) {
+      // 4. Bold
       parts.push(
         <strong
           key={`${match.index}-b`}
           className={isUser ? "font-bold text-inherit" : "font-semibold text-foreground"}
         >
-          {match[2]}
+          {match[10]}
         </strong>,
       );
-    } else if (match[4]) {
+    } else if (match[11]) {
+      // 5. Italic
       parts.push(
         <em key={`${match.index}-i`} className="italic">
-          {match[4]}
+          {match[12]}
         </em>,
       );
+    } else if (match[13]) {
+      // 6. Code
+      parts.push(
+        <code
+          key={`${match.index}-code`}
+          className="rounded bg-[#1e1c18] px-1 py-0.5 font-mono text-[10px] text-accent"
+        >
+          {match[14]}
+        </code>,
+      );
     }
-    lastIndex = regex.lastIndex;
+
+    lastIndex = tokenRegex.lastIndex;
   }
 
   if (lastIndex < text.length) {
-    const remaining = text.substring(lastIndex).replace(/\*\*/g, "").replace(/\*/g, "");
-    parts.push(remaining);
+    parts.push(text.substring(lastIndex));
   }
 
   return parts;
 }
 
-function FormattedMessage({ text, isUser = false }: { text: string; isUser?: boolean }) {
+function FormattedMessage({
+  text,
+  isUser = false,
+  onExecuteAction,
+}: {
+  text: string;
+  isUser?: boolean;
+  onExecuteAction?: (action: ParsedAction) => void;
+}) {
   // Split into alternating text chunks and code block chunks (e.g. ASCII diagrams)
   const chunks = text.split(/(```[\s\S]*?```)/g);
 
@@ -206,7 +297,7 @@ function FormattedMessage({ text, isUser = false }: { text: string; isUser?: boo
                 ? trimmed.replace(/^\d+\.\s+/, "")
                 : trimmed;
 
-              const parts = parseInlineFormatting(content, isUser);
+              const parts = parseInlineFormatting(content, isUser, onExecuteAction);
 
               if (isBullet) {
                 return (
@@ -410,25 +501,31 @@ export function AgentTeamPanel({
   }, [messages, loading]);
 
   function handleExecuteAction(action: ParsedAction) {
-    if (action.actionId === "apply_layout") {
+    const actId = (action.actionId || "").toLowerCase().trim();
+    const payload = (action.payload || "").toLowerCase().trim();
+
+    if (actId.includes("layout") || payload.includes("spine") || payload.includes("83ntg") || actId.includes("spine")) {
       floorPlanStore.loadPlan(SINGLE_LOADED_SPINE_LAYOUT);
       setActionFeedback("✨ Applied 83% NTG Single-Loaded Spine Layout with Ensuite Bath directly to 2D Plan & 3D Model!");
       if (onApplyLayout) onApplyLayout(action.payload);
-    } else if (action.actionId === "apply_materials") {
+    } else if (actId.includes("material") || actId.includes("palette") || payload.includes("fl_") || payload.includes("wl_")) {
       const parts = action.payload.split(",");
       const flooring = parts[0]?.trim() || "fl_wooden_teak";
       const wall = parts[1]?.trim() || "wl_asian_paints_royale";
       window.dispatchEvent(new CustomEvent("atelier-apply-materials", { detail: { flooring, wall } }));
       setActionFeedback(`🎨 Applied ${flooring.replace("fl_", "").replace(/_/g, " ")} and ${wall.replace("wl_", "").replace(/_/g, " ")} finishes in 3D Scene.`);
       if (onApplyMaterials) onApplyMaterials(flooring, wall);
-    } else if (action.actionId === "recalculate_boq") {
+    } else if (actId.includes("boq") || actId.includes("cost") || payload.includes("boq") || payload.includes("ensuite")) {
       window.dispatchEvent(new CustomEvent("atelier-recalculate-boq", { detail: action.payload }));
       setActionFeedback("📊 BOQ Recalculated: Added 35 sqft Ensuite Bath (+₹1,38,000) & Deducted 119 sqft Corridor (-₹1,96,000) = Net Project Saving ₹58,000!");
       if (onRecalculateBoq) onRecalculateBoq(action.payload);
-    } else if (action.actionId === "audit_compliance") {
+    } else if (actId.includes("compliance") || actId.includes("audit") || actId.includes("egress") || actId.includes("nbc") || actId.includes("ibc") || actId.includes("vastu")) {
       window.dispatchEvent(new CustomEvent("atelier-compliance-audit", { detail: action.payload }));
       setActionFeedback("📜 NBC 2016 Part 4 Statutory Audit Passed: 0.9m internal private egress verified. Wet core drainage aligned with Agni & Ishanya axis.");
       if (onAuditCompliance) onAuditCompliance(action.payload);
+    } else {
+      floorPlanStore.loadPlan(SINGLE_LOADED_SPINE_LAYOUT);
+      setActionFeedback(`⚡ Executed: ${action.label}`);
     }
   }
 
@@ -982,18 +1079,25 @@ export function AgentTeamPanel({
                           <span className="text-[10px] text-muted">{m.timestamp}</span>
                         </div>
                         <div className="pt-1">
-                          <FormattedMessage text={cleanText} isUser={false} />
+                          <FormattedMessage
+                            text={cleanText}
+                            isUser={false}
+                            onExecuteAction={handleExecuteAction}
+                          />
                         </div>
                         {actions.length > 0 && (
-                          <div className="flex flex-wrap gap-2 pt-2 border-t border-border/60 mt-2">
+                          <div className="flex flex-wrap gap-2 pt-2.5 border-t border-border/60 mt-2.5">
                             {actions.map((act, actIdx) => (
                               <button
                                 key={actIdx}
                                 type="button"
                                 onClick={() => handleExecuteAction(act)}
-                                className="flex items-center gap-1.5 rounded-lg border border-accent/50 bg-surface px-2.5 py-1 text-[11px] font-bold text-accent hover:bg-accent hover:text-accent-foreground shadow-xs transition-all active:scale-95 cursor-pointer"
+                                className="inline-flex items-center gap-2 rounded-lg border-2 border-accent bg-accent/15 px-3.5 py-1.5 text-xs font-bold text-accent hover:bg-accent hover:text-accent-foreground shadow-sm ring-2 ring-accent/20 transition-all active:scale-95 cursor-pointer"
+                                title={`Execute studio action: ${act.label}`}
                               >
+                                <span className="text-sm">⚡</span>
                                 <span>{act.label}</span>
+                                <span className="text-xs opacity-75 font-mono">➔</span>
                               </button>
                             ))}
                           </div>
