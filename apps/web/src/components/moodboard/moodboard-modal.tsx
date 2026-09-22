@@ -9,15 +9,18 @@ interface MoodboardModalProps {
   onClose: () => void;
   onApplyMaterials?: (flooringId: string, wallId: string) => void;
   onApplyPrompt?: (prompt: string) => void;
+  onApplyLayout?: (result: MoodboardAnalysisResult, imageBase64: string) => void;
 }
 
 export function MoodboardTrigger({
   onApplyMaterials,
   onApplyPrompt,
+  onApplyLayout,
   className,
 }: {
   onApplyMaterials?: (flooringId: string, wallId: string) => void;
   onApplyPrompt?: (prompt: string) => void;
+  onApplyLayout?: (result: MoodboardAnalysisResult, imageBase64: string) => void;
   className?: string;
 }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -39,6 +42,7 @@ export function MoodboardTrigger({
         onClose={() => setIsOpen(false)}
         onApplyMaterials={onApplyMaterials}
         onApplyPrompt={onApplyPrompt}
+        onApplyLayout={onApplyLayout}
       />
     </>
   );
@@ -49,11 +53,15 @@ export function MoodboardModal({
   onClose,
   onApplyMaterials,
   onApplyPrompt,
+  onApplyLayout,
 }: MoodboardModalProps) {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<MoodboardAnalysisResult | null>(null);
   const [copiedHex, setCopiedHex] = useState<string | null>(null);
+  const [appliedFlooring, setAppliedFlooring] = useState(false);
+  const [appliedWall, setAppliedWall] = useState(false);
+  const [appliedAll, setAppliedAll] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   if (!isOpen) return null;
@@ -109,7 +117,13 @@ export function MoodboardModal({
     if (onApplyPrompt) {
       onApplyPrompt(result.suggestedPrompt);
     }
-    onClose();
+    if (onApplyLayout && imagePreview) {
+      onApplyLayout(result, imagePreview);
+    }
+    setAppliedAll(true);
+    setTimeout(() => {
+      onClose();
+    }, 600);
   }
 
   return (
@@ -167,7 +181,7 @@ export function MoodboardModal({
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="text-[11px] text-accent hover:underline"
+                    className="text-[11px] text-accent hover:underline cursor-pointer"
                   >
                     Change Image
                   </button>
@@ -225,25 +239,49 @@ export function MoodboardModal({
                   </div>
                 </div>
 
-                {/* Matched AtelierOS Materials */}
+                {/* Matched AtelierOS Materials with Active 1-Click Apply Buttons */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="rounded-lg border border-border bg-[#faf8f4]/40 p-3 space-y-1">
+                  <div className="rounded-lg border border-border bg-[#faf8f4]/40 p-3 space-y-1.5">
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] font-bold uppercase tracking-wider text-muted">
                         Matched Flooring
                       </span>
-                      <span className="text-[10px] text-accent font-semibold">1-Click Apply</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (onApplyMaterials && result) {
+                            onApplyMaterials(result.flooringMatch.id, result.wallMatch.id);
+                            setAppliedFlooring(true);
+                            setTimeout(() => setAppliedFlooring(false), 2500);
+                          }
+                        }}
+                        className="rounded bg-accent/15 hover:bg-accent/25 text-accent px-2 py-0.5 text-[10px] font-bold border border-accent/30 transition-all cursor-pointer"
+                      >
+                        {appliedFlooring ? "Applied ✓" : "1-Click Apply"}
+                      </button>
                     </div>
                     <p className="text-xs font-bold text-foreground">{result.flooringMatch.name}</p>
                     <p className="text-[11px] text-muted">{result.flooringMatch.rationale}</p>
                   </div>
 
-                  <div className="rounded-lg border border-border bg-[#faf8f4]/40 p-3 space-y-1">
+                  <div className="rounded-lg border border-border bg-[#faf8f4]/40 p-3 space-y-1.5">
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] font-bold uppercase tracking-wider text-muted">
                         Matched Wall Finish
                       </span>
-                      <span className="text-[10px] text-accent font-semibold">1-Click Apply</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (onApplyMaterials && result) {
+                            onApplyMaterials(result.flooringMatch.id, result.wallMatch.id);
+                            setAppliedWall(true);
+                            setTimeout(() => setAppliedWall(false), 2500);
+                          }
+                        }}
+                        className="rounded bg-accent/15 hover:bg-accent/25 text-accent px-2 py-0.5 text-[10px] font-bold border border-accent/30 transition-all cursor-pointer"
+                      >
+                        {appliedWall ? "Applied ✓" : "1-Click Apply"}
+                      </button>
                     </div>
                     <p className="text-xs font-bold text-foreground">{result.wallMatch.name}</p>
                     <p className="text-[11px] text-muted">{result.wallMatch.rationale}</p>
@@ -269,14 +307,14 @@ export function MoodboardModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted hover:text-foreground transition-colors"
+            className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted hover:text-foreground transition-colors cursor-pointer"
           >
             Cancel
           </button>
 
           {result && (
             <Button type="button" variant="primary" size="sm" onClick={handleApply}>
-              ✨ Apply Materials & Prompt to 3D Room
+              {appliedAll ? "✨ Design Transformed! ✓" : "✨ Transform Room into this Design"}
             </Button>
           )}
         </div>

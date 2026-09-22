@@ -56,72 +56,186 @@ Focus on: Usable vs gross floor area budgeting, civil vs finishes splits, cost p
 
 function generateContextualFallback(role: AgentRole, prompt: string, context: ProjectContext): string {
   const q = prompt.toLowerCase();
-  const projectName = context.projectName || "Residence";
+  const projectName = context.projectName || "Sample Studio Apartment";
   const curr = context.currency || "₹";
+
+  // 1. Spatial Planning / NTG Ratio / Ensuite Bath / Corridor Reconfiguration
+  if (
+    q.includes("ntg") ||
+    q.includes("net-to-gross") ||
+    q.includes("ensuite") ||
+    q.includes("bath") ||
+    q.includes("corridor") ||
+    q.includes("76%") ||
+    q.includes("83%") ||
+    q.includes("riser") ||
+    q.includes("plumbing") ||
+    q.includes("circulation")
+  ) {
+    if (role === "chief_architect") {
+      return `To achieve the target 83% Net-to-Gross (NTG) ratio from 76% while accommodating the new 35 sq ft ensuite bath, we eliminate dedicated secondary corridors through a single-loaded central spine.
+
+### Area Allocation & Reclaiming Arithmetic:
+- Baseline (76% Net): 1,200 sq ft × 0.76 = 912 sq ft usable (Circulation/Walls: 288 sq ft)
+- Target (83% Net): 1,200 sq ft × 0.83 = 996 sq ft usable (Circulation/Walls: 204 sq ft)
+- Δ Usable Space Needed: +84 sq ft must be reclaimed
+- Ensuite Bath Footprint: 5'-0" × 7'-0" = 35 sq ft
+- Total Circulation Cut: 288 - (204 - 35) = 119 sq ft dedicated corridor eliminated
+
+${"```"}
++-------------------------------------------------------------------+
+|  [BALCONY / EXT. GLAZING - Daylight 5000K]                       |
+|                                                                   |
+|  [OPEN LIVING & DINING ZONE]                [BEDROOM RETREAT]     |
+|                                                                   |
++-----------------------------+               +---------------------+
+| [KITCHEN (Agni/SE)]         | <--0.9m Spine | [ENSUITE BATH (35sf]|
+| [Shared Wet Wall] ========= |============== | [Shaft 300x300mm]   |
++-----------------------------+               +---------------------+
+| [MAIN ENTRY]                |               | [INTEGRATED WARDROBE|
+| (North-West)                |               |  VESTIBULE]         |
++-----------------------------+---------------+---------------------+
+${"```"}
+
+By stacking the ensuite plumbing directly onto the existing kitchen wet wall, we share a single 300×300mm vertical shaft, avoiding structural slab penetrations and keeping structural grid rationality at 6–8m.
+
+[ACTION: 📐 Apply Single-Loaded Spine in 2D Plan | apply_layout | single_loaded_spine]
+[ACTION: 📜 Run NBC Egress Audit | audit_compliance | nbc_egress]`;
+    }
+
+    if (role === "code_specialist") {
+      return `Building on Vikram's single-loaded spine layout, here is the statutory compliance analysis under NBC 2016 Part 4 and Vastu Shastra:
+
+1. **Egress Clearance**: NBC 2016 Part 4 Table 2 allows internal private residential circulation spines to be reduced to **0.9m (3'-0")**, whereas common public corridors require 1.2m. Vikram's 0.9m spine is fully compliant.
+2. **Wet Core Plumbing Alignment**: Sharing the kitchen wet wall keeps drainage in the North-West / West zone, satisfying Vastu drainage rules and avoiding contamination of the North-East (Ishanya) sacred quadrant.
+3. **Shaft Sizing**: The 35 sq ft ensuite bath requires a minimum 0.3 sq m mechanical ventilation shaft or duct under NBC Part 3 Section 4.5.
+
+[ACTION: 📜 Run NBC Egress Audit | audit_compliance | nbc_egress]
+[ACTION: 📊 Recalculate BOQ with 35 sqft Ensuite | recalculate_boq | ensuite_35]`;
+    }
+
+    if (role === "interior_designer") {
+      return `Aesthetically, concealing the 300×300mm plumbing riser that Vikram and Ananya detailed gives us an opportunity for bespoke architectural millwork:
+- **Concealed Access Hatch**: We integrate the plumbing inspection hatch into vertical Burma Teak fluted wood panelling (Tone: Natural Satin Teak), rendering it completely invisible.
+- **Ensuite Bath Finishes**: For the compact 5' × 7' ensuite, specify large-format 1200×600mm honed Italian Statuario or light travertine tiles with zero-grout joints to visually double the spatial volume.
+- **Door Concealment**: Use a 2.4m floor-to-ceiling flush pivot door matching the wall finish so the bath entrance dissolves into the bedroom feature wall.
+
+[ACTION: 🎨 Apply Teak & Royale Palette | apply_materials | fl_wooden_teak,wl_fluted_wood]
+[ACTION: 📐 Apply Single-Loaded Spine in 2D Plan | apply_layout | single_loaded_spine]`;
+    }
+
+    if (role === "cost_estimator") {
+      return `Rohan, your Burma Teak fluting over the inspection hatch looks stunning, but at ₹420/sqft for 65 sqft, it will cost ₹27,300. Using MR-MDF with teak veneer saves ₹12,000, bringing it to ₹15,300.
+
+### Itemized Ensuite BOQ (${curr} NCR Schedule of Rates):
+1. **Civil & Core Cutting**: Slab core drilling (100mm waste + 75mm soil) & lightweight AAC blockwork: ${curr}28,500
+2. **Plumbing & Sanitaryware**: Concealed CPVC/UPVC manifold, wall-hung WC, and Grohe concealed cistern: ${curr}48,000
+3. **Waterproofing**: 3-coat elastomeric polyurethane membrane with 300mm skirting upturn: ${curr}14,200
+4. **Tiling & Finishes**: 1200×600 vitrified tile cladding + laying: ${curr}32,000
+5. **Aesthetic Joinery**: MR-MDF with teak veneer cladding over shaft: ${curr}15,300
+- **Total Ensuite Capital Cost**: ${curr}1,38,000 (well within our ${curr}2.5L contingency reserve).
+
+Eliminating 119 sq ft of dedicated corridor saves ${curr}1,96,000 in passage flooring and plastering, resulting in a **net cost saving of ${curr}58,000** for the project!
+
+[ACTION: 📊 Recalculate BOQ with 35 sqft Ensuite | recalculate_boq | ensuite_35]`;
+    }
+  }
 
   if (q.includes("vastu") || q.includes("alignment") || q.includes("direction") || q.includes("energy") || q.includes("facing")) {
     if (role === "code_specialist") {
       return `For **${projectName}**, Vastu orientation requires strict directional discipline:
 1. **Kitchen / Hearth**: Must anchor in the South-East (Agni quadrant) facing East while cooking, ensuring positive energy and natural cross-draft away from sleeping quarters.
 2. **Master Sanctuary**: Anchor firmly in South-West (Nairutya) for structural stability and grounding.
-3. **Pooja / Clean Water**: Keep North-East (Ishanya) light, decluttered, and visually open. Under NBC 2016 Part 3, ensure this also aligns with standard 10% glazed perimeter window requirements.`;
+3. **Pooja / Clean Water**: Keep North-East (Ishanya) light, decluttered, and visually open. Under NBC 2016 Part 3, ensure this also aligns with standard 10% glazed perimeter window requirements.
+
+[ACTION: 📜 Run NBC Egress Audit | audit_compliance | nbc_egress]`;
     }
     if (role === "chief_architect") {
-      return `To marry Vastu with modern spatial design in **${projectName}**, we avoid heavy internal walls. Instead, use permeable vertical fluted timber slats or acoustic glass screens to demarcate the North-East transition zone without obstructing spatial sightlines. Ensure the main entrance in the East/North is celebrated with a generous 1.2m wide foyer entry pivot door.`;
+      return `To marry Vastu with modern spatial design in **${projectName}**, we avoid heavy internal walls. Instead, use permeable vertical fluted timber slats or acoustic glass screens to demarcate the North-East transition zone without obstructing spatial sightlines. Ensure the main entrance in the East/North is celebrated with a generous 1.2m wide foyer entry pivot door.
+
+[ACTION: 📐 Apply Single-Loaded Spine in 2D Plan | apply_layout | single_loaded_spine]`;
     }
     if (role === "interior_designer") {
-      return `From a finishes standpoint, we ground the South-West master bedroom with rich textured walnut veneer and earthy warm neutral paint (Asian Paints Royale *Pumice Stone*). In the North-East, introduce reflective brushed brass trim and honed Kota stone or Bianco Statuario marble to reflect natural morning light.`;
+      return `From a finishes standpoint, we ground the South-West master bedroom with rich textured walnut veneer and earthy warm neutral paint (Asian Paints Royale *Pumice Stone*). In the North-East, introduce reflective brushed brass trim and honed Kota stone or Bianco Statuario marble to reflect natural morning light.
+
+[ACTION: 🎨 Apply Teak & Royale Palette | apply_materials | fl_wooden_teak,wl_asian_paints_royale]`;
     }
     if (role === "cost_estimator") {
-      return `Aligning wet utilities (bathrooms, kitchen risers) to Vastu quadrants (SE/NW) costs 0 extra if resolved at the planning stage. If plumbing risers are relocated after MEP rough-ins, expect an additional ${curr}45,000 to ${curr}65,000 per shaft in core-cutting and PVC manifold rerouting.`;
+      return `Aligning wet utilities (bathrooms, kitchen risers) to Vastu quadrants (SE/NW) costs 0 extra if resolved at the planning stage. If plumbing risers are relocated after MEP rough-ins, expect an additional ${curr}45,000 to ${curr}65,000 per shaft in core-cutting and PVC manifold rerouting.
+
+[ACTION: 📊 Recalculate BOQ with 35 sqft Ensuite | recalculate_boq | ensuite_35]`;
     }
   }
 
   if (q.includes("cost") || q.includes("budget") || q.includes("value") || q.includes("reduce") || q.includes("save") || q.includes("engineer")) {
     if (role === "cost_estimator") {
       return `To value-engineer **${projectName}** by 12-15% without compromising luxury perception:
-- **Flooring**: Swap imported Italian Statuario (₹350/sqft material + ₹120/sqft laying) with 1200x600 Kajaria polished glazed vitrified tiles (₹85/sqft + ₹55/sqft laying) — immediate savings of ~₹1,80,000.
-- **Fenestration**: Specify powder-coated Jindal thermal-break aluminium profiles instead of imported European Schuco sections, saving ~₹450/sqft of glazed area.
-- **Paint**: Apply Asian Paints Royale Luxury Emulsion on primary walls, reserving Royale Aspira exclusively for the double-height foyer and master suite.`;
+- **Flooring**: Swap imported Italian Statuario (${curr}350/sqft material + ${curr}120/sqft laying) with 1200x600 Kajaria polished vitrified tiles (${curr}85/sqft + ${curr}55/sqft laying) — immediate savings of ~${curr}1,80,000.
+- **Fenestration**: Specify powder-coated Jindal thermal-break aluminium profiles instead of imported European Schuco sections, saving ~${curr}450/sqft of glazed area.
+- **Paint**: Apply Asian Paints Royale Luxury Emulsion on primary walls, reserving Royale Aspira exclusively for the double-height foyer and master suite.
+
+[ACTION: 📊 Recalculate BOQ with 35 sqft Ensuite | recalculate_boq | ensuite_35]`;
     }
     if (role === "interior_designer") {
-      return `Aesthetic cost optimization: Reserve high-value tactile elements for eye-level and touch surfaces (fluted timber bed back, antique brass handles, fluted glass wardrobe shutters). For ceilings, use clean seamless gypsum boards with indirect LED cove troughs rather than expensive multi-tiered coffered profiles.`;
+      return `Aesthetic cost optimization: Reserve high-value tactile elements for eye-level and touch surfaces (fluted timber bed back, antique brass handles, fluted glass wardrobe shutters). For ceilings, use clean seamless gypsum boards with indirect LED cove troughs rather than expensive multi-tiered coffered profiles.
+
+[ACTION: 🎨 Apply Teak & Royale Palette | apply_materials | fl_wooden_teak,wl_fluted_wood]`;
     }
     if (role === "chief_architect") {
-      return `Structural efficiency in **${projectName}**: Rationalize perimeter wall spans to standard 3m structural grids. Minimizing odd-angle masonry and non-standard lintel spans reduces brickwork labor and reinforcement rebar scrap rates by nearly 8%.`;
+      return `Structural efficiency in **${projectName}**: Rationalize perimeter wall spans to standard 3m structural grids. Minimizing odd-angle masonry and non-standard lintel spans reduces brickwork labor and reinforcement rebar scrap rates by nearly 8%.
+
+[ACTION: 📐 Apply Single-Loaded Spine in 2D Plan | apply_layout | single_loaded_spine]`;
     }
     if (role === "code_specialist") {
-      return `Ensure value-engineering does not breach mandatory statutory minimums under NBC 2016: Habitable rooms must retain minimum clear heights of 2.75m (under ceiling fan), and kitchen risers must have dedicated 100mm mechanical ventilation exhaust ducts.`;
+      return `Ensure value-engineering does not breach mandatory statutory minimums under NBC 2016: Habitable rooms must retain minimum clear heights of 2.75m (under ceiling fan), and kitchen risers must have dedicated 100mm mechanical ventilation exhaust ducts.
+
+[ACTION: 📜 Run NBC Egress Audit | audit_compliance | nbc_egress]`;
     }
   }
 
   if (q.includes("material") || q.includes("finish") || q.includes("color") || q.includes("paint") || q.includes("flooring") || q.includes("tile")) {
     if (role === "interior_designer") {
       return `For the curated material palette of **${projectName}**:
-- **Flooring**: Large-format honed Kota stone with 3mm polished brass inlay strips in circulation areas, transitioning to natural herringbone white oak parquet in the private quarters.
+- **Flooring**: Warm Wooden Teak planks (${curr}240/sqft) or Large-format honed Kota stone with 3mm polished brass inlay strips in circulation areas, transitioning to natural herringbone oak parquet in the private quarters.
 - **Walls**: Asian Paints Royale matte off-white (Tone: *Morning Fog*) paired with a focal feature wall in raw board-marked concrete or handmade terracotta jali screens.
-- **Lighting**: 2700K warm white recessed anti-glare architectural downlights (CRI > 90) paired with indirect concealed cove LED illumination.`;
+- **Lighting**: 2700K warm white recessed anti-glare architectural downlights (CRI > 90) paired with indirect concealed cove LED illumination.
+
+[ACTION: 🎨 Apply Teak & Royale Palette | apply_materials | fl_wooden_teak,wl_asian_paints_royale]`;
     }
     if (role === "chief_architect") {
-      return `Ensure selected materials respect regional climate performance: In North Indian summer conditions, Kota stone and high-thermal-mass terracotta maintain significantly cooler surface temperatures than synthetic vinyl or dark laminate flooring.`;
+      return `Ensure selected materials respect regional climate performance: In North Indian summer conditions, Kota stone and high-thermal-mass terracotta maintain significantly cooler surface temperatures than synthetic vinyl or dark laminate flooring.
+
+[ACTION: 📐 Apply Single-Loaded Spine in 2D Plan | apply_layout | single_loaded_spine]`;
     }
     if (role === "cost_estimator") {
-      return `The proposed palette balances mid-market procurement with high perceived value. Kota stone procurement in Gurgaon runs at ₹45-₹65/sqft raw slab plus ₹55/sqft mirror polishing, making it 75% more cost-effective than imported Italian marble while offering authentic vernacular prestige.`;
+      return `The proposed palette balances mid-market procurement with high perceived value. Kota stone procurement in Gurgaon runs at ${curr}45-${curr}65/sqft raw slab plus ${curr}55/sqft mirror polishing, making it 75% more cost-effective than imported Italian marble while offering authentic vernacular prestige.
+
+[ACTION: 📊 Recalculate BOQ with 35 sqft Ensuite | recalculate_boq | ensuite_35]`;
     }
     if (role === "code_specialist") {
-      return `Specify anti-skid wet area flooring (R10 slip resistance rating) in all bathrooms and kitchen service balconies to satisfy NBC 2016 Part 3 Table 2 accessibility guidelines.`;
+      return `Specify anti-skid wet area flooring (R10 slip resistance rating) in all bathrooms and kitchen service balconies to satisfy NBC 2016 Part 3 Table 2 accessibility guidelines.
+
+[ACTION: 📜 Run NBC Egress Audit | audit_compliance | nbc_egress]`;
     }
   }
 
   // Default intelligent contextual response
   if (role === "chief_architect") {
-    return `Regarding "${prompt}" for **${projectName}**: From an architectural perspective, we need to balance spatial fluidity with structural logic. I recommend prioritizing natural cross-ventilation corridors, opening lintel spans to 2.4m, and maintaining clear circulation axes between the living core and private zones.`;
+    return `Regarding "${prompt}" for **${projectName}**: From an architectural perspective, we balance spatial fluidity with structural logic. I recommend prioritizing natural cross-ventilation corridors, opening lintel spans to 2.4m, and maintaining clear circulation axes between the living core and private zones.
+
+[ACTION: 📐 Apply Single-Loaded Spine in 2D Plan | apply_layout | single_loaded_spine]`;
   } else if (role === "code_specialist") {
-    return `Regarding "${prompt}" for **${projectName}**: Reviewing under building regulations (NBC 2016 / Local Bylaws), ensure all primary egress pathways maintain at least 0.9m clear width, window daylighting covers >10% floor plate area, and fire separation distances meet municipal clearance norms.`;
+    return `Regarding "${prompt}" for **${projectName}**: Reviewing under building regulations (NBC 2016 / Local Bylaws), ensure all primary egress pathways maintain at least 0.9m clear width, window daylighting covers >10% floor plate area, and fire separation distances meet municipal clearance norms.
+
+[ACTION: 📜 Run NBC Egress Audit | audit_compliance | nbc_egress]`;
   } else if (role === "interior_designer") {
-    return `Regarding "${prompt}" for **${projectName}**: I recommend layering tactile natural materials—warm timber veneers, textured limewash or Asian Paints Royale finishes, and calibrated circadian lighting (5000K daylight shifting to 2700K warm evening glow) to accentuate architectural depth.`;
+    return `Regarding "${prompt}" for **${projectName}**: I recommend layering tactile natural materials—warm timber veneers, textured limewash or Asian Paints Royale finishes, and calibrated circadian lighting (5000K daylight shifting to 2700K warm evening glow) to accentuate architectural depth.
+
+[ACTION: 🎨 Apply Teak & Royale Palette | apply_materials | fl_wooden_teak,wl_asian_paints_royale]`;
   } else {
-    return `Regarding "${prompt}" for **${projectName}**: At current specifications, budget allocation should be weighted 45% civil/core structure, 35% interior joinery and finishes, and 20% MEP services, with a mandatory 10% contingency reserve for unforeseen site variations.`;
+    return `Regarding "${prompt}" for **${projectName}**: At current specifications, budget allocation should be weighted 45% civil/core structure, 35% interior joinery and finishes, and 20% MEP services, with a mandatory 10% contingency reserve for unforeseen site variations.
+
+[ACTION: 📊 Recalculate BOQ with 35 sqft Ensuite | recalculate_boq | ensuite_35]`;
   }
 }
 
@@ -292,7 +406,28 @@ Project Context:
         { provider: "openrouter", model: "google/gemini-2.5-flash" },
       ];
 
-      const systemPrompt = `${profile.systemPrompt}\n\n${contextSummary}\n\nYou are consulting as ${profile.name} (${profile.title}) on the user's project. Answer the user's question directly and authoritatively in 1-2 focused paragraphs with real architectural specifics and actionable guidance. Format with clean natural typography and avoid using raw markdown asterisks (**) for bolding.`;
+      const systemPrompt = `${profile.systemPrompt}
+
+${contextSummary}
+
+You are consulting as ${profile.name} (${profile.title}) on the user's project in AtelierOS.
+Deliver authoritative, highly concrete architectural recommendations. Follow these 4 operational studio rules:
+1. Exact Quantitative Math: Whenever spatial planning, NTG (Net-to-Gross), circulation, or budgets are touched, calculate and show the exact numbers (e.g. 1,200 sq ft × 0.76 = 912 sq ft vs 83% = 996 sq ft, delta = +84 sq ft usable).
+2. ASCII Spatial Diagrams: When explaining circulation, shafts, or zoning, include a crisp ASCII plan diagram enclosed in a markdown code block (${"```"} ... ${"```"}).
+3. Inter-Agent Cross-Talk: Reference and build upon your colleagues in the studio by name:
+   - Vikram Mehta (Lead Architectural Principal)
+   - Ananya Sharma (Building Code & Statutory Specialist)
+   - Rohan Joshi (Senior Interior Architect)
+   - Kabir Verma (Principal Cost & BOQ Quantity Surveyor)
+4. Action Triggers: Always conclude your message with 1 or 2 actionable studio triggers formatted exactly as:
+   [ACTION: Button Label | action_type | payload]
+   Available action_types:
+   - 'apply_layout' with payload 'single_loaded_spine' | 'open_plan' | 'studio_layout_83ntg'
+   - 'recalculate_boq' with payload 'ensuite_35' | 'premium_finishes'
+   - 'audit_compliance' with payload 'nbc_egress' | 'vastu_check'
+   - 'apply_materials' with payload 'fl_wooden_teak,wl_asian_paints_royale' | 'fl_italian_marble,wl_fluted_wood'
+
+Format cleanly with readable paragraphs and avoid raw markdown asterisks (**) for bolding unless in headers.`;
 
       let responseText = "";
 

@@ -1,10 +1,19 @@
 "use client";
 
-import { Suspense, Component, type ReactNode, useState, useRef, useEffect } from "react";
+import { Suspense, Component, type ReactNode, useState, useRef, useEffect, useMemo } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, useGLTF, Environment, Bounds, Center, ContactShadows, Html, Line } from "@react-three/drei";
 import { Vector3, PerspectiveCamera as PerspectiveCameraType, WebGLRenderer, MeshStandardMaterial, Color } from "three";
-import { metersToUnit, unitLabel } from "@/lib/units";
+import { metersToUnit, unitLabel, type UnitSystem } from "@/lib/units";
+import {
+  ProceduralArchitecturalScene,
+  createMarbleTexture,
+  createKotaTexture,
+  createHerringboneTexture,
+  createTeakWoodTexture,
+} from "@/components/3d/procedural-architectural-scene";
+import { useFloorPlanStore } from "@/components/floor-plan-editor/state/floor-plan-store";
+import { floorPlanToElements, type ConstructionElements } from "@/components/floor-plan-editor/export/to-elements";
 
 export interface MaterialPreset {
   id: string;
@@ -19,12 +28,14 @@ export const FLOORING_SWAPS: MaterialPreset[] = [
   { id: "fl_italian_statuario", name: "Italian Statuario Marble", category: "flooring", colorHex: "#f8f7f5", roughness: 0.15, metalness: 0.05 },
   { id: "fl_kota_stone", name: "Kota Stone (Honed)", category: "flooring", colorHex: "#7a8a7c", roughness: 0.8, metalness: 0.0 },
   { id: "fl_herringbone_oak", name: "Herringbone Oak Wood", category: "flooring", colorHex: "#b58a5b", roughness: 0.45, metalness: 0.0 },
+  { id: "fl_wooden_teak", name: "Warm Wooden Teak", category: "flooring", colorHex: "#8b5a2b", roughness: 0.45, metalness: 0.0 },
 ];
 
 export const WALL_SWAPS: MaterialPreset[] = [
   { id: "wl_asian_paints_royale", name: "Asian Paints Royale", category: "walls", colorHex: "#f5f0eb", roughness: 0.85, metalness: 0.0 },
   { id: "wl_raw_concrete", name: "Raw Concrete", category: "walls", colorHex: "#949699", roughness: 0.9, metalness: 0.05 },
   { id: "wl_fluted_wood", name: "Fluted Wood Panels", category: "walls", colorHex: "#7a5332", roughness: 0.5, metalness: 0.02 },
+  { id: "wl_exposed_brick", name: "Exposed Brick Cladding", category: "walls", colorHex: "#a34c38", roughness: 0.95, metalness: 0.0 },
 ];
 
 export type CircadianPreset = "morning" | "afternoon" | "golden" | "evening";
@@ -109,7 +120,10 @@ function Model({
         const isFloor =
           name.includes("floor") ||
           name.includes("slab") ||
+          name.includes("ground") ||
+          name.includes("flr") ||
           matName.includes("floor") ||
+          matName.includes("slab") ||
           (box && box.max.y - box.min.y < 0.25);
 
         const isWall =
@@ -118,8 +132,15 @@ function Model({
           (box && box.max.y - box.min.y >= 0.25);
 
         if (isFloor && flooringPreset) {
+          let map = null;
+          if (flooringPreset.id === "fl_italian_statuario") map = createMarbleTexture();
+          else if (flooringPreset.id === "fl_kota_stone") map = createKotaTexture();
+          else if (flooringPreset.id === "fl_herringbone_oak") map = createHerringboneTexture();
+          else if (flooringPreset.id === "fl_wooden_teak") map = createTeakWoodTexture();
+
           child.material = new MeshStandardMaterial({
-            color: new Color(flooringPreset.colorHex),
+            map: map || undefined,
+            color: map ? new Color("#ffffff") : new Color(flooringPreset.colorHex),
             roughness: flooringPreset.roughness,
             metalness: flooringPreset.metalness,
           });
@@ -237,10 +258,26 @@ function ExitFullscreenIcon() {
 
 export function ModelViewer({ 
   url, 
-  unitSystem = "metric" 
+  elements,
+  unitSystem = "metric",
+  liveSync = true,
+  activeFlooringId,
+  activeWallId,
+  activeCircadian,
+  onFlooringChange,
+  onWallChange,
+  className = "",
 }: { 
-  url: string; 
-  unitSystem?: "metric" | "imperial";
+  url?: string | null; 
+  elements?: ConstructionElements | null;
+  unitSystem?: UnitSystem;
+  liveSync?: boolean;
+  activeFlooringId?: string;
+  activeWallId?: string;
+  activeCircadian?: CircadianPreset;
+  onFlooringChange?: (preset: MaterialPreset) => void;
+  onWallChange?: (preset: MaterialPreset) => void;
+  className?: string;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cameraRef = useRef<PerspectiveCameraType | null>(null);
@@ -250,10 +287,53 @@ export function ModelViewer({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isMeasuring, setIsMeasuring] = useState(false);
   const [measurePoints, setMeasurePoints] = useState<Vector3[]>([]);
-  const [circadian, setCircadian] = useState<CircadianPreset>("afternoon");
-  const [selectedFlooring, setSelectedFlooring] = useState<MaterialPreset>(FLOORING_SWAPS[0]);
-  const [selectedWall, setSelectedWall] = useState<MaterialPreset>(WALL_SWAPS[0]);
+  const [circadian, setCircadian] = useState<CircadianPreset>(activeCircadian || "afternoon");
+  const [selectedFlooring, setSelectedFlooring] = useState<MaterialPreset>(
+    FLOORING_SWAPS.find((f) => f.id === activeFlooringId) || FLOORING_SWAPS[0]
+  );
+  const [selectedWall, setSelectedWall] = useState<MaterialPreset>(
+    WALL_SWAPS.find((w) => w.id === activeWallId) || WALL_SWAPS[0]
+  );
   const [showMaterialDrawer, setShowMaterialDrawer] = useState(false);
+
+  // Sync external prop updates
+  useEffect(() => {
+    if (activeFlooringId) {
+      const match = FLOORING_SWAPS.find((f) => f.id === activeFlooringId);
+      if (match) setSelectedFlooring(match);
+    }
+  }, [activeFlooringId]);
+
+  useEffect(() => {
+    if (activeWallId) {
+      const match = WALL_SWAPS.find((w) => w.id === activeWallId);
+      if (match) setSelectedWall(match);
+    }
+  }, [activeWallId]);
+
+  useEffect(() => {
+    if (activeCircadian) {
+      setCircadian(activeCircadian);
+    }
+  }, [activeCircadian]);
+
+  // Live 2D floor plan store subscription
+  const editorState = useFloorPlanStore();
+  const storeElements = useMemo(() => {
+    if (!liveSync) return null;
+    const plan = editorState?.floorPlan;
+    if (plan && (plan.walls.length > 0 || (plan.furniture && plan.furniture.length > 0))) {
+      return floorPlanToElements(plan);
+    }
+    return null;
+  }, [liveSync, editorState?.floorPlan]);
+
+  // Prefer explicit elements prop, or fallback to live synchronized store elements
+  const activeElements = elements || storeElements;
+  const hasProceduralElements = activeElements && (
+    (activeElements.walls && activeElements.walls.length > 0) ||
+    (activeElements.furniture && activeElements.furniture.length > 0)
+  );
 
   const currentLighting = CIRCADIAN_CONFIGS[circadian];
 
@@ -261,8 +341,8 @@ export function ModelViewer({
     const handleFullscreenChange = () => {
       setIsFullscreen(!!document.fullscreenElement);
     };
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
   }, []);
 
   const toggleFullscreen = () => {
@@ -275,9 +355,9 @@ export function ModelViewer({
 
   const handleScreenshot = () => {
     if (glRef.current) {
-      const link = document.createElement('a');
-      link.download = 'model-screenshot.png';
-      link.href = glRef.current.domElement.toDataURL('image/png');
+      const link = document.createElement("a");
+      link.download = "architectural-model.png";
+      link.href = glRef.current.domElement.toDataURL("image/png");
       link.click();
     }
   };
@@ -307,47 +387,86 @@ export function ModelViewer({
     if (measurePoints.length >= 2) {
       setMeasurePoints([e.point]);
     } else {
-      setMeasurePoints(prev => [...prev, e.point]);
+      setMeasurePoints((prev) => [...prev, e.point]);
     }
   };
 
   const toggleMeasuring = () => {
-    setIsMeasuring(prev => !prev);
+    setIsMeasuring((prev) => !prev);
     if (isMeasuring) {
-      setMeasurePoints([]); // clear points when turning off
+      setMeasurePoints([]);
     }
   };
 
+  const handleSelectFlooring = (preset: MaterialPreset) => {
+    setSelectedFlooring(preset);
+    onFlooringChange?.(preset);
+  };
+
+  const handleSelectWall = (preset: MaterialPreset) => {
+    setSelectedWall(preset);
+    onWallChange?.(preset);
+  };
+
   return (
-    <div ref={containerRef} className={`relative w-full overflow-hidden rounded-lg border border-border bg-surface ${isFullscreen ? 'h-screen' : 'h-96'}`}>
+    <div
+      ref={containerRef}
+      className={`relative w-full overflow-hidden rounded-lg border border-border bg-surface ${
+        isFullscreen ? "h-screen" : "h-96"
+      } ${className}`}
+    >
       {/* Top Controls Bar */}
-      <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 rounded-lg bg-surface/80 backdrop-blur-sm p-1.5 shadow-sm border border-border">
+      <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 rounded-lg bg-surface/85 backdrop-blur-md p-1.5 shadow-sm border border-border">
         {/* View Presets */}
         <div className="flex items-center gap-0.5 border-r border-border pr-1.5">
-           <button onClick={() => setView([0, 10, 0])} className="flex items-center gap-1 px-2 py-1 text-xs hover:bg-accent/10 hover:text-accent rounded transition-colors" title="Top"><TopIcon/> <span className="hidden sm:inline">Top</span></button>
-           <button onClick={() => setView([0, 0, 10])} className="flex items-center gap-1 px-2 py-1 text-xs hover:bg-accent/10 hover:text-accent rounded transition-colors" title="Front"><FrontIcon/> <span className="hidden sm:inline">Front</span></button>
-           <button onClick={() => setView([6, 6, 6])} className="flex items-center gap-1 px-2 py-1 text-xs hover:bg-accent/10 hover:text-accent rounded transition-colors" title="Perspective"><PerspectiveIcon/> <span className="hidden sm:inline">Perspective</span></button>
-           <button onClick={handleReset} className="flex items-center gap-1 px-2 py-1 text-xs hover:bg-accent/10 hover:text-accent rounded transition-colors" title="Reset View"><ResetIcon/> <span className="hidden sm:inline">Reset</span></button>
+          <button onClick={() => setView([0, 10, 0])} className="flex items-center gap-1 px-2 py-1 text-xs hover:bg-accent/10 hover:text-accent rounded transition-colors" title="Top">
+            <TopIcon /> <span className="hidden sm:inline">Top</span>
+          </button>
+          <button onClick={() => setView([0, 0, 10])} className="flex items-center gap-1 px-2 py-1 text-xs hover:bg-accent/10 hover:text-accent rounded transition-colors" title="Front">
+            <FrontIcon /> <span className="hidden sm:inline">Front</span>
+          </button>
+          <button onClick={() => setView([6, 6, 6])} className="flex items-center gap-1 px-2 py-1 text-xs hover:bg-accent/10 hover:text-accent rounded transition-colors" title="Perspective">
+            <PerspectiveIcon /> <span className="hidden sm:inline">Perspective</span>
+          </button>
+          <button onClick={handleReset} className="flex items-center gap-1 px-2 py-1 text-xs hover:bg-accent/10 hover:text-accent rounded transition-colors" title="Reset View">
+            <ResetIcon /> <span className="hidden sm:inline">Reset</span>
+          </button>
         </div>
-        
+
         {/* Tools */}
         <div className="flex items-center gap-0.5 border-r border-border pr-1.5 pl-1">
-           <button onClick={toggleMeasuring} className={`flex items-center gap-1 px-2 py-1 text-xs rounded transition-colors ${isMeasuring ? 'bg-accent/10 text-accent' : 'hover:bg-accent/10 hover:text-accent'}`} title="Measure">
-             <MeasureIcon/> <span className="hidden sm:inline">Measure</span>
-           </button>
+          <button
+            onClick={toggleMeasuring}
+            className={`flex items-center gap-1 px-2 py-1 text-xs rounded transition-colors ${
+              isMeasuring ? "bg-accent/10 text-accent font-semibold" : "hover:bg-accent/10 hover:text-accent"
+            }`}
+            title="Measure"
+          >
+            <MeasureIcon /> <span className="hidden sm:inline">Measure</span>
+          </button>
         </div>
-        
+
         {/* Actions */}
         <div className="flex items-center gap-0.5 pl-1">
-           <button onClick={handleScreenshot} className="flex items-center gap-1 px-2 py-1 text-xs hover:bg-accent/10 hover:text-accent rounded transition-colors" title="Screenshot"><ScreenshotIcon/> <span className="hidden sm:inline">Screenshot</span></button>
-           <button onClick={toggleFullscreen} className="flex items-center gap-1 px-2 py-1 text-xs hover:bg-accent/10 hover:text-accent rounded transition-colors" title="Fullscreen">
-             {isFullscreen ? <><ExitFullscreenIcon/> <span className="hidden sm:inline">Exit</span></> : <><FullscreenIcon/> <span className="hidden sm:inline">Fullscreen</span></>}
-           </button>
+          <button onClick={handleScreenshot} className="flex items-center gap-1 px-2 py-1 text-xs hover:bg-accent/10 hover:text-accent rounded transition-colors" title="Screenshot">
+            <ScreenshotIcon /> <span className="hidden sm:inline">Screenshot</span>
+          </button>
+          <button onClick={toggleFullscreen} className="flex items-center gap-1 px-2 py-1 text-xs hover:bg-accent/10 hover:text-accent rounded transition-colors" title="Fullscreen">
+            {isFullscreen ? (
+              <>
+                <ExitFullscreenIcon /> <span className="hidden sm:inline">Exit</span>
+              </>
+            ) : (
+              <>
+                <FullscreenIcon /> <span className="hidden sm:inline">Fullscreen</span>
+              </>
+            )}
+          </button>
         </div>
       </div>
 
       {/* Bottom Left: Circadian Lighting Simulation Bar */}
-      <div className="absolute bottom-2 left-2 z-10 flex items-center gap-1 rounded-lg bg-surface/85 backdrop-blur-sm p-1 shadow-sm border border-border text-xs">
+      <div className="absolute bottom-2 left-2 z-10 flex items-center gap-1 rounded-lg bg-surface/85 backdrop-blur-md p-1 shadow-sm border border-border text-xs">
         <span className="px-1 text-[10px] font-bold text-muted uppercase tracking-wider hidden sm:inline">Sun:</span>
         {(Object.keys(CIRCADIAN_CONFIGS) as CircadianPreset[]).map((key) => {
           const cfg = CIRCADIAN_CONFIGS[key];
@@ -377,7 +496,7 @@ export function ModelViewer({
           <div className="w-72 rounded-xl border border-border bg-surface/95 backdrop-blur-md p-3 shadow-lg space-y-3 text-xs mb-1">
             <div className="flex items-center justify-between border-b border-border pb-2">
               <span className="font-bold text-foreground flex items-center gap-1.5">
-                <span>🎨</span> Live Material Swapper
+                <span>🎨</span> Live Material Swapper (PBR)
               </span>
               <button
                 type="button"
@@ -396,7 +515,7 @@ export function ModelViewer({
                   <button
                     key={f.id}
                     type="button"
-                    onClick={() => setSelectedFlooring(f)}
+                    onClick={() => handleSelectFlooring(f)}
                     className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg border text-left transition-all ${
                       selectedFlooring.id === f.id
                         ? "border-accent bg-accent/10 font-semibold text-accent"
@@ -421,7 +540,7 @@ export function ModelViewer({
                   <button
                     key={w.id}
                     type="button"
-                    onClick={() => setSelectedWall(w)}
+                    onClick={() => handleSelectWall(w)}
                     className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg border text-left transition-all ${
                       selectedWall.id === w.id
                         ? "border-accent bg-accent/10 font-semibold text-accent"
@@ -443,16 +562,18 @@ export function ModelViewer({
         <button
           type="button"
           onClick={() => setShowMaterialDrawer(!showMaterialDrawer)}
-          className="flex items-center gap-1.5 rounded-lg bg-surface/90 backdrop-blur-sm px-3 py-1.5 text-xs font-semibold text-foreground hover:border-accent/40 shadow-sm border border-border transition-colors"
+          className="flex items-center gap-1.5 rounded-lg bg-surface/90 backdrop-blur-md px-3 py-1.5 text-xs font-semibold text-foreground hover:border-accent/40 shadow-sm border border-border transition-colors"
         >
           <span>🎨</span>
           <span>Material Swapper</span>
-          <span className="text-[10px] font-mono text-accent">({selectedFlooring.name.split(" ")[0]} / {selectedWall.name.split(" ")[0]})</span>
+          <span className="text-[10px] font-mono text-accent">
+            ({selectedFlooring.name.split(" ")[0]} / {selectedWall.name.split(" ")[0]})
+          </span>
         </button>
       </div>
 
-      <Canvas 
-        camera={{ position: [6, 6, 6], fov: 45 }} 
+      <Canvas
+        camera={{ position: [6, 6, 6], fov: 45 }}
         dpr={[1, 2]}
         gl={{ preserveDrawingBuffer: true }}
         onCreated={({ gl, camera }) => {
@@ -478,12 +599,28 @@ export function ModelViewer({
           <Suspense fallback={<Loader />}>
             <Bounds fit clip observe margin={1.3}>
               <Center>
-                <Model
-                  url={url}
-                  flooringPreset={selectedFlooring}
-                  wallPreset={selectedWall}
-                  onPointerDown={handlePointerDown}
-                />
+                {hasProceduralElements ? (
+                  <ProceduralArchitecturalScene
+                    elements={activeElements!}
+                    flooring={selectedFlooring}
+                    wallPreset={selectedWall}
+                    unitSystem={unitSystem}
+                    onPointerDown={handlePointerDown}
+                  />
+                ) : url ? (
+                  <Model
+                    url={url}
+                    flooringPreset={selectedFlooring}
+                    wallPreset={selectedWall}
+                    onPointerDown={handlePointerDown}
+                  />
+                ) : (
+                  <Html center>
+                    <p className="whitespace-nowrap text-xs text-muted">
+                      Draw in the 2D floor plan editor to see real-time 3D space
+                    </p>
+                  </Html>
+                )}
               </Center>
             </Bounds>
             {measurePoints.length === 2 && (
@@ -491,13 +628,20 @@ export function ModelViewer({
                 <Line points={[measurePoints[0], measurePoints[1]]} color="#a15c3e" lineWidth={4} />
                 <Html position={measurePoints[0].clone().lerp(measurePoints[1], 0.5)} center>
                   <div className="bg-surface/90 backdrop-blur px-2 py-1 rounded text-xs border border-border shadow-sm font-mono whitespace-nowrap text-foreground pointer-events-none">
-                    {metersToUnit(measurePoints[0].distanceTo(measurePoints[1]), unitSystem).toFixed(2)} {unitLabel(unitSystem)}
+                    {metersToUnit(measurePoints[0].distanceTo(measurePoints[1]), unitSystem).toFixed(2)}{" "}
+                    {unitLabel(unitSystem)}
                   </div>
                 </Html>
               </>
             )}
             <Environment preset={currentLighting.env} />
-            <ContactShadows position={[0, -0.01, 0]} opacity={circadian === "evening" ? 0.15 : 0.35} scale={12} blur={2} far={10} />
+            <ContactShadows
+              position={[0, -0.01, 0]}
+              opacity={circadian === "evening" ? 0.15 : 0.35}
+              scale={12}
+              blur={2}
+              far={10}
+            />
           </Suspense>
         </ViewerErrorBoundary>
         <OrbitControls ref={controlsRef} makeDefault enableDamping dampingFactor={0.08} minDistance={2} maxDistance={40} />

@@ -27,6 +27,15 @@ export function DemoSandbox({ demoData }: { demoData: DemoProjectData }) {
     "Gurgaon luxury apartment, Italian marble floors, warm LED recessed lighting"
   );
 
+  const [activeFlooringId, setActiveFlooringId] = useState<string>("fl_italian_statuario");
+  const [activeWallId, setActiveWallId] = useState<string>("wl_asian_paints_royale");
+  const [activeCircadian, setActiveCircadian] = useState<"morning" | "afternoon" | "golden" | "evening">("afternoon");
+  const [activeRenderUrl, setActiveRenderUrl] = useState<string | null>(demoData.renderUrl);
+  const [activeRenderPrompt, setActiveRenderPrompt] = useState<string>(
+    demoData.renderStyle || "Gurgaon luxury apartment, Italian marble floors, warm LED recessed lighting"
+  );
+  const [notification, setNotification] = useState<string | null>(null);
+
   const [isTeamChatOpen, setIsTeamChatOpen] = useState(true);
   const [isChatMaximized, setIsChatMaximized] = useState(false);
 
@@ -36,6 +45,17 @@ export function DemoSandbox({ demoData }: { demoData: DemoProjectData }) {
       floorPlanStore.loadPlan(demoData.initialFloorPlan);
     }
   }, [demoData.initialFloorPlan]);
+
+  // Listen for materials applied by agent action triggers
+  useEffect(() => {
+    const handleMaterialEvent = (e: any) => {
+      const { flooring, wall } = e.detail || {};
+      if (flooring) setActiveFlooringId(flooring);
+      if (wall) setActiveWallId(wall);
+    };
+    window.addEventListener("atelier-apply-materials", handleMaterialEvent);
+    return () => window.removeEventListener("atelier-apply-materials", handleMaterialEvent);
+  }, []);
 
   function handlePromptSave(action: string) {
     if (action === "render") {
@@ -122,7 +142,53 @@ export function DemoSandbox({ demoData }: { demoData: DemoProjectData }) {
               </Link>
 
               <MoodboardTrigger
-                onApplyPrompt={(prompt) => setSelectedStyle(prompt)}
+                onApplyMaterials={(flId, wlId) => {
+                  setActiveFlooringId(flId);
+                  setActiveWallId(wlId);
+                  setNotification(`✨ Applied ${flId.replace("fl_", "").replace(/_/g, " ")} floor and ${wlId.replace("wl_", "").replace(/_/g, " ")} finish to 3D room!`);
+                  setTimeout(() => setNotification(null), 4500);
+                }}
+                onApplyPrompt={(prompt) => {
+                  setSelectedStyle(prompt);
+                  setActiveRenderPrompt(prompt);
+                }}
+                onApplyLayout={(result, imageBase64) => {
+                  setActiveFlooringId(result.flooringMatch.id);
+                  setActiveWallId(result.wallMatch.id);
+
+                  const sum = (result.summary + " " + result.aesthetic).toLowerCase();
+                  if (sum.includes("sunset") || sum.includes("golden") || sum.includes("warm")) {
+                    setActiveCircadian("golden");
+                  } else if (sum.includes("twilight") || sum.includes("evening") || sum.includes("fairy")) {
+                    setActiveCircadian("evening");
+                  }
+
+                  setActiveRenderUrl(imageBase64);
+                  setActiveRenderPrompt(result.suggestedPrompt);
+                  setSelectedStyle(result.suggestedPrompt);
+
+                  // Adapt 2D floor plan with matching furniture
+                  const currentPlan = floorPlanStore.getState().floorPlan;
+                  const isBedroom = sum.includes("bedroom") || sum.includes("bohemian") || sum.includes("bed") || sum.includes("cozy");
+
+                  if (isBedroom) {
+                    const adaptedFurniture = [
+                      { id: "f_bed_1", ffeId: "ffe_king_bed", name: "King Platform Bed", type: "bed" as const, position: { x: 3.6, y: 1.6 }, width: 1.9, depth: 2.1, rotation: 0 },
+                      { id: "f_rug_1", ffeId: "ffe_circular_rug", name: "Plush Ivory Rug", type: "custom" as const, position: { x: 2.2, y: 1.8 }, width: 1.6, depth: 1.6, rotation: 0 },
+                      { id: "f_desk_1", ffeId: "ffe_desk", name: "Oak Work Desk", type: "table" as const, position: { x: 4.4, y: 2.4 }, width: 1.2, depth: 0.6, rotation: 90 },
+                      { id: "f_chair_1", ffeId: "ffe_chair", name: "Minimalist Desk Chair", type: "chair" as const, position: { x: 3.8, y: 2.4 }, width: 0.6, depth: 0.6, rotation: 90 },
+                      { id: "f_lamp_1", ffeId: "ffe_floor_lamp", name: "Warm Standing Floor Lamp", type: "lamp" as const, position: { x: 2.5, y: 0.5 }, width: 0.45, depth: 0.45, rotation: 0 },
+                      { id: "f_plant_1", ffeId: "ffe_plant", name: "Potted Fiddle-Leaf Fig", type: "custom" as const, position: { x: 1.0, y: 0.6 }, width: 0.5, depth: 0.5, rotation: 0 },
+                    ];
+                    floorPlanStore.loadPlan({
+                      ...currentPlan,
+                      furniture: adaptedFurniture,
+                    });
+                  }
+
+                  setNotification(`✨ Transformed room into "${result.aesthetic}" with matched materials, 2D/3D layout, and render!`);
+                  setTimeout(() => setNotification(null), 5500);
+                }}
               />
 
               {/* Side-by-Side Team Studio Toggle Button */}
@@ -141,6 +207,18 @@ export function DemoSandbox({ demoData }: { demoData: DemoProjectData }) {
               </button>
             </div>
           </div>
+
+          {notification && (
+            <div className="w-full rounded-lg border border-accent/40 bg-accent/10 px-4 py-2.5 text-xs text-accent font-semibold flex items-center justify-between shadow-xs animate-in fade-in slide-in-from-top-2">
+              <span className="flex items-center gap-2">
+                <span>🪄</span>
+                <span>{notification}</span>
+              </span>
+              <button onClick={() => setNotification(null)} className="text-accent hover:opacity-75 text-xs">
+                ✕
+              </button>
+            </div>
+          )}
 
           <div
             className={`w-full transition-all duration-300 ${
@@ -174,13 +252,21 @@ export function DemoSandbox({ demoData }: { demoData: DemoProjectData }) {
               <div>
                 <h2 className="text-sm font-medium">3D Spatial Model</h2>
                 <p className="text-xs text-muted">
-                  Interactive 3D reconstruction. Measure distances, switch camera views, or take screenshots.
+                  Interactive 3D reconstruction synced with 2D plan in real-time. Measure distances, switch camera views, or swap materials.
                 </p>
               </div>
             </div>
-            {demoData.modelUrl ? (
-              <div className="space-y-1.5">
-                <ModelViewer url={demoData.modelUrl} unitSystem={demoData.project.unit_system} />
+            <div className="space-y-1.5">
+              <ModelViewer
+                liveSync={true}
+                unitSystem={demoData.project.unit_system}
+                activeFlooringId={activeFlooringId}
+                activeWallId={activeWallId}
+                activeCircadian={activeCircadian}
+                onFlooringChange={(f) => setActiveFlooringId(f.id)}
+                onWallChange={(w) => setActiveWallId(w.id)}
+              />
+              {demoData.modelUrl && (
                 <a
                   href={demoData.modelUrl}
                   target="_blank"
@@ -189,12 +275,8 @@ export function DemoSandbox({ demoData }: { demoData: DemoProjectData }) {
                 >
                   Download raw model (.glb)
                 </a>
-              </div>
-            ) : (
-              <div className="h-64 rounded-lg border border-dashed border-border bg-surface flex items-center justify-center text-xs text-muted">
-                3D Model loading…
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
           {/* Section 3: AI Styled Renders */}
@@ -213,18 +295,18 @@ export function DemoSandbox({ demoData }: { demoData: DemoProjectData }) {
               </Button>
             </div>
 
-            {demoData.renderUrl && (
+            {(activeRenderUrl || demoData.renderUrl) && (
               <div className="space-y-2">
                 <div className="overflow-hidden rounded-md border border-border bg-background">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={demoData.renderUrl}
+                    src={activeRenderUrl || demoData.renderUrl!}
                     alt="Styled Render"
                     className="w-full max-h-96 object-cover"
                   />
                 </div>
                 <p className="text-xs text-muted italic">
-                  Prompt: &quot;{demoData.renderStyle}&quot;
+                  Prompt: &quot;{activeRenderPrompt}&quot;
                 </p>
               </div>
             )}
@@ -317,6 +399,16 @@ export function DemoSandbox({ demoData }: { demoData: DemoProjectData }) {
               onClose={() => setIsTeamChatOpen(false)}
               onToggleExpand={() => setIsChatMaximized((prev) => !prev)}
               isExpanded={isChatMaximized}
+              onApplyMaterials={(flId, wlId) => {
+                setActiveFlooringId(flId);
+                setActiveWallId(wlId);
+                setNotification(`🎨 Applied ${flId.replace("fl_", "").replace(/_/g, " ")} and ${wlId.replace("wl_", "").replace(/_/g, " ")} to 3D scene!`);
+                setTimeout(() => setNotification(null), 4500);
+              }}
+              onApplyLayout={() => {
+                setNotification("📐 Applied 83% NTG Single-Loaded Spine Layout with Ensuite Bath directly to 2D Plan & 3D Model!");
+                setTimeout(() => setNotification(null), 4500);
+              }}
             />
           </div>
         )}

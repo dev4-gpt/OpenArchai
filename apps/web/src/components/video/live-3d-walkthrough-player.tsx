@@ -14,6 +14,10 @@ import {
   type MaterialPreset,
   type CircadianPreset,
 } from "@/components/model-viewer";
+import {
+  createKotaTexture,
+  createTeakWoodTexture,
+} from "@/components/3d/procedural-architectural-scene";
 import { createHiggsfieldWalkthroughJob, type HiggsfieldJobResponse } from "@/lib/higgsfield-api";
 
 export type CameraMode = "tour" | "first_person" | "axonometric";
@@ -197,6 +201,8 @@ function ProceduralFloor({
 
   const marbleTex = useMemo(() => createMarbleTexture(), []);
   const woodTex = useMemo(() => createHerringboneTexture(), []);
+  const kotaTex = useMemo(() => createKotaTexture(), []);
+  const teakTex = useMemo(() => createTeakWoodTexture(), []);
 
   const material = useMemo(() => {
     if (flooring.id === "fl_italian_statuario" && marbleTex) {
@@ -213,12 +219,26 @@ function ProceduralFloor({
         metalness: 0.0,
       });
     }
+    if (flooring.id === "fl_kota_stone" && kotaTex) {
+      return new THREE.MeshStandardMaterial({
+        map: kotaTex,
+        roughness: 0.78,
+        metalness: 0.02,
+      });
+    }
+    if (flooring.id === "fl_wooden_teak" && teakTex) {
+      return new THREE.MeshStandardMaterial({
+        map: teakTex,
+        roughness: 0.45,
+        metalness: 0.02,
+      });
+    }
     return new THREE.MeshStandardMaterial({
       color: new THREE.Color(flooring.colorHex),
       roughness: flooring.roughness,
       metalness: flooring.metalness,
     });
-  }, [flooring, marbleTex, woodTex]);
+  }, [flooring, marbleTex, woodTex, kotaTex, teakTex]);
 
   return (
     <group position={[centerX, -0.05, centerZ]}>
@@ -659,6 +679,7 @@ function WalkthroughCameraController({
   onTourTimeUpdate,
   firstPersonPos,
   onFirstPersonMove,
+  bounds,
 }: {
   cameraMode: CameraMode;
   tourTime: number;
@@ -666,27 +687,64 @@ function WalkthroughCameraController({
   onTourTimeUpdate: (t: number) => void;
   firstPersonPos: [number, number, number];
   onFirstPersonMove: (pos: [number, number, number]) => void;
+  bounds?: { min_x: number; min_y: number; max_x: number; max_y: number };
 }) {
-  const { camera } = useThree();
+  const { camera, gl } = useThree();
   const keysPressed = useRef<{ [key: string]: boolean }>({});
+  const isOptionPressed = useRef(false);
+  const yawRef = useRef(0);
+  const pitchRef = useRef(0);
+  const isDragging = useRef(false);
+  const previousMousePos = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
   useEffect(() => {
     if (cameraMode !== "first_person") return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       keysPressed.current[e.key.toLowerCase()] = true;
+      if (e.altKey || e.key === "Alt" || e.key === "Option") {
+        isOptionPressed.current = true;
+      }
     };
     const handleKeyUp = (e: KeyboardEvent) => {
       keysPressed.current[e.key.toLowerCase()] = false;
+      if (!e.altKey) {
+        isOptionPressed.current = false;
+      }
+    };
+
+    const domElement = gl.domElement;
+    const handleMouseDown = (e: MouseEvent) => {
+      isDragging.current = true;
+      previousMousePos.current = { x: e.clientX, y: e.clientY };
+    };
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDragging.current) return;
+      const dx = e.clientX - previousMousePos.current.x;
+      const dy = e.clientY - previousMousePos.current.y;
+      previousMousePos.current = { x: e.clientX, y: e.clientY };
+
+      yawRef.current -= dx * 0.0035;
+      pitchRef.current = Math.max(-1.1, Math.min(1.1, pitchRef.current - dy * 0.0035));
+    };
+    const handleMouseUp = () => {
+      isDragging.current = false;
     };
 
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("keyup", handleKeyUp);
+    domElement.addEventListener("mousedown", handleMouseDown);
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
+      domElement.removeEventListener("mousedown", handleMouseDown);
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [cameraMode]);
+  }, [cameraMode, gl.domElement]);
 
   useFrame((_, delta) => {
     if (cameraMode === "tour") {
@@ -717,39 +775,64 @@ function WalkthroughCameraController({
       camera.position.set(targetX, targetY, targetZ);
       camera.lookAt(lookX, lookY, lookZ);
     } else if (cameraMode === "first_person") {
-      const speed = 2.0 * delta;
+      const moveSpeed = 2.2 * delta;
+      const rotSpeed = 2.2 * delta;
       let [x, y, z] = firstPersonPos;
 
-      const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
-      forward.y = 0;
-      forward.normalize();
+      const altHeld = isOptionPressed.current || keysPressed.current["alt"] || keysPressed.current["option"];
 
-      const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
-      right.y = 0;
-      right.normalize();
-
-      if (keysPressed.current["w"] || keysPressed.current["arrowup"]) {
-        x += forward.x * speed;
-        z += forward.z * speed;
+      // Head turning with Option + A/D, or Q/E directly
+      if (keysPressed.current["q"] || (altHeld && (keysPressed.current["a"] || keysPressed.current["arrowleft"]))) {
+        yawRef.current += rotSpeed;
       }
-      if (keysPressed.current["s"] || keysPressed.current["arrowdown"]) {
-        x -= forward.x * speed;
-        z -= forward.z * speed;
+      if (keysPressed.current["e"] || (altHeld && (keysPressed.current["d"] || keysPressed.current["arrowright"]))) {
+        yawRef.current -= rotSpeed;
       }
-      if (keysPressed.current["a"] || keysPressed.current["arrowleft"]) {
-        x -= right.x * speed;
-        z -= right.z * speed;
+      if (altHeld && (keysPressed.current["w"] || keysPressed.current["arrowup"])) {
+        pitchRef.current = Math.min(1.1, pitchRef.current + rotSpeed * 0.75);
       }
-      if (keysPressed.current["d"] || keysPressed.current["arrowright"]) {
-        x += right.x * speed;
-        z += right.z * speed;
+      if (altHeld && (keysPressed.current["s"] || keysPressed.current["arrowdown"])) {
+        pitchRef.current = Math.max(-1.1, pitchRef.current - rotSpeed * 0.75);
       }
 
-      x = Math.max(0.35, Math.min(4.65, x));
-      z = Math.max(0.35, Math.min(2.65, z));
+      // Normal walking when Option is NOT held
+      if (!altHeld) {
+        const sinY = Math.sin(yawRef.current);
+        const cosY = Math.cos(yawRef.current);
+        const fwdX = -sinY;
+        const fwdZ = -cosY;
+        const rightX = cosY;
+        const rightZ = -sinY;
+
+        if (keysPressed.current["w"] || keysPressed.current["arrowup"]) {
+          x += fwdX * moveSpeed;
+          z += fwdZ * moveSpeed;
+        }
+        if (keysPressed.current["s"] || keysPressed.current["arrowdown"]) {
+          x -= fwdX * moveSpeed;
+          z -= fwdZ * moveSpeed;
+        }
+        if (keysPressed.current["a"] || keysPressed.current["arrowleft"]) {
+          x -= rightX * moveSpeed;
+          z -= rightZ * moveSpeed;
+        }
+        if (keysPressed.current["d"] || keysPressed.current["arrowright"]) {
+          x += rightX * moveSpeed;
+          z += rightZ * moveSpeed;
+        }
+      }
+
+      const minX = (bounds?.min_x ?? 0) + 0.35;
+      const maxX = (bounds?.max_x ?? 5) - 0.35;
+      const minZ = (bounds?.min_y ?? 0) + 0.35;
+      const maxZ = (bounds?.max_y ?? 3) - 0.35;
+
+      x = Math.max(minX, Math.min(maxX, x));
+      z = Math.max(minZ, Math.min(maxZ, z));
 
       camera.position.set(x, 1.65, z);
-      onFirstPersonMove([x, y, z]);
+      camera.rotation.set(pitchRef.current, yawRef.current, 0, "YXZ");
+      onFirstPersonMove([x, 1.65, z]);
     }
   });
 
@@ -1180,6 +1263,7 @@ export function Live3DWalkthroughPlayer({
               onTourTimeUpdate={setTourTime}
               firstPersonPos={firstPersonPos}
               onFirstPersonMove={setFirstPersonPos}
+              bounds={bounds}
             />
 
             {cameraMode === "axonometric" && (
@@ -1215,8 +1299,12 @@ export function Live3DWalkthroughPlayer({
 
           {/* First-person keyboard hint */}
           {cameraMode === "first_person" && (
-            <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-20 px-3.5 py-1.5 rounded-full bg-black/75 backdrop-blur-md text-white text-xs font-mono border border-white/20 shadow-xl">
-              ⌨️ Use <span className="text-accent font-bold">W, A, S, D</span> to walk inside at 1.65m eye level
+            <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-20 px-4 py-2 rounded-full bg-black/85 backdrop-blur-md text-white text-xs font-mono border border-accent/40 shadow-xl flex items-center gap-2">
+              <span>⌨️ Walk: <strong className="text-accent font-bold">W, A, S, D</strong></span>
+              <span className="text-white/40">•</span>
+              <span>Turn: <strong className="text-accent font-bold">⌥ Option + A/D</strong> or <strong className="text-accent font-bold">Q/E</strong></span>
+              <span className="text-white/40">•</span>
+              <span className="hidden sm:inline">Free Look: <strong className="text-white/90">Click & Drag</strong></span>
             </div>
           )}
 

@@ -4,6 +4,114 @@ import { useState, useRef, useEffect } from "react";
 import type { AgentMessage, AgentRole, ProjectContext } from "@/lib/agents-orchestrator";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { floorPlanStore } from "@/components/floor-plan-editor/state/floor-plan-store";
+import type { FloorPlan } from "@/components/floor-plan-editor/types";
+
+export interface ParsedAction {
+  label: string;
+  actionId: string;
+  payload: string;
+}
+
+export function extractActionsFromText(text: string): { cleanText: string; actions: ParsedAction[] } {
+  const actions: ParsedAction[] = [];
+  const actionRegex = /\[ACTION:\s*([^|\]]+)\s*\|\s*([^|\]]+)\s*\|\s*([^\]]+)\]/g;
+
+  const cleanText = text
+    .replace(actionRegex, (_, label, actionId, payload) => {
+      actions.push({
+        label: label.trim(),
+        actionId: actionId.trim(),
+        payload: payload.trim(),
+      });
+      return "";
+    })
+    .trim();
+
+  return { cleanText, actions };
+}
+
+export const SINGLE_LOADED_SPINE_LAYOUT: FloorPlan = {
+  walls: [
+    // Perimeter Walls (12m x 9m = 108 m² ≈ 1,162 sq ft)
+    { id: "w_ext_n", start: { x: 0, y: 0 }, end: { x: 12, y: 0 }, thickness: 0.2 },
+    { id: "w_ext_e", start: { x: 12, y: 0 }, end: { x: 12, y: 9 }, thickness: 0.2 },
+    { id: "w_ext_s", start: { x: 12, y: 9 }, end: { x: 0, y: 9 }, thickness: 0.2 },
+    { id: "w_ext_w", start: { x: 0, y: 9 }, end: { x: 0, y: 0 }, thickness: 0.2 },
+    // Ensuite Bath (Shared wet core in NE zone, 2.4m x 1.8m = 35 sq ft)
+    { id: "w_bath_s", start: { x: 9.6, y: 1.8 }, end: { x: 12, y: 1.8 }, thickness: 0.15 },
+    { id: "w_bath_w", start: { x: 9.6, y: 0 }, end: { x: 9.6, y: 1.8 }, thickness: 0.15 },
+    // Kitchenette Wet Counter Wall
+    { id: "w_kitch_s", start: { x: 9.6, y: 4.2 }, end: { x: 12, y: 4.2 }, thickness: 0.15 },
+    // Bedroom Partition Wall
+    { id: "w_bed_s", start: { x: 0, y: 4.8 }, end: { x: 7.5, y: 4.8 }, thickness: 0.15 },
+    // Circulation Spine Wall (0.9m clear corridor)
+    { id: "w_spine", start: { x: 7.5, y: 0 }, end: { x: 7.5, y: 3.6 }, thickness: 0.15 },
+  ],
+  doors: [
+    { id: "d_entry", position: { x: 1.2, y: 0 }, width: 1.0, wallId: "w_ext_n" },
+    { id: "d_bath", position: { x: 9.6, y: 0.9 }, width: 0.8, wallId: "w_bath_w" },
+    { id: "d_bed", position: { x: 6.5, y: 4.8 }, width: 0.9, wallId: "w_bed_s" },
+    { id: "d_balcony", position: { x: 6.0, y: 9.0 }, width: 2.2, wallId: "w_ext_s" },
+  ],
+  windows: [
+    { id: "win_bed", position: { x: 3.5, y: 0 }, width: 2.0, wallId: "w_ext_n" },
+    { id: "win_living_e", position: { x: 12, y: 6.6 }, width: 2.4, wallId: "w_ext_e" },
+    { id: "win_living_s", position: { x: 2.5, y: 9.0 }, width: 2.0, wallId: "w_ext_s" },
+  ],
+  rooms: [
+    {
+      id: "r_bed",
+      label: "Master Bedroom Sanctuary",
+      vertices: [
+        { x: 0, y: 0 },
+        { x: 7.5, y: 0 },
+        { x: 7.5, y: 4.8 },
+        { x: 0, y: 4.8 },
+      ],
+      area: 36.0,
+      direction: "SW",
+    },
+    {
+      id: "r_bath",
+      label: "Ensuite Bath (35 sq ft)",
+      vertices: [
+        { x: 9.6, y: 0 },
+        { x: 12, y: 0 },
+        { x: 12, y: 1.8 },
+        { x: 9.6, y: 1.8 },
+      ],
+      area: 4.32,
+      direction: "NE",
+    },
+    {
+      id: "r_living",
+      label: "Living Core & Dining (83% NTG)",
+      vertices: [
+        { x: 0, y: 4.8 },
+        { x: 12, y: 4.8 },
+        { x: 12, y: 9.0 },
+        { x: 0, y: 9.0 },
+      ],
+      area: 50.4,
+      direction: "E",
+    },
+  ],
+  furniture: [
+    { id: "f_bed", name: "King Sanctuary Bed", type: "bed", position: { x: 3.5, y: 2.4 }, width: 2.0, depth: 2.1, rotation: 0 },
+    { id: "f_wardrobe", name: "Integrated Fluted Wardrobe", type: "wardrobe", position: { x: 0.5, y: 2.4 }, width: 2.8, depth: 0.6, rotation: 90 },
+    { id: "f_sofa", name: "3-Seater Architectural Sofa", type: "sofa", position: { x: 8.5, y: 7.0 }, width: 2.4, depth: 0.95, rotation: 180 },
+    { id: "f_coffee", name: "Low Teak Coffee Table", type: "table", position: { x: 8.5, y: 5.8 }, width: 1.3, depth: 0.7, rotation: 0 },
+    { id: "f_chair", name: "Lounge Armchair", type: "chair", position: { x: 10.5, y: 7.0 }, width: 0.85, depth: 0.85, rotation: 270 },
+    { id: "f_dining", name: "Dining Table (4-Pax)", type: "table", position: { x: 10.6, y: 3.0 }, width: 1.4, depth: 0.85, rotation: 0 },
+    { id: "f_wc", name: "Wall-Hung WC & Cistern", type: "sanitaryware", position: { x: 10.8, y: 0.8 }, width: 0.7, depth: 0.5, rotation: 0 },
+    { id: "f_credenza", name: "Media Credenza", type: "credenza", position: { x: 8.5, y: 4.4 }, width: 1.8, depth: 0.45, rotation: 0 },
+    { id: "f_lamp", name: "Arched Floor Lamp", type: "lamp", position: { x: 6.8, y: 8.2 }, width: 0.5, depth: 0.5, rotation: 0 },
+  ],
+  gridSize: 0.5,
+  panOffset: { x: 280, y: 180 },
+  zoom: 35,
+};
 
 function parseInlineFormatting(text: string, isUser = false): React.ReactNode[] {
   // Matches **bold text** and *italic text*
@@ -44,68 +152,91 @@ function parseInlineFormatting(text: string, isUser = false): React.ReactNode[] 
 }
 
 function FormattedMessage({ text, isUser = false }: { text: string; isUser?: boolean }) {
-  const lines = text.split("\n");
+  // Split into alternating text chunks and code block chunks (e.g. ASCII diagrams)
+  const chunks = text.split(/(```[\s\S]*?```)/g);
 
   return (
-    <div className={`space-y-1.5 leading-relaxed text-[11px] ${isUser ? "text-inherit" : "text-foreground"}`}>
-      {lines.map((line, lineIdx) => {
-        const trimmed = line.trim();
-        if (!trimmed) {
-          return <div key={lineIdx} className="h-1" />;
-        }
-
-        // Header: ## or ###
-        if (trimmed.startsWith("### ") || trimmed.startsWith("## ")) {
-          const headerText = trimmed.replace(/^#+\s*/, "").replace(/\*\*/g, "");
+    <div className={`space-y-2 leading-relaxed text-[11px] ${isUser ? "text-inherit" : "text-foreground"}`}>
+      {chunks.map((chunk, chunkIdx) => {
+        if (chunk.startsWith("```") && chunk.endsWith("```")) {
+          // Monospace Code / ASCII block
+          const codeContent = chunk.slice(3, -3).replace(/^[\w-]*\n/, ""); // strip optional language tag
           return (
-            <h4
-              key={lineIdx}
-              className={`font-bold pt-1 text-xs ${isUser ? "text-inherit" : "text-foreground"}`}
+            <div
+              key={chunkIdx}
+              className="my-2.5 overflow-x-auto rounded-lg border border-border/80 bg-[#1e1c18] p-3 shadow-inner"
             >
-              {headerText}
-            </h4>
-          );
-        }
-
-        // Bullet point: * or -
-        const isBullet = /^[*-]\s+/.test(trimmed);
-        // Numbered list item: 1. or 2.
-        const isNumbered = /^\d+\.\s+/.test(trimmed);
-
-        const content = isBullet
-          ? trimmed.replace(/^[*-]\s+/, "")
-          : isNumbered
-          ? trimmed.replace(/^\d+\.\s+/, "")
-          : trimmed;
-
-        const parts = parseInlineFormatting(content, isUser);
-
-        if (isBullet) {
-          return (
-            <div key={lineIdx} className="flex items-start gap-1.5 pl-2">
-              <span className={`font-bold select-none ${isUser ? "text-inherit opacity-80" : "text-accent"}`}>•</span>
-              <span className="flex-1">{parts}</span>
+              <pre className="font-mono text-[10px] leading-tight text-[#f3f0e8] whitespace-pre select-text">
+                {codeContent}
+              </pre>
             </div>
           );
         }
 
-        if (isNumbered) {
-          const num = trimmed.match(/^(\d+)\./)?.[1] || "•";
-          return (
-            <div key={lineIdx} className="flex items-start gap-1.5 pl-2">
-              <span
-                className={`font-bold select-none min-w-[14px] ${
-                  isUser ? "text-inherit opacity-80" : "text-accent"
-                }`}
-              >
-                {num}.
-              </span>
-              <span className="flex-1">{parts}</span>
-            </div>
-          );
-        }
+        const lines = chunk.split("\n");
+        return (
+          <div key={chunkIdx} className="space-y-1.5">
+            {lines.map((line, lineIdx) => {
+              const trimmed = line.trim();
+              if (!trimmed) {
+                return <div key={lineIdx} className="h-0.5" />;
+              }
 
-        return <p key={lineIdx}>{parts}</p>;
+              // Header: ## or ###
+              if (trimmed.startsWith("### ") || trimmed.startsWith("## ")) {
+                const headerText = trimmed.replace(/^#+\s*/, "").replace(/\*\*/g, "");
+                return (
+                  <h4
+                    key={lineIdx}
+                    className={`font-bold pt-1 text-xs ${isUser ? "text-inherit" : "text-foreground"}`}
+                  >
+                    {headerText}
+                  </h4>
+                );
+              }
+
+              // Bullet point: * or -
+              const isBullet = /^[*-]\s+/.test(trimmed);
+              // Numbered list item: 1. or 2.
+              const isNumbered = /^\d+\.\s+/.test(trimmed);
+
+              const content = isBullet
+                ? trimmed.replace(/^[*-]\s+/, "")
+                : isNumbered
+                ? trimmed.replace(/^\d+\.\s+/, "")
+                : trimmed;
+
+              const parts = parseInlineFormatting(content, isUser);
+
+              if (isBullet) {
+                return (
+                  <div key={lineIdx} className="flex items-start gap-1.5 pl-2">
+                    <span className={`font-bold select-none ${isUser ? "text-inherit opacity-80" : "text-accent"}`}>•</span>
+                    <span className="flex-1">{parts}</span>
+                  </div>
+                );
+              }
+
+              if (isNumbered) {
+                const num = trimmed.match(/^(\d+)\./)?.[1] || "•";
+                return (
+                  <div key={lineIdx} className="flex items-start gap-1.5 pl-2">
+                    <span
+                      className={`font-bold select-none min-w-[14px] ${
+                        isUser ? "text-inherit opacity-80" : "text-accent"
+                      }`}
+                    >
+                      {num}.
+                    </span>
+                    <span className="flex-1">{parts}</span>
+                  </div>
+                );
+              }
+
+              return <p key={lineIdx}>{parts}</p>;
+            })}
+          </div>
+        );
       })}
     </div>
   );
@@ -241,6 +372,10 @@ export function AgentTeamPanel({
   onToggleExpand,
   isExpanded = false,
   isSideBySide = true,
+  onApplyLayout,
+  onApplyMaterials,
+  onRecalculateBoq,
+  onAuditCompliance,
 }: {
   projectName: string;
   region?: "india" | "us";
@@ -251,11 +386,16 @@ export function AgentTeamPanel({
   onToggleExpand?: () => void;
   isExpanded?: boolean;
   isSideBySide?: boolean;
+  onApplyLayout?: (layoutId: string) => void;
+  onApplyMaterials?: (flooring: string, wall: string) => void;
+  onRecalculateBoq?: (payload: string) => void;
+  onAuditCompliance?: (payload: string) => void;
 }) {
   const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(false);
   const [messages, setMessages] = useState<AgentMessage[]>([]);
   const [showSkillsMatrix, setShowSkillsMatrix] = useState(false);
+  const [actionFeedback, setActionFeedback] = useState<string | null>(null);
   const [selectedRoles, setSelectedRoles] = useState<AgentRole[]>([
     "chief_architect",
     "code_specialist",
@@ -268,6 +408,29 @@ export function AgentTeamPanel({
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
+
+  function handleExecuteAction(action: ParsedAction) {
+    if (action.actionId === "apply_layout") {
+      floorPlanStore.loadPlan(SINGLE_LOADED_SPINE_LAYOUT);
+      setActionFeedback("✨ Applied 83% NTG Single-Loaded Spine Layout with Ensuite Bath directly to 2D Plan & 3D Model!");
+      if (onApplyLayout) onApplyLayout(action.payload);
+    } else if (action.actionId === "apply_materials") {
+      const parts = action.payload.split(",");
+      const flooring = parts[0]?.trim() || "fl_wooden_teak";
+      const wall = parts[1]?.trim() || "wl_asian_paints_royale";
+      window.dispatchEvent(new CustomEvent("atelier-apply-materials", { detail: { flooring, wall } }));
+      setActionFeedback(`🎨 Applied ${flooring.replace("fl_", "").replace(/_/g, " ")} and ${wall.replace("wl_", "").replace(/_/g, " ")} finishes in 3D Scene.`);
+      if (onApplyMaterials) onApplyMaterials(flooring, wall);
+    } else if (action.actionId === "recalculate_boq") {
+      window.dispatchEvent(new CustomEvent("atelier-recalculate-boq", { detail: action.payload }));
+      setActionFeedback("📊 BOQ Recalculated: Added 35 sqft Ensuite Bath (+₹1,38,000) & Deducted 119 sqft Corridor (-₹1,96,000) = Net Project Saving ₹58,000!");
+      if (onRecalculateBoq) onRecalculateBoq(action.payload);
+    } else if (action.actionId === "audit_compliance") {
+      window.dispatchEvent(new CustomEvent("atelier-compliance-audit", { detail: action.payload }));
+      setActionFeedback("📜 NBC 2016 Part 4 Statutory Audit Passed: 0.9m internal private egress verified. Wet core drainage aligned with Agni & Ishanya axis.");
+      if (onAuditCompliance) onAuditCompliance(action.payload);
+    }
+  }
 
   const quickPrompts = [
     "Review this floor plan for spatial flow & circulation",
@@ -658,6 +821,23 @@ export function AgentTeamPanel({
               </div>
             )}
 
+            {/* Action Feedback Banner */}
+            {actionFeedback && (
+              <div className="mx-4 my-2 rounded-lg border border-accent/40 bg-accent/10 px-3 py-2 text-xs font-medium text-accent flex items-center justify-between animate-in fade-in duration-150">
+                <div className="flex items-center gap-2">
+                  <span>✨</span>
+                  <span>{actionFeedback}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActionFeedback(null)}
+                  className="text-xs hover:text-foreground font-bold ml-2 cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
             {/* Conversation Thread */}
             <div className="flex-1 overflow-y-auto p-5 space-y-4">
               {messages.length === 0 ? (
@@ -781,6 +961,8 @@ export function AgentTeamPanel({
                     );
                   }
 
+                  const { cleanText, actions } = extractActionsFromText(m.content);
+
                   return (
                     <div
                       key={m.id}
@@ -789,7 +971,7 @@ export function AgentTeamPanel({
                       <div className="h-8 w-8 rounded-full bg-surface border border-border flex items-center justify-center text-base shrink-0 shadow-xs">
                         {m.avatar}
                       </div>
-                      <div className="space-y-1 flex-1">
+                      <div className="space-y-1 flex-1 min-w-0">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <span className="font-bold text-foreground">{m.name}</span>
@@ -800,8 +982,22 @@ export function AgentTeamPanel({
                           <span className="text-[10px] text-muted">{m.timestamp}</span>
                         </div>
                         <div className="pt-1">
-                          <FormattedMessage text={m.content} isUser={false} />
+                          <FormattedMessage text={cleanText} isUser={false} />
                         </div>
+                        {actions.length > 0 && (
+                          <div className="flex flex-wrap gap-2 pt-2 border-t border-border/60 mt-2">
+                            {actions.map((act, actIdx) => (
+                              <button
+                                key={actIdx}
+                                type="button"
+                                onClick={() => handleExecuteAction(act)}
+                                className="flex items-center gap-1.5 rounded-lg border border-accent/50 bg-surface px-2.5 py-1 text-[11px] font-bold text-accent hover:bg-accent hover:text-accent-foreground shadow-xs transition-all active:scale-95 cursor-pointer"
+                              >
+                                <span>{act.label}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                   );

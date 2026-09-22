@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { updateConstructionElements, approveConstructionModel } from "./cad-actions";
 import { getIfcSignedUrl } from "./model-actions";
 import { Button } from "@/components/ui/button";
+import { ModelViewer } from "@/components/model-viewer";
 import { metersToUnit, unitToMeters, unitLabel, type UnitSystem } from "@/lib/units";
 
 type Point = [number, number];
@@ -110,17 +111,33 @@ export function ConstructionReview({
   }
 
   return (
-    <div className="space-y-3 rounded-lg border border-border bg-surface p-4">
+    <div className="space-y-4 rounded-lg border border-border bg-surface p-4">
       <div className="flex items-center justify-between">
-        <p className="text-sm font-medium">Review extracted elements</p>
-        <span className={isApproved ? "text-xs text-success" : "text-xs text-muted"}>
+        <div>
+          <p className="text-sm font-semibold text-foreground">Review Extracted Construction Elements</p>
+          <p className="text-xs text-muted">
+            Inspect the 3D model, adjust dimensions as needed, and approve for IFC BIM generation.
+          </p>
+        </div>
+        <span className={isApproved ? "text-xs font-semibold text-success" : "text-xs text-muted"}>
           {isApproved ? "Approved — construction accurate" : "Unreviewed"}
         </span>
       </div>
-      <p className="text-xs text-muted">
-        Correct any dimensions the extraction got wrong, then approve. Nothing here is treated as
-        construction-accurate until you approve it.
-      </p>
+
+      {/* Synchronized 3D Model of the Saved Floor Plan */}
+      <div className="space-y-1.5 rounded-lg border border-border bg-background p-2.5">
+        <div className="flex items-center justify-between text-xs px-1">
+          <span className="font-semibold text-foreground flex items-center gap-1.5">
+            <span>🏢</span> 3D Spatial Model Preview
+          </span>
+          <span className="text-[10px] text-muted">Synchronized with coordinates below</span>
+        </div>
+        <ModelViewer
+          elements={elements}
+          unitSystem={unitSystem}
+          className="h-72"
+        />
+      </div>
 
       <div className="space-y-1.5">
         <p className="text-xs font-medium text-muted">Walls (start → end, {unit})</p>
