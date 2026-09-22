@@ -35,6 +35,8 @@ export interface HiggsfieldJobResponse {
   progress: number;
   videoUrl?: string;
   thumbnailUrl?: string;
+  requiresClientCapture?: boolean;
+  message?: string;
   cameraPath?: HiggsfieldCameraWaypoint[];
   prompt: string;
   motionConfig: {

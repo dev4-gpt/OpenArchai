@@ -235,25 +235,45 @@ def _create_fallback_enclosure(
     return [perimeter_wall, partition_top, partition_bottom]
 
 
+def _estimate_scale_from_doors(door_polygons: list[dict], default_ppm: float = 50.0) -> float:
+    """Estimates canvas pixels_per_meter from detected door opening dimensions.
+    Standard architectural interior doors (NBC / IBC / Eurocode) have a clear opening
+    span of ~0.90m (3ft / 900mm). The door contour in floorplans is either a rectangular
+    leaf/threshold slot or the bounding box of the door swing arc."""
+    if not door_polygons:
+        return default_ppm
+
+    door_spans = []
+    for d in door_polygons:
+        outer = d.get("outer", [])
+        if len(outer) < 3:
+            continue
+        pts = np.array(outer, dtype=np.float32)
+        rect = cv2.minAreaRect(pts)
+        w, h = rect[1]
+        # In a 512x512 canvas, realistic door spans are between 14px and 90px
+        span = max(w, h)
+        if 14.0 <= span <= 90.0:
+            door_spans.append(span)
+
+    if not door_spans:
+        return default_ppm
+
+    median_door_px = float(np.median(door_spans))
+    # Standard clear opening: 0.90m
+    computed_ppm = median_door_px / 0.90
+    # Sanity bounds: 25.0 to 120.0 px/m
+    return float(max(25.0, min(120.0, computed_ppm)))
+
+
 def reconstruct_glb(
     image_bytes: bytes,
     model: torch.nn.Module,
     device: torch.device,
     pixels_per_meter_original_space: float | None = None,
     wall_height_m: float | None = None,
-) -> bytes:
+) -> tuple[bytes, float]:
     tensor, (left, top, inner_w, inner_h), letterbox_scale = _letterbox_tensor(image_bytes, IMAGE_SIZE)
-
-    # Calibration (when provided) is measured against the original uploaded
-    # image's own pixel space -- convert it into this letterboxed canvas's
-    # pixel space via the same scale factor the model's input was resized
-    # by, so a wall that's genuinely 3m in the source photo comes out 3m in
-    # the exported mesh regardless of the source image's resolution.
-    pixels_per_meter = (
-        pixels_per_meter_original_space * letterbox_scale
-        if pixels_per_meter_original_space
-        else PIXELS_PER_METER
-    )
     height = wall_height_m if wall_height_m else WALL_HEIGHT_M
 
     with torch.no_grad():
@@ -267,6 +287,16 @@ def reconstruct_glb(
         mask = cleaned
 
     polygons = mask_to_polygons(mask)
+
+    # If user provided explicit calibration, honor it.
+    # Otherwise, derive real-world scale automatically from detected 0.9m door openings.
+    if pixels_per_meter_original_space:
+        pixels_per_meter = pixels_per_meter_original_space * letterbox_scale
+        resolved_ppm_orig = pixels_per_meter_original_space
+    else:
+        door_ppm = _estimate_scale_from_doors(polygons.get("door", []), default_ppm=PIXELS_PER_METER)
+        pixels_per_meter = door_ppm
+        resolved_ppm_orig = door_ppm / letterbox_scale
 
     meshes = []
     wall_polygons = list(polygons["wall"])
@@ -313,7 +343,7 @@ def reconstruct_glb(
     meshes.append(floor)
 
     scene = trimesh.Scene(meshes)
-    return scene.export(file_type="glb")
+    return scene.export(file_type="glb"), round(float(resolved_ppm_orig), 2)
 
 
 class ReconstructRequest(BaseModel):
@@ -355,7 +385,7 @@ class Reconstructor:
 
             image_bytes = common.download_from_storage(supabase, "floorplans", upload_storage_path)
             _validate_image_bytes(image_bytes)
-            glb_bytes = reconstruct_glb(
+            glb_bytes, auto_ppm_orig = reconstruct_glb(
                 image_bytes,
                 self.model,
                 self.device,
@@ -365,6 +395,13 @@ class Reconstructor:
 
             model_path = f"{user_id}/{project_id}/{model_id}.glb"
             common.upload_to_storage(supabase, "models", model_path, glb_bytes, "model/gltf-binary")
+
+            # If user had no manual calibration, record the auto-detected door scale on the upload
+            if pixels_per_meter is None and auto_ppm_orig:
+                try:
+                    supabase.table("uploads").update({"scale_pixels_per_meter": auto_ppm_orig}).eq("storage_path", upload_storage_path).execute()
+                except Exception:
+                    pass
 
             common.update_status(supabase, "models", model_id, "done", gltf_storage_path=model_path)
         except Exception as e:  # noqa: BLE001

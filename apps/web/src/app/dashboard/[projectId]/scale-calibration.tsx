@@ -125,13 +125,20 @@ export function ScaleCalibration({
 
   if (!expanded) {
     return (
-      <button
-        type="button"
-        onClick={handleExpand}
-        className="text-xs font-medium text-accent underline underline-offset-2"
-      >
-        {hasExistingCalibration ? "Edit scale calibration" : "Calibrate real-world scale"}
-      </button>
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={handleExpand}
+          className="text-xs font-medium text-accent underline underline-offset-2"
+        >
+          {hasExistingCalibration ? "Edit scale calibration" : "Calibrate real-world scale"}
+        </button>
+        {hasExistingCalibration && (
+          <span className="inline-flex items-center rounded-full bg-success/10 px-2 py-0.5 text-[11px] font-medium text-success">
+            ✓ Scale Active (Auto 0.9m door ref)
+          </span>
+        )}
+      </div>
     );
   }
 

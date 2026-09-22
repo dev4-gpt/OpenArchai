@@ -63,61 +63,77 @@ def estimate_project_cost(
             floor_area_sqm = total_wall_len * 1.6
 
     floor_area_sqft = floor_area_sqm * 10.7639
-    wall_area_sqft = wall_area_sqm * 10.7639
+    wall_masonry_sqft = (perimeter_m * wall_height_m) * 10.7639
+    net_wall_paint_sqft = wall_area_sqm * 10.7639
+    bathrooms_count = max(1, round(floor_area_sqm / 45.0))
     symbol = rates_data.get("symbol", "₹")
 
     is_india = region == "india"
-    multiplier_budget = 1.0
-    multiplier_mid = 1.55
-    multiplier_premium = 2.65
 
-    # Civil & finishing line items
-    base_rate = 140 if is_india else 4.5
+    # Architect-grade per-element Schedule of Rates line items
     items = [
         {
-            "category": "Civil & Structural",
-            "description": "Blockwork/Framing, structural plaster & curing",
-            "quantity": round(wall_area_sqft),
+            "category": "Civil & Structural Masonry",
+            "description": f"AAC blockwork / 230mm brick masonry & double-coat sand plaster ({round(perimeter_m, 1)}m linear wall run)",
+            "quantity": round(wall_masonry_sqft),
             "unit": "sqft",
-            "rate_budget": base_rate,
-            "rate_mid": round(base_rate * multiplier_mid),
-            "rate_premium": round(base_rate * multiplier_premium),
+            "rate_budget": 135 if is_india else 5.5,
+            "rate_mid": 210 if is_india else 9.0,
+            "rate_premium": 340 if is_india else 16.0,
         },
         {
-            "category": "Flooring",
-            "description": "Natural stone / tiles / hardwood supply and fixing",
+            "category": "Flooring & Perimeter Skirting",
+            "description": "Floor tiling / natural stone supply, mortar bed & 100mm perimeter skirting",
             "quantity": round(floor_area_sqft),
             "unit": "sqft",
-            "rate_budget": 90 if is_india else 6.0,
-            "rate_mid": round((90 if is_india else 6.0) * 1.9),
-            "rate_premium": round((90 if is_india else 6.0) * 4.5),
+            "rate_budget": 95 if is_india else 6.5,
+            "rate_mid": 195 if is_india else 14.0,
+            "rate_premium": 840 if is_india else 38.0,
         },
         {
-            "category": "Wall Finishes & Paint",
-            "description": "Surface putty, primer & luxury emulsion coats",
-            "quantity": round(wall_area_sqft),
+            "category": "Net Wall Finishes & Emulsion",
+            "description": "Surface putty, primer & luxury emulsion coats (net area deducting door/window voids)",
+            "quantity": round(net_wall_paint_sqft),
             "unit": "sqft",
             "rate_budget": 18 if is_india else 1.8,
-            "rate_mid": 32 if is_india else 2.8,
-            "rate_premium": 55 if is_india else 5.2,
+            "rate_mid": 36 if is_india else 3.2,
+            "rate_premium": 165 if is_india else 12.0,
         },
         {
-            "category": "Openings & Joinery",
-            "description": "Factory doors & aluminum/uPVC window suites",
-            "quantity": max(1, door_count + window_count),
-            "unit": "units",
-            "rate_budget": 7500 if is_india else 250,
-            "rate_mid": 13000 if is_india else 500,
-            "rate_premium": 24000 if is_india else 950,
+            "category": "Door Suites & Hardware",
+            "description": "Engineered doors with hardwood frames, architraves & architectural mortise hardware",
+            "quantity": max(1, door_count),
+            "unit": "doors",
+            "rate_budget": 8500 if is_india else 280,
+            "rate_mid": 16500 if is_india else 550,
+            "rate_premium": 28000 if is_india else 1100,
         },
         {
-            "category": "Electrical & Plumbing",
-            "description": "Concealed conduit services & fixture rough-ins",
+            "category": "Window Suites & Glazing",
+            "description": "Acoustic & weather-sealed window suites with sub-frames & clear float glazing",
+            "quantity": max(1, window_count),
+            "unit": "windows",
+            "rate_budget": 7200 if is_india else 260,
+            "rate_mid": 14500 if is_india else 520,
+            "rate_premium": 29500 if is_india else 1200,
+        },
+        {
+            "category": "Electrical & Circadian Lighting",
+            "description": "Concealed FRLS conduits, distribution board, modular switches & LED cove/downlights",
             "quantity": round(floor_area_sqft),
             "unit": "sqft",
             "rate_budget": 110 if is_india else 8.5,
-            "rate_mid": 175 if is_india else 15.0,
-            "rate_premium": 280 if is_india else 27.0,
+            "rate_mid": 185 if is_india else 16.0,
+            "rate_premium": 295 if is_india else 28.0,
+        },
+        {
+            "category": "Plumbing, Wet Wall & Sanitaryware",
+            "description": "CPVC water supply, soil/waste stack connections & luxury sanitaryware suites",
+            "quantity": bathrooms_count,
+            "unit": "baths",
+            "rate_budget": 42000 if is_india else 1500,
+            "rate_mid": 82000 if is_india else 3200,
+            "rate_premium": 165000 if is_india else 6800,
         },
     ]
 
@@ -133,7 +149,11 @@ def estimate_project_cost(
         "symbol": symbol,
         "floor_area_sqm": round(floor_area_sqm, 1),
         "floor_area_sqft": round(floor_area_sqft),
-        "wall_area_sqft": round(wall_area_sqft),
+        "wall_area_sqft": round(net_wall_paint_sqft),
+        "linear_wall_meters": round(perimeter_m, 1),
+        "door_count": door_count,
+        "window_count": window_count,
+        "bathrooms_count": bathrooms_count,
         "items": items,
         "subtotal": {
             "budget": round(total_b),

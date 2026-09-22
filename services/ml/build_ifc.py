@@ -100,15 +100,32 @@ def build_ifc_bytes(elements: dict, project_name: str) -> bytes:
         )
         ifcopenshell.api.run("spatial.assign_container", f, relating_structure=storey, products=[slab])
         # Slab placement at z = -0.15m (150mm slab thickness)
-        cx, cy = (min_x + max_x) / 2.0, (min_y + max_y) / 2.0
         ifcopenshell.api.run(
             "geometry.edit_object_placement",
             f,
             product=slab,
-            matrix=[[1, 0, 0, cx], [0, 1, 0, cy], [0, 0, 1, -0.15], [0, 0, 0, 1]],
+            matrix=[[1, 0, 0, 0.0], [0, 1, 0, 0.0], [0, 0, 1, -0.15], [0, 0, 0, 1]],
         )
+        polyline = [
+            (min_x, min_y),
+            (max_x, min_y),
+            (max_x, max_y),
+            (min_x, max_y),
+            (min_x, min_y),
+        ]
+        try:
+            slab_rep = ifcopenshell.api.run(
+                "geometry.add_slab_representation",
+                f,
+                context=body_context,
+                depth=0.15,
+                polyline=polyline,
+            )
+            ifcopenshell.api.run("geometry.assign_representation", f, product=slab, representation=slab_rep)
+        except Exception:
+            logger.warning("Failed to add 3D representation for IfcSlab", exc_info=True)
 
-    # 2. Add Doors and Windows with Opening Elements
+    # 2. Add Doors and Windows with Opening Elements & 3D Volumetric Profiles
     for kind, ifc_class in (("doors", "IfcDoor"), ("windows", "IfcWindow")):
         for i, item in enumerate(elements.get(kind, [])):
             entity = ifcopenshell.api.run(
@@ -122,9 +139,34 @@ def build_ifc_bytes(elements: dict, project_name: str) -> bytes:
                 product=entity,
                 matrix=[[1, 0, 0, x], [0, 1, 0, y], [0, 0, 1, 0.0], [0, 0, 0, 1]],
             )
+            width_m = item.get("width_m", 0.9 if kind == "doors" else 1.2)
+            height_m = DOOR_WINDOW_HEIGHT_M if kind == "doors" else 1.2
             if item.get("width_m"):
                 entity.OverallWidth = item["width_m"]
-            entity.OverallHeight = DOOR_WINDOW_HEIGHT_M
+            entity.OverallHeight = height_m
+
+            # Add volumetric 3D extruded frame & panel geometry
+            try:
+                if kind == "doors":
+                    rep = ifcopenshell.api.run(
+                        "geometry.add_door_representation",
+                        f,
+                        context=body_context,
+                        overall_height=height_m,
+                        overall_width=width_m,
+                    )
+                else:
+                    rep = ifcopenshell.api.run(
+                        "geometry.add_window_representation",
+                        f,
+                        context=body_context,
+                        overall_height=height_m,
+                        overall_width=width_m,
+                    )
+                if rep:
+                    ifcopenshell.api.run("geometry.assign_representation", f, product=entity, representation=rep)
+            except Exception:
+                logger.warning("Failed to create volumetric representation for %s %d", ifc_class, i + 1, exc_info=True)
 
             # Create associated IfcOpeningElement
             try:
@@ -137,11 +179,12 @@ def build_ifc_bytes(elements: dict, project_name: str) -> bytes:
                     product=opening,
                     matrix=[[1, 0, 0, x], [0, 1, 0, y], [0, 0, 1, 0.0], [0, 0, 0, 1]],
                 )
-                ifcopenshell.api.run("void.add_filling", f, opening=opening, element=entity)
+                f.createIfcRelFillsElement(
+                    GlobalId=ifcopenshell.guid.new(),
+                    RelatingOpeningElement=opening,
+                    RelatedBuildingElement=entity,
+                )
             except Exception:
-                # Non-fatal (the door/window entity itself is already valid without
-                # the void relationship), but still worth surfacing in Modal's logs --
-                # a bare `pass` here would silently hide a real regression.
                 logger.warning(
                     "Failed to create IfcOpeningElement void relation for %s %d", ifc_class, i + 1, exc_info=True
                 )
@@ -151,7 +194,7 @@ def build_ifc_bytes(elements: dict, project_name: str) -> bytes:
         label = room.get("label", f"Space {i + 1}")
         space = ifcopenshell.api.run("root.create_entity", f, ifc_class="IfcSpace", name=label)
         space.LongName = label
-        ifcopenshell.api.run("spatial.assign_container", f, relating_structure=storey, products=[space])
+        ifcopenshell.api.run("aggregate.assign_object", f, relating_object=storey, products=[space])
 
     # ifcopenshell.file.write() only accepts a filesystem path, not a
     # stream -- write to a real temp file and read the bytes back.

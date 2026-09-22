@@ -14,6 +14,7 @@ import { VoiceButton } from "@/components/voice-assistant/voice-button";
 import { CommandHistory } from "@/components/voice-assistant/command-history";
 import { CostPanel } from "./cost-panel";
 import { CompliancePanel } from "./compliance-panel";
+import { JurisdictionInspector } from "./jurisdiction-inspector";
 import { AgentTeamModal } from "./agent-team-modal";
 import { FFESchedulePanel } from "@/components/ffe/ffe-schedule-panel";
 import { MoodboardTrigger } from "@/components/moodboard/moodboard-modal";
@@ -143,6 +144,13 @@ export default async function ProjectPage({
           projectId={project.id}
           initialModels={constructionModels}
           unitSystem={unitSystem}
+        />
+
+        {/* Municipal Due-Diligence & International Codes */}
+        <JurisdictionInspector
+          elements={constructionModels[0]?.elements}
+          defaultRegion={region}
+          projectName={project.name}
         />
 
         {/* Building Code Compliance & Regulatory Checks */}

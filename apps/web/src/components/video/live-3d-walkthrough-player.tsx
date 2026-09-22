@@ -1012,12 +1012,16 @@ export function Live3DWalkthroughPlayer({
         },
       });
 
-      if (res.videoUrl) {
+      if (res.requiresClientCapture || !res.videoUrl) {
+        setShowHiggsfieldModal(false);
+        setViewMode("interactive_3d");
+        handleRecordVideo();
+      } else {
         setHiggsfieldVideoUrl(res.videoUrl);
         setViewMode("higgsfield_cinema");
         setIsPlaying(true);
+        setShowHiggsfieldModal(false);
       }
-      setShowHiggsfieldModal(false);
     } catch (e: any) {
       console.error("Higgsfield synthesis error:", e);
       alert(e.message || "Higgsfield synthesis failed. Check connection.");

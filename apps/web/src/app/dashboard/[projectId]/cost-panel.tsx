@@ -142,7 +142,7 @@ export function CostPanel({
           <p className="text-base font-bold text-foreground">
             {estimate.wallAreaSqFt.toLocaleString()} <span className="text-xs font-normal text-muted">sqft</span>
           </p>
-          <span className="text-[10px] text-muted">({estimate.doorCount} doors, {estimate.windowCount} windows)</span>
+          <span className="text-[10px] text-muted">({estimate.linearWallMeters}m run · {estimate.doorCount} doors, {estimate.windowCount} windows)</span>
         </div>
 
         <div className="rounded-lg border border-accent/40 bg-accent/5 p-3 text-center">

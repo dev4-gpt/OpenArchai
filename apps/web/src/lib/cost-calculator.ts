@@ -2,7 +2,7 @@ import type { ConstructionElements } from "@/components/floor-plan-editor/export
 
 export interface BOQItem {
   id: string;
-  category: "Civil" | "Flooring" | "Painting" | "Ceiling" | "Openings" | "Plumbing & Electrical";
+  category: string;
   description: string;
   quantity: number;
   unit: string;
@@ -17,8 +17,10 @@ export interface ProjectCostEstimate {
   wallAreaSqM: number;
   wallAreaSqFt: number;
   wallPerimeterM: number;
+  linearWallMeters: number;
   doorCount: number;
   windowCount: number;
+  bathroomsCount: number;
   currency: string;
   symbol: string;
   items: BOQItem[];
@@ -83,155 +85,157 @@ export function calculateProjectCost(
 
   const floorAreaSqFt = floorAreaSqM * 10.7639;
   const wallAreaSqFt = wallAreaSqM * 10.7639;
+  const wallMasonrySqFt = (wallPerimeterM * defaultWallHeightM) * 10.7639;
+  const bathroomsCount = Math.max(1, Math.round(floorAreaSqM / 45.0));
 
   const isIndia = region === "india";
   const currency = isIndia ? "INR" : "USD";
   const symbol = isIndia ? "₹" : "$";
 
-  // Build realistic Line Items according to regional standards
+  // Build architect-grade 7 per-element line items according to regional standards
   const items: BOQItem[] = isIndia
     ? [
         {
           id: "civil_masonry",
-          category: "Civil",
-          description: "Brickwork / AAC Block masonry, cement plaster (1:4) & curing",
-          quantity: Math.round(wallAreaSqFt),
+          category: "Civil & Structural Masonry",
+          description: `AAC blockwork / 230mm brick masonry & double-coat sand plaster (${Math.round(wallPerimeterM * 10) / 10}m linear wall run)`,
+          quantity: Math.round(wallMasonrySqFt),
           unit: "sqft",
-          rateBudget: 140,
+          rateBudget: 135,
           rateMid: 210,
-          ratePremium: 320,
+          ratePremium: 340,
         },
         {
           id: "flooring_stone",
-          category: "Flooring",
-          description: "Floor tiles / Kota stone / Makrana marble with leveling mortar & polishing",
+          category: "Flooring & Perimeter Skirting",
+          description: "Floor tiling / natural stone supply, mortar bed & 100mm perimeter skirting",
           quantity: Math.round(floorAreaSqFt),
           unit: "sqft",
           rateBudget: 95,
-          rateMid: 180,
-          ratePremium: 450,
+          rateMid: 195,
+          ratePremium: 840,
         },
         {
-          id: "skirting",
-          category: "Flooring",
-          description: "100mm matching skirting along walls",
-          quantity: Math.round(wallPerimeterM * 3.28084),
-          unit: "rft",
-          rateBudget: 45,
-          rateMid: 75,
-          ratePremium: 140,
-        },
-        {
-          id: "wall_painting",
-          category: "Painting",
-          description: "Wall putty (2 coats), primer & Asian Paints Royale luxury emulsion (2 coats)",
+          id: "wall_finishes",
+          category: "Net Wall Finishes & Emulsion",
+          description: "Surface putty, primer & luxury emulsion coats (net area deducting door/window voids)",
           quantity: Math.round(wallAreaSqFt),
           unit: "sqft",
           rateBudget: 18,
-          rateMid: 32,
-          ratePremium: 58,
+          rateMid: 36,
+          ratePremium: 165,
         },
         {
-          id: "false_ceiling",
-          category: "Ceiling",
-          description: "Gypsum board false ceiling with cove lighting troughs",
-          quantity: Math.round(floorAreaSqFt * 0.7),
-          unit: "sqft",
-          rateBudget: 85,
-          rateMid: 125,
-          ratePremium: 195,
-        },
-        {
-          id: "doors_joinery",
-          category: "Openings",
-          description: "Flush doors with hardwood frame, brass mortise handles & accessories",
+          id: "door_suites",
+          category: "Door Suites & Hardware",
+          description: "Engineered doors with hardwood frames, architraves & architectural mortise hardware",
           quantity: Math.max(1, doorCount),
           unit: "doors",
           rateBudget: 8500,
-          rateMid: 14500,
+          rateMid: 16500,
           ratePremium: 28000,
         },
         {
-          id: "windows_glazing",
-          category: "Openings",
-          description: "uPVC / Anodized aluminum 3-track sliding windows with mosquito mesh",
+          id: "window_suites",
+          category: "Window Suites & Glazing",
+          description: "Acoustic & weather-sealed window suites with sub-frames & clear float glazing",
           quantity: Math.max(1, windowCount),
           unit: "windows",
-          rateBudget: 6500,
-          rateMid: 11000,
-          ratePremium: 19500,
+          rateBudget: 7200,
+          rateMid: 14500,
+          ratePremium: 29500,
         },
         {
-          id: "mep_rough_in",
-          category: "Plumbing & Electrical",
-          description: "Concealed conduit wiring (Finolex/Polycab), switches (Schneider) & plumbing fixtures",
+          id: "electrical_lighting",
+          category: "Electrical & Circadian Lighting",
+          description: "Concealed FRLS conduits, distribution board, modular switches & LED cove/downlights",
           quantity: Math.round(floorAreaSqFt),
           unit: "sqft",
           rateBudget: 110,
-          rateMid: 180,
-          ratePremium: 290,
+          rateMid: 185,
+          ratePremium: 295,
+        },
+        {
+          id: "plumbing_sanitary",
+          category: "Plumbing, Wet Wall & Sanitaryware",
+          description: "CPVC water supply, soil/waste stack connections & luxury sanitaryware suites",
+          quantity: bathroomsCount,
+          unit: "baths",
+          rateBudget: 42000,
+          rateMid: 82000,
+          ratePremium: 165000,
         },
       ]
     : [
         {
-          id: "framing_drywall",
-          category: "Civil",
-          description: "Light gauge steel / wood stud framing with 5/8in gypsum drywall & Level 4 finish",
-          quantity: Math.round(wallAreaSqFt),
+          id: "civil_masonry_us",
+          category: "Civil & Structural Masonry",
+          description: `Light gauge steel / wood stud framing with 5/8in gypsum drywall & Level 4 finish (${Math.round(wallPerimeterM * 10) / 10}m linear run)`,
+          quantity: Math.round(wallMasonrySqFt),
           unit: "sqft",
-          rateBudget: 4.5,
-          rateMid: 7.5,
-          ratePremium: 14.0,
+          rateBudget: 5.5,
+          rateMid: 9.0,
+          ratePremium: 16.0,
         },
         {
           id: "flooring_us",
-          category: "Flooring",
-          description: "Luxury Vinyl Plank / Porcelain Tile / Engineered White Oak hardwood",
+          category: "Flooring & Perimeter Skirting",
+          description: "Luxury Vinyl Plank / Porcelain Tile / Engineered White Oak hardwood & baseboards",
           quantity: Math.round(floorAreaSqFt),
           unit: "sqft",
-          rateBudget: 5.5,
-          rateMid: 11.0,
-          ratePremium: 22.0,
+          rateBudget: 6.5,
+          rateMid: 14.0,
+          ratePremium: 38.0,
         },
         {
-          id: "painting_us",
-          category: "Painting",
-          description: "Interior drywall priming & 2 coats low-VOC eggshell paint (Benjamin Moore)",
+          id: "wall_finishes_us",
+          category: "Net Wall Finishes & Emulsion",
+          description: "Interior drywall priming & 2 coats low-VOC eggshell paint (net surface deducting openings)",
           quantity: Math.round(wallAreaSqFt),
           unit: "sqft",
           rateBudget: 1.8,
-          rateMid: 2.8,
-          ratePremium: 5.5,
+          rateMid: 3.2,
+          ratePremium: 12.0,
         },
         {
-          id: "doors_us",
-          category: "Openings",
-          description: "Pre-hung interior doors with Schlage hardware and painted trim",
+          id: "door_suites_us",
+          category: "Door Suites & Hardware",
+          description: "Pre-hung solid-core interior doors with Schlage hardware & painted casing",
           quantity: Math.max(1, doorCount),
           unit: "doors",
-          rateBudget: 180,
-          rateMid: 380,
-          ratePremium: 750,
+          rateBudget: 280,
+          rateMid: 550,
+          ratePremium: 1100,
         },
         {
-          id: "windows_us",
-          category: "Openings",
-          description: "Double-pane Low-E vinyl / aluminum-clad casement windows",
+          id: "window_suites_us",
+          category: "Window Suites & Glazing",
+          description: "Double-pane Low-E vinyl / aluminum-clad casement windows with thermal breaks",
           quantity: Math.max(1, windowCount),
           unit: "windows",
-          rateBudget: 350,
-          rateMid: 650,
+          rateBudget: 260,
+          rateMid: 520,
           ratePremium: 1200,
         },
         {
-          id: "mep_us",
-          category: "Plumbing & Electrical",
-          description: "Romex wiring, recessed LED pot lights, GFCI outlets & plumbing rough-in",
+          id: "electrical_lighting_us",
+          category: "Electrical & Circadian Lighting",
+          description: "Romex wiring, recessed LED pot lights, GFCI outlets & architectural fixture rough-in",
           quantity: Math.round(floorAreaSqFt),
           unit: "sqft",
           rateBudget: 8.5,
-          rateMid: 15.0,
+          rateMid: 16.0,
           ratePremium: 28.0,
+        },
+        {
+          id: "plumbing_sanitary_us",
+          category: "Plumbing, Wet Wall & Sanitaryware",
+          description: "PEX water supply, DWV stack drops, Kohler fixtures & designer bathroom suites",
+          quantity: bathroomsCount,
+          unit: "baths",
+          rateBudget: 1500,
+          rateMid: 3200,
+          ratePremium: 6800,
         },
       ];
 
@@ -257,8 +261,10 @@ export function calculateProjectCost(
     wallAreaSqM: Math.round(wallAreaSqM * 10) / 10,
     wallAreaSqFt: Math.round(wallAreaSqFt),
     wallPerimeterM: Math.round(wallPerimeterM * 10) / 10,
+    linearWallMeters: Math.round(wallPerimeterM * 10) / 10,
     doorCount,
     windowCount,
+    bathroomsCount,
     currency,
     symbol,
     items,
