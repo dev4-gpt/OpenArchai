@@ -52,20 +52,41 @@ export function EditorToolbar({
     const item = FFE_CATALOG.find((x) => x.id === ffeId);
     if (!item) return;
 
-    floorPlanStore.addFurniture({
+    floorPlanStore.setPendingFurniture({
       ffeId: item.id,
       name: item.name,
-      type: item.category === "beds" ? "bed" : item.category === "seating" ? "sofa" : item.category === "tables" ? "table" : item.category === "storage" ? "credenza" : item.category === "lighting" ? "lamp" : item.category === "sanitaryware" ? "sanitaryware" : "custom",
-      position: {
-        x: (Math.random() - 0.5) * 2,
-        y: (Math.random() - 0.5) * 2,
-      },
+      type:
+        item.category === "beds"
+          ? "bed"
+          : item.category === "seating"
+          ? "sofa"
+          : item.category === "tables"
+          ? "table"
+          : item.category === "storage"
+          ? "credenza"
+          : item.category === "lighting"
+          ? "lamp"
+          : item.category === "sanitaryware"
+          ? "sanitaryware"
+          : "custom",
       width: item.dimensions.lengthMm / 1000,
       depth: item.dimensions.depthMm / 1000,
       rotation: 0,
       tag: item.tag,
     });
     setSelectedFurniture("");
+  }
+
+  function handlePlaceAtCenter() {
+    if (!state.pendingFurniture) return;
+    floorPlanStore.addFurniture({
+      ...state.pendingFurniture,
+      position: { x: 0, y: 0 },
+    });
+  }
+
+  function handleCancelPending() {
+    floorPlanStore.setPendingFurniture(null);
   }
 
   function handleImportDxf(e: React.ChangeEvent<HTMLInputElement>) {
@@ -123,218 +144,336 @@ export function EditorToolbar({
   }
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-surface p-2 text-xs">
-      {/* Hidden file input for DXF import */}
-      <input
-        type="file"
-        ref={fileInputRef}
-        onChange={handleImportDxf}
-        accept=".dxf"
-        className="hidden"
-      />
+    <div className="flex flex-col border-b border-border">
+      {/* Main Toolbar Strip */}
+      <div className="flex flex-wrap items-center justify-between gap-2 bg-surface p-2 text-xs">
+        {/* Hidden file input for DXF import */}
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleImportDxf}
+          accept=".dxf"
+          className="hidden"
+        />
 
-      {/* Left: Tools */}
-      <div className="flex items-center gap-1">
-        {tools.map((t) => (
+        {/* Left: Tools */}
+        <div className="flex items-center gap-1">
+          {tools.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => {
+                if (t.id === "eraser") {
+                  if (state.selectedIds.length > 0) {
+                    floorPlanStore.deleteSelected();
+                  }
+                  floorPlanStore.setTool("eraser");
+                } else {
+                  floorPlanStore.setTool(t.id);
+                }
+              }}
+              className={`flex items-center gap-1 rounded px-2.5 py-1 text-xs font-medium transition-colors ${
+                state.tool === t.id
+                  ? "bg-accent text-accent-foreground"
+                  : "border border-border text-foreground hover:border-accent/40"
+              }`}
+              title={t.label}
+            >
+              <span>{t.icon}</span>
+              <span>{t.label}</span>
+            </button>
+          ))}
+
+          <div className="mx-1 h-5 w-px bg-border" />
+
+          {/* Undo / Redo */}
           <button
-            key={t.id}
+            type="button"
+            onClick={() => floorPlanStore.undo()}
+            disabled={state.undoStack.length === 0}
+            className="rounded border border-border px-2 py-1 text-xs text-foreground hover:border-accent/40 disabled:opacity-40"
+            title="Undo"
+          >
+            ↶ Undo
+          </button>
+          <button
+            type="button"
+            onClick={() => floorPlanStore.redo()}
+            disabled={state.redoStack.length === 0}
+            className="rounded border border-border px-2 py-1 text-xs text-foreground hover:border-accent/40 disabled:opacity-40"
+            title="Redo"
+          >
+            ↷ Redo
+          </button>
+
+          {selectedFurnitureItem && (
+            <button
+              type="button"
+              onClick={() => floorPlanStore.rotateFurniture(selectedFurnitureItem.id)}
+              className="rounded border border-accent/40 bg-accent/10 px-2 py-1 text-xs font-medium text-accent hover:bg-accent/20 transition-colors"
+              title="Rotate furniture 90 degrees (R)"
+            >
+              🔄 Rotate 90°
+            </button>
+          )}
+        </div>
+
+        {/* Middle: Presets & Furniture */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          <select
+            value={presetRegion}
+            onChange={(e) => setPresetRegion(e.target.value as "india" | "us")}
+            className="rounded border border-border bg-surface px-1.5 py-1 text-xs text-foreground"
+          >
+            <option value="india">🇮🇳 Indian Presets</option>
+            <option value="us">🇺🇸 US Presets</option>
+          </select>
+
+          <select
+            value={selectedPreset}
+            onChange={(e) => {
+              if (e.target.value) handleAddPreset(e.target.value);
+            }}
+            className="rounded border border-border bg-surface px-2 py-1 text-xs text-foreground"
+          >
+            <option value="">+ Add Room Preset</option>
+            {Object.entries(ROOM_PRESETS[presetRegion]).map(([name, dim]) => (
+              <option key={name} value={name}>
+                {name} ({dim.width}m × {dim.height}m)
+              </option>
+            ))}
+          </select>
+
+          {/* FF&E Furniture Placement */}
+          <select
+            value={selectedFurniture}
+            onChange={(e) => {
+              if (e.target.value) handleAddFurniture(e.target.value);
+            }}
+            className="rounded border border-border bg-surface px-2 py-1 text-xs text-foreground"
+          >
+            <option value="">🛋️ + Place FF&E Item (Click-to-Drop)</option>
+            {FFE_CATALOG.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.tag}: {f.name} ({f.dimensions.lengthIn}&quot;x{f.dimensions.depthIn}&quot;)
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Right: Actions */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => floorPlanStore.setZoom(state.floorPlan.zoom * 1.2)}
+            className="rounded border border-border px-2 py-1 text-xs text-foreground hover:border-accent/40"
+            title="Zoom In"
+          >
+            +
+          </button>
+          <button
+            type="button"
+            onClick={() => floorPlanStore.setZoom(state.floorPlan.zoom / 1.2)}
+            className="rounded border border-border px-2 py-1 text-xs text-foreground hover:border-accent/40"
+            title="Zoom Out"
+          >
+            -
+          </button>
+          <button
+            type="button"
+            onClick={() => floorPlanStore.resetView()}
+            className="rounded border border-border px-2 py-1 text-xs text-foreground hover:border-accent/40"
+            title="Reset zoom and center view"
+          >
+            Reset View
+          </button>
+          <button
             type="button"
             onClick={() => {
-              if (t.id === "eraser") {
-                if (state.selectedIds.length > 0) {
-                  floorPlanStore.deleteSelected();
-                }
-                floorPlanStore.setTool("eraser");
-              } else {
-                floorPlanStore.setTool(t.id);
+              const hasElements =
+                state.floorPlan.walls.length > 0 ||
+                state.floorPlan.doors.length > 0 ||
+                state.floorPlan.windows.length > 0 ||
+                state.floorPlan.rooms.length > 0 ||
+                (state.floorPlan.furniture || []).length > 0;
+              if (!hasElements) return;
+              if (window.confirm("Clear all elements from the floor plan? You can undo this action with Undo.")) {
+                floorPlanStore.clearPlan();
               }
             }}
-            className={`flex items-center gap-1 rounded px-2.5 py-1 text-xs font-medium transition-colors ${
-              state.tool === t.id
-                ? "bg-accent text-accent-foreground"
-                : "border border-border text-foreground hover:border-accent/40"
-            }`}
-            title={t.label}
+            disabled={
+              state.floorPlan.walls.length === 0 &&
+              state.floorPlan.doors.length === 0 &&
+              state.floorPlan.windows.length === 0 &&
+              state.floorPlan.rooms.length === 0 &&
+              (state.floorPlan.furniture || []).length === 0
+            }
+            className="rounded border border-border px-2 py-1 text-xs text-foreground hover:border-danger/50 hover:text-danger disabled:opacity-40 transition-colors"
+            title="Clear all drawn walls, doors, windows, and rooms"
           >
-            <span>{t.icon}</span>
-            <span>{t.label}</span>
+            Clear Canvas
           </button>
-        ))}
 
-        <div className="mx-1 h-5 w-px bg-border" />
+          <div className="mx-1 h-5 w-px bg-border" />
 
-        {/* Undo / Redo */}
-        <button
-          type="button"
-          onClick={() => floorPlanStore.undo()}
-          disabled={state.undoStack.length === 0}
-          className="rounded border border-border px-2 py-1 text-xs text-foreground hover:border-accent/40 disabled:opacity-40"
-          title="Undo"
-        >
-          ↶ Undo
-        </button>
-        <button
-          type="button"
-          onClick={() => floorPlanStore.redo()}
-          disabled={state.redoStack.length === 0}
-          className="rounded border border-border px-2 py-1 text-xs text-foreground hover:border-accent/40 disabled:opacity-40"
-          title="Redo"
-        >
-          ↷ Redo
-        </button>
-
-        {selectedFurnitureItem && (
+          {/* CAD/BIM Sync Actions */}
           <button
             type="button"
-            onClick={() => floorPlanStore.rotateFurniture(selectedFurnitureItem.id)}
-            className="rounded border border-accent/40 bg-accent/10 px-2 py-1 text-xs font-medium text-accent hover:bg-accent/20 transition-colors"
-            title="Rotate furniture 90 degrees"
+            onClick={() => fileInputRef.current?.click()}
+            className="rounded border border-border bg-surface px-2.5 py-1 text-xs font-medium text-foreground hover:border-accent/40 transition-colors"
+            title="Import AutoCAD DXF drawing file"
           >
-            🔄 Rotate 90°
+            📥 Import DXF
           </button>
-        )}
-      </div>
 
-      {/* Middle: Presets & Furniture */}
-      <div className="flex flex-wrap items-center gap-1.5">
-        <select
-          value={presetRegion}
-          onChange={(e) => setPresetRegion(e.target.value as "india" | "us")}
-          className="rounded border border-border bg-surface px-1.5 py-1 text-xs text-foreground"
-        >
-          <option value="india">🇮🇳 Indian Presets</option>
-          <option value="us">🇺🇸 US Presets</option>
-        </select>
-
-        <select
-          value={selectedPreset}
-          onChange={(e) => {
-            if (e.target.value) handleAddPreset(e.target.value);
-          }}
-          className="rounded border border-border bg-surface px-2 py-1 text-xs text-foreground"
-        >
-          <option value="">+ Add Room Preset</option>
-          {Object.entries(ROOM_PRESETS[presetRegion]).map(([name, dim]) => (
-            <option key={name} value={name}>
-              {name} ({dim.width}m × {dim.height}m)
-            </option>
-          ))}
-        </select>
-
-        {/* FF&E Furniture Placement */}
-        <select
-          value={selectedFurniture}
-          onChange={(e) => {
-            if (e.target.value) handleAddFurniture(e.target.value);
-          }}
-          className="rounded border border-border bg-surface px-2 py-1 text-xs text-foreground"
-        >
-          <option value="">🛋️ + Place FF&E Item</option>
-          {FFE_CATALOG.map((f) => (
-            <option key={f.id} value={f.id}>
-              {f.tag}: {f.name} ({f.dimensions.lengthIn}&quot;x{f.dimensions.depthIn}&quot;)
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* Right: Actions */}
-      <div className="flex flex-wrap items-center gap-1.5">
-        <button
-          type="button"
-          onClick={() => floorPlanStore.setZoom(state.floorPlan.zoom * 1.2)}
-          className="rounded border border-border px-2 py-1 text-xs text-foreground hover:border-accent/40"
-          title="Zoom In"
-        >
-          +
-        </button>
-        <button
-          type="button"
-          onClick={() => floorPlanStore.setZoom(state.floorPlan.zoom / 1.2)}
-          className="rounded border border-border px-2 py-1 text-xs text-foreground hover:border-accent/40"
-          title="Zoom Out"
-        >
-          -
-        </button>
-        <button
-          type="button"
-          onClick={() => floorPlanStore.resetView()}
-          className="rounded border border-border px-2 py-1 text-xs text-foreground hover:border-accent/40"
-          title="Reset zoom and center view"
-        >
-          Reset View
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            const hasElements =
-              state.floorPlan.walls.length > 0 ||
-              state.floorPlan.doors.length > 0 ||
-              state.floorPlan.windows.length > 0 ||
-              state.floorPlan.rooms.length > 0 ||
-              (state.floorPlan.furniture || []).length > 0;
-            if (!hasElements) return;
-            if (window.confirm("Clear all elements from the floor plan? You can undo this action with Undo.")) {
-              floorPlanStore.clearPlan();
-            }
-          }}
-          disabled={
-            state.floorPlan.walls.length === 0 &&
-            state.floorPlan.doors.length === 0 &&
-            state.floorPlan.windows.length === 0 &&
-            state.floorPlan.rooms.length === 0 &&
-            (state.floorPlan.furniture || []).length === 0
-          }
-          className="rounded border border-border px-2 py-1 text-xs text-foreground hover:border-danger/50 hover:text-danger disabled:opacity-40 transition-colors"
-          title="Clear all drawn walls, doors, windows, and rooms"
-        >
-          Clear Canvas
-        </button>
-
-        <div className="mx-1 h-5 w-px bg-border" />
-
-        {/* CAD/BIM Sync Actions */}
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          className="rounded border border-border bg-surface px-2.5 py-1 text-xs font-medium text-foreground hover:border-accent/40 transition-colors"
-          title="Import AutoCAD DXF drawing file"
-        >
-          📥 Import DXF
-        </button>
-
-        <button
-          type="button"
-          onClick={handleExportDxf}
-          disabled={state.floorPlan.walls.length === 0}
-          className="rounded border border-border px-2.5 py-1 text-xs text-foreground hover:border-accent/40 disabled:opacity-40"
-          title="Download AutoCAD DXF file"
-        >
-          Export DXF
-        </button>
-
-        <button
-          type="button"
-          onClick={handleExportIfc}
-          disabled={state.floorPlan.walls.length === 0}
-          className="rounded border border-accent/40 bg-accent/10 px-2.5 py-1 text-xs font-medium text-accent hover:bg-accent/20 disabled:opacity-40 transition-colors"
-          title="Export Industry Foundation Classes (IFC4) BIM model for Revit/ArchiCAD"
-        >
-          🏗️ Export IFC
-        </button>
-
-        {onSaveToProject && (
-          <Button
+          <button
             type="button"
-            variant="primary"
-            size="sm"
-            disabled={saving || state.floorPlan.walls.length === 0}
-            onClick={() => onSaveToProject(floorPlanToElements(state.floorPlan))}
+            onClick={handleExportDxf}
+            disabled={state.floorPlan.walls.length === 0}
+            className="rounded border border-border px-2.5 py-1 text-xs text-foreground hover:border-accent/40 disabled:opacity-40"
+            title="Download AutoCAD DXF file"
           >
-            {saving ? "Saving…" : "Save to Project"}
-          </Button>
-        )}
+            Export DXF
+          </button>
+
+          <button
+            type="button"
+            onClick={handleExportIfc}
+            disabled={state.floorPlan.walls.length === 0}
+            className="rounded border border-accent/40 bg-accent/10 px-2.5 py-1 text-xs font-medium text-accent hover:bg-accent/20 disabled:opacity-40 transition-colors"
+            title="Export Industry Foundation Classes (IFC4) BIM model for Revit/ArchiCAD"
+          >
+            🏗️ Export IFC
+          </button>
+
+          {onSaveToProject && (
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              disabled={saving || state.floorPlan.walls.length === 0}
+              onClick={() => onSaveToProject(floorPlanToElements(state.floorPlan))}
+            >
+              {saving ? "Saving…" : "Save to Project"}
+            </Button>
+          )}
+        </div>
       </div>
+
+      {/* Active Furniture Placement Banner */}
+      {state.pendingFurniture && (
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-900 dark:text-amber-200">
+          <div className="flex items-center gap-2">
+            <span className="flex h-2 w-2 rounded-full bg-amber-500 animate-ping" />
+            <span className="font-semibold">Placing Item:</span>
+            <span className="rounded bg-amber-500/20 px-1.5 py-0.5 font-mono text-[11px] font-bold text-amber-800 dark:text-amber-300">
+              {state.pendingFurniture.tag || "FF&E"}
+            </span>
+            <span className="font-medium">{state.pendingFurniture.name}</span>
+            <span className="text-amber-700/80 dark:text-amber-400/80 text-[11px]">
+              ({state.pendingFurniture.width}m × {state.pendingFurniture.depth}m)
+            </span>
+            <span className="text-muted-foreground hidden md:inline">
+              — Hover over floor plan to see live ghost outline & click anywhere to drop. Press{" "}
+              <kbd className="px-1 py-0.5 rounded bg-surface border border-border font-mono text-[10px]">R</kbd> to rotate.
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => floorPlanStore.rotatePendingFurniture()}
+              className="rounded border border-amber-500/30 bg-surface px-2 py-0.5 text-xs font-medium text-amber-800 dark:text-amber-300 hover:border-amber-500 transition-colors"
+              title="Rotate item 90 degrees before placing (R key)"
+            >
+              🔄 Rotate ({state.pendingFurniture.rotation || 0}°)
+            </button>
+            <button
+              type="button"
+              onClick={handlePlaceAtCenter}
+              className="rounded border border-amber-500/30 bg-surface px-2 py-0.5 text-xs font-medium text-amber-800 dark:text-amber-300 hover:border-amber-500 transition-colors"
+              title="Place directly at center (0, 0)"
+            >
+              Place at Center
+            </button>
+            <button
+              type="button"
+              onClick={handleCancelPending}
+              className="rounded border border-border bg-surface px-2 py-0.5 text-xs text-muted hover:text-foreground transition-colors"
+              title="Cancel placement (Esc)"
+            >
+              ✕ Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Selected Furniture Inspector & Micro-Nudge Bar */}
+      {selectedFurnitureItem && !state.pendingFurniture && (
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/80 bg-surface/70 px-3 py-1 text-xs text-foreground">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-accent">Selected Item:</span>
+            <span className="rounded bg-accent/10 px-1.5 py-0.5 font-mono text-[11px] font-bold text-accent">
+              {selectedFurnitureItem.tag || "FF&E"}
+            </span>
+            <span className="font-medium">{selectedFurnitureItem.name}</span>
+            <span className="text-muted text-[11px] hidden sm:inline">
+              X: {selectedFurnitureItem.position.x.toFixed(2)}m, Y: {selectedFurnitureItem.position.y.toFixed(2)}m • {selectedFurnitureItem.width}m × {selectedFurnitureItem.depth}m • {selectedFurnitureItem.rotation}°
+            </span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-[11px] text-muted mr-1 hidden sm:inline">Drag on canvas or nudge:</span>
+            <button
+              type="button"
+              onClick={() => floorPlanStore.nudgeFurniture(selectedFurnitureItem.id, { x: -0.1, y: 0 })}
+              className="h-6 w-6 rounded border border-border bg-surface text-center hover:border-accent/50 font-bold"
+              title="Nudge Left 0.1m (←)"
+            >
+              ←
+            </button>
+            <button
+              type="button"
+              onClick={() => floorPlanStore.nudgeFurniture(selectedFurnitureItem.id, { x: 0.1, y: 0 })}
+              className="h-6 w-6 rounded border border-border bg-surface text-center hover:border-accent/50 font-bold"
+              title="Nudge Right 0.1m (→)"
+            >
+              →
+            </button>
+            <button
+              type="button"
+              onClick={() => floorPlanStore.nudgeFurniture(selectedFurnitureItem.id, { x: 0, y: -0.1 })}
+              className="h-6 w-6 rounded border border-border bg-surface text-center hover:border-accent/50 font-bold"
+              title="Nudge Up 0.1m (↑)"
+            >
+              ↑
+            </button>
+            <button
+              type="button"
+              onClick={() => floorPlanStore.nudgeFurniture(selectedFurnitureItem.id, { x: 0, y: 0.1 })}
+              className="h-6 w-6 rounded border border-border bg-surface text-center hover:border-accent/50 font-bold"
+              title="Nudge Down 0.1m (↓)"
+            >
+              ↓
+            </button>
+            <div className="mx-1 h-4 w-px bg-border" />
+            <button
+              type="button"
+              onClick={() => floorPlanStore.rotateFurniture(selectedFurnitureItem.id)}
+              className="rounded border border-accent/40 bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent hover:bg-accent/20 transition-colors"
+              title="Rotate 90 degrees (R)"
+            >
+              🔄 Rotate 90° (R)
+            </button>
+            <button
+              type="button"
+              onClick={() => floorPlanStore.deleteElement(selectedFurnitureItem.id)}
+              className="rounded border border-danger/40 bg-danger/10 px-2 py-0.5 text-xs font-medium text-danger hover:bg-danger/20 transition-colors"
+              title="Delete item (Backspace)"
+            >
+              🗑️ Delete
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

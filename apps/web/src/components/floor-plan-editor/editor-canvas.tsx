@@ -2,20 +2,33 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { floorPlanStore, useFloorPlanStore } from "./state/floor-plan-store";
-import type { Point, Wall, Door, Window, Room, FurnitureItem } from "./types";
+import type { Point, Wall, Door, Window, Room, FurnitureItem, FloorPlan, PendingFurniture } from "./types";
 import { metersToUnit, unitLabel, type UnitSystem } from "@/lib/units";
 import { parseDxfContent } from "@/lib/dxf-import";
 
 export function EditorCanvas({ unitSystem = "metric" }: { unitSystem?: UnitSystem }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const state = useFloorPlanStore();
   const [mousePos, setMousePos] = useState<Point | null>(null);
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState<Point>({ x: 0, y: 0 });
   const [hoveredDeleteId, setHoveredDeleteId] = useState<string | null>(null);
+  const [hoveredElementId, setHoveredElementId] = useState<string | null>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const dragOffsetRef = useRef<Point>({ x: 0, y: 0 });
+  const dragStartPlanRef = useRef<FloorPlan | null>(null);
+  const hasDraggedRef = useRef<boolean>(false);
 
-  const { floorPlan, tool, drawingPoints, snapPoint, selectedIds } = state;
+  const { floorPlan, tool, drawingPoints, snapPoint, selectedIds, pendingFurniture } = state;
   const { zoom, panOffset, walls, doors, windows, rooms, furniture = [] } = floorPlan;
+
+  // Auto-focus container when pending furniture is armed for instant R / Esc / arrow key controls
+  useEffect(() => {
+    if (pendingFurniture) {
+      containerRef.current?.focus();
+    }
+  }, [pendingFurniture]);
 
   // Convert screen coordinates to world coordinates (meters)
   const screenToWorld = useCallback(
@@ -277,6 +290,81 @@ export function EditorCanvas({ unitSystem = "metric" }: { unitSystem?: UnitSyste
       ctx.restore();
     }
 
+    // 6.75. Render Pending Furniture Ghost Placement Preview
+    if (tool === "furniture" && pendingFurniture && mousePos) {
+      const previewPos = snapPoint || mousePos;
+      const center = worldToScreen(previewPos.x, previewPos.y);
+      const w = pendingFurniture.width * zoom;
+      const d = pendingFurniture.depth * zoom;
+      const rot = pendingFurniture.rotation || 0;
+
+      ctx.save();
+      ctx.translate(center.x, center.y);
+      ctx.rotate((rot * Math.PI) / 180);
+
+      // Semi-transparent ghost bounding box with dashed border
+      ctx.fillStyle = "rgba(245, 158, 11, 0.22)";
+      ctx.strokeStyle = "#d97706";
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 4]);
+
+      ctx.beginPath();
+      ctx.roundRect(-w / 2, -d / 2, w, d, 4);
+      ctx.fill();
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Furniture type interior geometry inside ghost
+      if (pendingFurniture.type === "sofa") {
+        ctx.strokeStyle = "rgba(180, 83, 9, 0.7)";
+        ctx.lineWidth = 1;
+        ctx.strokeRect(-w / 2 + 3, -d / 2 + 3, w - 6, d / 3);
+      } else if (pendingFurniture.type === "bed") {
+        ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
+        ctx.strokeStyle = "rgba(180, 83, 9, 0.7)";
+        ctx.lineWidth = 1;
+        const pw = Math.max(4, (w - 12) / 2);
+        ctx.fillRect(-w / 2 + 4, -d / 2 + 4, pw, d * 0.28);
+        ctx.strokeRect(-w / 2 + 4, -d / 2 + 4, pw, d * 0.28);
+        ctx.fillRect(2, -d / 2 + 4, pw, d * 0.28);
+        ctx.strokeRect(2, -d / 2 + 4, pw, d * 0.28);
+      } else if (pendingFurniture.type === "table") {
+        ctx.strokeStyle = "rgba(180, 83, 9, 0.7)";
+        ctx.lineWidth = 1;
+        ctx.strokeRect(-w / 2 + 3, -d / 2 + 3, w - 6, d - 6);
+      } else if (pendingFurniture.type === "sanitaryware") {
+        ctx.strokeStyle = "rgba(180, 83, 9, 0.7)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, Math.max(2, w / 2 - 3), Math.max(2, d / 2 - 3), 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      // Ghost text label
+      ctx.fillStyle = "#92400e";
+      ctx.font = "bold 10px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(pendingFurniture.tag || pendingFurniture.name, 0, -6);
+
+      ctx.font = "9px sans-serif";
+      ctx.fillStyle = "#b45309";
+      const dimText = `${pendingFurniture.width.toFixed(2)}m × ${pendingFurniture.depth.toFixed(2)}m (${rot}°)`;
+      ctx.fillText(dimText, 0, 8);
+
+      ctx.restore();
+
+      // Drop target crosshair
+      ctx.strokeStyle = "#d97706";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(center.x - 10, center.y);
+      ctx.lineTo(center.x + 10, center.y);
+      ctx.moveTo(center.x, center.y - 10);
+      ctx.lineTo(center.x, center.y + 10);
+      ctx.stroke();
+    }
+
     // 7. Active drawing wall preview
     if (drawingPoints.length === 1 && mousePos) {
       const p1 = worldToScreen(drawingPoints[0].x, drawingPoints[0].y);
@@ -322,6 +410,7 @@ export function EditorCanvas({ unitSystem = "metric" }: { unitSystem?: UnitSyste
     windows,
     rooms,
     furniture,
+    pendingFurniture,
     zoom,
     panOffset,
     drawingPoints,
@@ -340,7 +429,10 @@ export function EditorCanvas({ unitSystem = "metric" }: { unitSystem?: UnitSyste
     const screenX = e.clientX - rect.left;
     const screenY = e.clientY - rect.top;
 
-    // Pan with middle click or spacebar
+    // Focus editor container for keyboard shortcuts
+    containerRef.current?.focus();
+
+    // Pan with middle click or spacebar / alt key
     if (e.button === 1 || e.altKey) {
       setIsPanning(true);
       setPanStart({ x: screenX - panOffset.x, y: screenY - panOffset.y });
@@ -356,6 +448,12 @@ export function EditorCanvas({ unitSystem = "metric" }: { unitSystem?: UnitSyste
       floorPlanStore.addDoor(snap);
     } else if (tool === "window") {
       floorPlanStore.addWindow(snap);
+    } else if (tool === "furniture" && pendingFurniture) {
+      // Drop pending furniture at user's clicked snapped coordinates!
+      floorPlanStore.addFurniture({
+        ...pendingFurniture,
+        position: snap,
+      });
     } else if (tool === "eraser") {
       const targetId = findElementAt(rawWorld, walls, doors, windows, rooms, furniture);
       if (targetId) {
@@ -366,6 +464,17 @@ export function EditorCanvas({ unitSystem = "metric" }: { unitSystem?: UnitSyste
       const foundId = findElementAt(rawWorld, walls, doors, windows, rooms, furniture);
       if (foundId) {
         floorPlanStore.selectElement(foundId, e.shiftKey);
+        // Initiate drag tracking
+        const elemPos = getElementPosition(foundId, walls, doors, windows, rooms, furniture);
+        if (elemPos) {
+          setDraggingId(foundId);
+          hasDraggedRef.current = false;
+          dragStartPlanRef.current = JSON.parse(JSON.stringify(floorPlan));
+          dragOffsetRef.current = {
+            x: rawWorld.x - elemPos.x,
+            y: rawWorld.y - elemPos.y,
+          };
+        }
       } else {
         floorPlanStore.clearSelection();
       }
@@ -390,16 +499,45 @@ export function EditorCanvas({ unitSystem = "metric" }: { unitSystem?: UnitSyste
     setMousePos(rawWorld);
     floorPlanStore.setSnapPoint(snap);
 
+    // If actively dragging an element, move it in real-time snapped to 0.1m grid
+    if (draggingId) {
+      const targetX = rawWorld.x - dragOffsetRef.current.x;
+      const targetY = rawWorld.y - dragOffsetRef.current.y;
+      const snappedPos = {
+        x: Math.round(targetX / 0.1) * 0.1,
+        y: Math.round(targetY / 0.1) * 0.1,
+      };
+      floorPlanStore.moveElement(draggingId, snappedPos);
+      hasDraggedRef.current = true;
+      return;
+    }
+
     if (tool === "eraser") {
       const hitId = findElementAt(rawWorld, walls, doors, windows, rooms, furniture);
       setHoveredDeleteId(hitId);
     } else if (hoveredDeleteId) {
       setHoveredDeleteId(null);
     }
+
+    if (tool === "select") {
+      const hitId = findElementAt(rawWorld, walls, doors, windows, rooms, furniture);
+      setHoveredElementId(hitId);
+    } else if (hoveredElementId) {
+      setHoveredElementId(null);
+    }
   }
 
   function handleMouseUp() {
     setIsPanning(false);
+    if (draggingId) {
+      // Commit single undo snapshot upon completing drag
+      if (hasDraggedRef.current && dragStartPlanRef.current) {
+        floorPlanStore.commitUndoSnapshot(dragStartPlanRef.current);
+      }
+      setDraggingId(null);
+      dragStartPlanRef.current = null;
+      hasDraggedRef.current = false;
+    }
   }
 
   function handleWheel(e: React.WheelEvent<HTMLCanvasElement>) {
@@ -410,14 +548,38 @@ export function EditorCanvas({ unitSystem = "metric" }: { unitSystem?: UnitSyste
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
     if (e.key === "Escape") {
+      if (pendingFurniture) {
+        floorPlanStore.setPendingFurniture(null);
+      }
       floorPlanStore.finishDrawing();
       floorPlanStore.clearSelection();
     } else if (e.key === "Backspace" || e.key === "Delete") {
       floorPlanStore.deleteSelected();
     } else if (e.key === "r" || e.key === "R") {
+      if (pendingFurniture) {
+        floorPlanStore.rotatePendingFurniture();
+      } else {
+        const selectedFurn = furniture.find((f) => selectedIds.includes(f.id));
+        if (selectedFurn) {
+          floorPlanStore.rotateFurniture(selectedFurn.id);
+        }
+      }
+    } else if (
+      e.key === "ArrowLeft" ||
+      e.key === "ArrowRight" ||
+      e.key === "ArrowUp" ||
+      e.key === "ArrowDown"
+    ) {
       const selectedFurn = furniture.find((f) => selectedIds.includes(f.id));
       if (selectedFurn) {
-        floorPlanStore.rotateFurniture(selectedFurn.id);
+        e.preventDefault();
+        const step = e.shiftKey ? 0.5 : 0.1;
+        let delta: Point = { x: 0, y: 0 };
+        if (e.key === "ArrowLeft") delta = { x: -step, y: 0 };
+        if (e.key === "ArrowRight") delta = { x: step, y: 0 };
+        if (e.key === "ArrowUp") delta = { x: 0, y: -step };
+        if (e.key === "ArrowDown") delta = { x: 0, y: step };
+        floorPlanStore.nudgeFurniture(selectedFurn.id, delta);
       }
     } else if (e.key === "z" && (e.metaKey || e.ctrlKey)) {
       if (e.shiftKey) {
@@ -464,15 +626,38 @@ export function EditorCanvas({ unitSystem = "metric" }: { unitSystem?: UnitSyste
     reader.readAsText(file);
   }
 
+  const cursorClass = isPanning
+    ? "cursor-grabbing"
+    : tool === "eraser"
+    ? "cursor-pointer"
+    : tool === "furniture" && pendingFurniture
+    ? "cursor-crosshair"
+    : draggingId
+    ? "cursor-grabbing"
+    : tool === "select" && hoveredElementId
+    ? "cursor-grab"
+    : tool === "wall" || tool === "door" || tool === "window"
+    ? "cursor-crosshair"
+    : "cursor-default";
+
+  const tooltipText = pendingFurniture
+    ? `🛋️ Click anywhere on canvas to place ${pendingFurniture.tag || pendingFurniture.name}. Press 'R' to rotate, Esc to cancel.`
+    : tool === "wall"
+    ? "Click to place wall points. Press Escape to finish."
+    : tool === "select"
+    ? "Click & drag any item to move. Press 'R' to rotate. Arrow keys to nudge. Backspace to delete."
+    : tool === "eraser"
+    ? "Click any element to delete it."
+    : `Click to place ${tool}. Drag & drop AutoCAD .DXF file directly onto canvas to import.`;
+
   return (
     <div
+      ref={containerRef}
       tabIndex={0}
       onKeyDown={handleKeyDown}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
-      className={`relative h-[500px] w-full overflow-hidden rounded-b-lg bg-[#faf8f4] outline-none ${
-        tool === "eraser" ? "cursor-pointer" : "cursor-crosshair"
-      }`}
+      className={`relative h-[500px] w-full overflow-hidden rounded-b-lg bg-[#faf8f4] outline-none ${cursorClass}`}
     >
       <canvas
         ref={canvasRef}
@@ -483,17 +668,36 @@ export function EditorCanvas({ unitSystem = "metric" }: { unitSystem?: UnitSyste
         className="h-full w-full"
       />
       {/* Help tooltip */}
-      <div className="pointer-events-none absolute bottom-2 left-2 rounded bg-surface/90 px-2 py-1 text-[11px] text-muted border border-border shadow-xs">
-        {tool === "wall"
-          ? "Click to place wall points. Press Escape to finish."
-          : tool === "select"
-          ? "Click item to select. 'R' key to rotate furniture. Backspace to delete."
-          : tool === "eraser"
-          ? "Click any element to delete it."
-          : `Click to place ${tool}. Drag & drop AutoCAD .DXF file directly onto canvas to import.`}
+      <div className="pointer-events-none absolute bottom-2 left-2 rounded bg-surface/90 px-2.5 py-1 text-[11px] text-muted border border-border shadow-xs flex items-center gap-1.5">
+        <span className="text-accent">💡</span>
+        <span>{tooltipText}</span>
       </div>
     </div>
   );
+}
+
+// Helper: get coordinates of an element for drag offset computation
+function getElementPosition(
+  id: string,
+  walls: Wall[],
+  doors: Door[],
+  windows: Window[],
+  rooms: Room[],
+  furniture: FurnitureItem[] = []
+): Point | null {
+  const furn = furniture.find((f) => f.id === id);
+  if (furn) return furn.position;
+  const door = doors.find((d) => d.id === id);
+  if (door) return door.position;
+  const win = windows.find((w) => w.id === id);
+  if (win) return win.position;
+  const room = rooms.find((r) => r.id === id);
+  if (room && room.vertices.length > 0) {
+    const cx = room.vertices.reduce((s, p) => s + p.x, 0) / room.vertices.length;
+    const cy = room.vertices.reduce((s, p) => s + p.y, 0) / room.vertices.length;
+    return { x: cx, y: cy };
+  }
+  return null;
 }
 
 // Helper: hit-test elements on the floorplan

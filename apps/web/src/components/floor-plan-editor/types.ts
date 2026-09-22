@@ -61,6 +61,16 @@ export type FloorPlan = {
   zoom: number;
 };
 
+export type PendingFurniture = {
+  ffeId?: string;
+  name: string;
+  type: "sofa" | "bed" | "table" | "chair" | "credenza" | "wardrobe" | "lamp" | "sanitaryware" | "custom";
+  width: number;
+  depth: number;
+  rotation: number;
+  tag?: string;
+};
+
 export type EditorTool =
   | "select"
   | "wall"
@@ -80,6 +90,8 @@ export type EditorState = {
   drawingPoints: Point[]; // points being placed for current wall/room
   // Hover state for snap feedback
   snapPoint: Point | null;
+  // Active pending furniture item ready to place on canvas
+  pendingFurniture: PendingFurniture | null;
   // Undo/redo
   undoStack: FloorPlan[];
   redoStack: FloorPlan[];

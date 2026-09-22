@@ -1,5 +1,5 @@
 import { useState, useCallback, useSyncExternalStore } from "react";
-import type { FloorPlan, EditorTool, Point, Wall, Door, Window, Room, FurnitureItem } from "../types";
+import type { FloorPlan, EditorTool, Point, Wall, Door, Window, Room, FurnitureItem, PendingFurniture } from "../types";
 
 export interface EditorState {
   tool: EditorTool;
@@ -7,6 +7,7 @@ export interface EditorState {
   selectedIds: string[];
   drawingPoints: Point[];
   snapPoint: Point | null;
+  pendingFurniture: PendingFurniture | null;
   undoStack: FloorPlan[];
   redoStack: FloorPlan[];
 }
@@ -28,6 +29,7 @@ let currentState: EditorState = {
   selectedIds: [],
   drawingPoints: [],
   snapPoint: null,
+  pendingFurniture: null,
   undoStack: [],
   redoStack: [],
 };
@@ -56,7 +58,35 @@ export const floorPlanStore = {
   },
 
   setTool: (tool: EditorTool) => {
-    currentState = { ...currentState, tool, drawingPoints: [], selectedIds: [] };
+    currentState = {
+      ...currentState,
+      tool,
+      drawingPoints: [],
+      selectedIds: tool === "select" ? currentState.selectedIds : [],
+      pendingFurniture: tool === "furniture" ? currentState.pendingFurniture : null,
+    };
+    emitChange();
+  },
+
+  setPendingFurniture: (item: PendingFurniture | null) => {
+    currentState = {
+      ...currentState,
+      pendingFurniture: item,
+      tool: item ? "furniture" : currentState.tool === "furniture" ? "select" : currentState.tool,
+      drawingPoints: [],
+    };
+    emitChange();
+  },
+
+  rotatePendingFurniture: () => {
+    if (!currentState.pendingFurniture) return;
+    currentState = {
+      ...currentState,
+      pendingFurniture: {
+        ...currentState.pendingFurniture,
+        rotation: ((currentState.pendingFurniture.rotation || 0) + 90) % 360,
+      },
+    };
     emitChange();
   },
 
@@ -209,10 +239,122 @@ export const floorPlanStore = {
     currentState = {
       ...updated,
       selectedIds: [newId],
+      tool: "select",
+      pendingFurniture: null,
       floorPlan: {
         ...updated.floorPlan,
         furniture: [...(updated.floorPlan.furniture || []), newItem],
       },
+    };
+    emitChange();
+    return newItem;
+  },
+
+  updateFurniturePosition: (id: string, position: Point) => {
+    currentState = {
+      ...currentState,
+      floorPlan: {
+        ...currentState.floorPlan,
+        furniture: (currentState.floorPlan.furniture || []).map((f) =>
+          f.id === id ? { ...f, position } : f,
+        ),
+      },
+    };
+    emitChange();
+  },
+
+  moveElement: (id: string, newPos: Point) => {
+    const plan = currentState.floorPlan;
+    // 1. Furniture
+    const furnIndex = (plan.furniture || []).findIndex((f) => f.id === id);
+    if (furnIndex !== -1) {
+      const newFurn = [...(plan.furniture || [])];
+      newFurn[furnIndex] = { ...newFurn[furnIndex], position: newPos };
+      currentState = {
+        ...currentState,
+        floorPlan: { ...plan, furniture: newFurn },
+      };
+      emitChange();
+      return;
+    }
+    // 2. Doors
+    const doorIndex = plan.doors.findIndex((d) => d.id === id);
+    if (doorIndex !== -1) {
+      const newDoors = [...plan.doors];
+      newDoors[doorIndex] = { ...newDoors[doorIndex], position: newPos };
+      currentState = {
+        ...currentState,
+        floorPlan: { ...plan, doors: newDoors },
+      };
+      emitChange();
+      return;
+    }
+    // 3. Windows
+    const winIndex = plan.windows.findIndex((w) => w.id === id);
+    if (winIndex !== -1) {
+      const newWins = [...plan.windows];
+      newWins[winIndex] = { ...newWins[winIndex], position: newPos };
+      currentState = {
+        ...currentState,
+        floorPlan: { ...plan, windows: newWins },
+      };
+      emitChange();
+      return;
+    }
+    // 4. Rooms (translate all vertices by delta from previous centroid)
+    const roomIndex = plan.rooms.findIndex((r) => r.id === id);
+    if (roomIndex !== -1) {
+      const room = plan.rooms[roomIndex];
+      if (room.vertices.length > 0) {
+        const cx = room.vertices.reduce((s, p) => s + p.x, 0) / room.vertices.length;
+        const cy = room.vertices.reduce((s, p) => s + p.y, 0) / room.vertices.length;
+        const dx = newPos.x - cx;
+        const dy = newPos.y - cy;
+        const newVertices = room.vertices.map((v) => ({
+          x: Math.round((v.x + dx) * 100) / 100,
+          y: Math.round((v.y + dy) * 100) / 100,
+        }));
+        const newRooms = [...plan.rooms];
+        newRooms[roomIndex] = { ...room, vertices: newVertices };
+        currentState = {
+          ...currentState,
+          floorPlan: { ...plan, rooms: newRooms },
+        };
+        emitChange();
+        return;
+      }
+    }
+  },
+
+  nudgeFurniture: (id: string, delta: Point) => {
+    const furn = (currentState.floorPlan.furniture || []).find((f) => f.id === id);
+    if (!furn) return;
+    const updated = pushUndo(currentState);
+    currentState = {
+      ...updated,
+      floorPlan: {
+        ...updated.floorPlan,
+        furniture: (updated.floorPlan.furniture || []).map((f) =>
+          f.id === id
+            ? {
+                ...f,
+                position: {
+                  x: Math.round((f.position.x + delta.x) * 100) / 100,
+                  y: Math.round((f.position.y + delta.y) * 100) / 100,
+                },
+              }
+            : f,
+        ),
+      },
+    };
+    emitChange();
+  },
+
+  commitUndoSnapshot: (prevPlan: FloorPlan) => {
+    currentState = {
+      ...currentState,
+      undoStack: [...currentState.undoStack.slice(-20), JSON.parse(JSON.stringify(prevPlan))],
+      redoStack: [],
     };
     emitChange();
   },
