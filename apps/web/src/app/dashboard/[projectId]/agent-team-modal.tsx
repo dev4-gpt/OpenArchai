@@ -231,20 +231,27 @@ export const ALL_SPECIALIST_ROLES: {
   },
 ];
 
-export function AgentTeamModal({
+export function AgentTeamPanel({
   projectName,
   region = "india",
   floorAreaSqFt,
   estimatedCost,
   complianceScore,
+  onClose,
+  onToggleExpand,
+  isExpanded = false,
+  isSideBySide = true,
 }: {
   projectName: string;
   region?: "india" | "us";
   floorAreaSqFt?: number;
   estimatedCost?: number;
   complianceScore?: number;
+  onClose?: () => void;
+  onToggleExpand?: () => void;
+  isExpanded?: boolean;
+  isSideBySide?: boolean;
 }) {
-  const [isOpen, setIsOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(false);
   const [messages, setMessages] = useState<AgentMessage[]>([]);
@@ -259,10 +266,8 @@ export function AgentTeamModal({
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (isOpen) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [messages, loading, isOpen]);
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, loading]);
 
   const quickPrompts = [
     "Review this floor plan for spatial flow & circulation",
@@ -378,56 +383,55 @@ export function AgentTeamModal({
   }
 
   return (
-    <>
-      {/* Trigger Button in Dashboard */}
-      <button
-        type="button"
-        onClick={() => setIsOpen(true)}
-        className="flex items-center gap-2 rounded-lg border border-accent/40 bg-accent/10 px-3 py-1.5 text-xs font-semibold text-accent transition-all hover:bg-accent hover:text-accent-foreground shadow-xs"
-      >
-        <span>👥</span>
-        <span>Consult AI Design Team</span>
-      </button>
-
-      {/* Modal / Slide-over */}
-      {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
-          <div className="flex h-[85vh] w-full max-w-3xl flex-col rounded-xl border border-border bg-surface shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-border bg-[#faf8f4] px-5 py-3">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-base">🏛️</span>
-                  <h2 className="text-sm font-bold text-foreground">
-                    PDCO AI Architectural Studio Team
-                  </h2>
-                  <span className="rounded bg-accent/10 px-1.5 py-0.5 text-[10px] font-semibold text-accent border border-accent/20">
-                    {selectedRoles.length} Specialists Active
-                  </span>
-                </div>
-                <p className="text-xs text-muted">
-                  Collaborative multi-agent review for {projectName} ({region === "india" ? "Gurgaon NCR / NBC 2016" : "US / IBC & ADA"}).
-                </p>
-              </div>
-              <div className="flex items-center gap-3">
-                {messages.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setMessages([])}
-                    className="text-[11px] text-muted hover:text-foreground underline underline-offset-2 transition-colors"
-                  >
-                    Reset Chat
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setIsOpen(false)}
-                  className="rounded-lg p-1.5 text-muted hover:text-foreground text-sm transition-colors"
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
+    <div className="flex h-full w-full flex-col bg-surface overflow-hidden">
+      {/* Panel Header */}
+      <div className="flex items-center justify-between border-b border-border bg-[#faf8f4] px-4 py-3 shrink-0">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="text-base">🏛️</span>
+            <h2 className="text-sm font-bold text-foreground">
+              PDCO AI Studio Team
+            </h2>
+            <span className="rounded bg-accent/10 px-1.5 py-0.5 text-[10px] font-semibold text-accent border border-accent/20">
+              {selectedRoles.length} Specialists
+            </span>
+          </div>
+          <p className="text-[11px] text-muted truncate max-w-[240px] sm:max-w-md">
+            Collaborative multi-agent review for {projectName} ({region === "india" ? "Gurgaon NCR / NBC 2016" : "US / IBC & ADA"}).
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {messages.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setMessages([])}
+              className="text-[11px] text-muted hover:text-foreground underline underline-offset-2 transition-colors"
+            >
+              Reset
+            </button>
+          )}
+          {onToggleExpand && (
+            <button
+              type="button"
+              onClick={onToggleExpand}
+              className="rounded-lg p-1.5 text-muted hover:text-foreground text-xs transition-colors hover:bg-border/40"
+              title={isExpanded ? "Restore side-by-side view" : "Maximize chat window"}
+            >
+              {isExpanded ? "❐" : "⛶"}
+            </button>
+          )}
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg p-1.5 text-muted hover:text-foreground text-sm transition-colors hover:bg-border/40"
+              title="Close chat panel"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+      </div>
 
             {/* Specialist Selector Bar & Skills Directory Toggle */}
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-surface px-5 py-2.5 text-xs">
@@ -903,9 +907,44 @@ export function AgentTeamModal({
                   : `Consult (${selectedRoles.length})`}
               </Button>
             </div>
+    </div>
+  );
+}
+
+export function AgentTeamModal(props: {
+  projectName: string;
+  region?: "india" | "us";
+  floorAreaSqFt?: number;
+  estimatedCost?: number;
+  complianceScore?: number;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <>
+      {/* Trigger Button */}
+      <button
+        type="button"
+        onClick={() => setIsOpen(true)}
+        className="flex items-center gap-2 rounded-lg border border-accent/40 bg-accent/10 px-3 py-1.5 text-xs font-semibold text-accent transition-all hover:bg-accent hover:text-accent-foreground shadow-xs"
+      >
+        <span>👥</span>
+        <span>Consult AI Design Team</span>
+      </button>
+
+      {/* Slide-over / Modal Overlay */}
+      {isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
+          <div className="flex h-[85vh] w-full max-w-3xl flex-col rounded-xl border border-border bg-surface shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <AgentTeamPanel
+              {...props}
+              onClose={() => setIsOpen(false)}
+              isSideBySide={false}
+            />
           </div>
         </div>
       )}
     </>
   );
 }
+

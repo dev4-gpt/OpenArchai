@@ -17,6 +17,7 @@ import { CompliancePanel } from "./compliance-panel";
 import { AgentTeamModal } from "./agent-team-modal";
 import { FFESchedulePanel } from "@/components/ffe/ffe-schedule-panel";
 import { MoodboardTrigger } from "@/components/moodboard/moodboard-modal";
+import { ProjectSplitWorkspace } from "./project-split-workspace";
 import type { ConstructionElements } from "@/components/floor-plan-editor/export/to-elements";
 import type { UnitSystem } from "@/lib/units";
 
@@ -84,38 +85,11 @@ export default async function ProjectPage({
 
   return (
     <VoiceProvider>
-      <div className="mx-auto max-w-2xl space-y-8">
-        <div className="flex items-center justify-between">
-          <div className="space-y-1">
-            <Link href="/dashboard" className="text-xs text-muted hover:text-foreground">
-              ← Projects
-            </Link>
-            <div className="flex items-center gap-2">
-              <h1 className="text-lg font-semibold tracking-tight">{project.name}</h1>
-              <span className="rounded border border-border bg-surface px-1.5 py-0.5 text-[10px] font-medium text-muted">
-                {region === "india" ? "🇮🇳 India (NBC)" : "🇺🇸 US (IBC)"}
-              </span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Link
-              href={`/dashboard/${project.id}/presentation`}
-              className="flex items-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-foreground hover:border-accent/40 shadow-xs transition-colors"
-            >
-              <span>🖥️</span>
-              <span>Presentation</span>
-            </Link>
-
-            <MoodboardTrigger />
-
-            <AgentTeamModal
-              projectName={project.name}
-              region={region}
-            />
-          </div>
-        </div>
-
+      <ProjectSplitWorkspace
+        projectName={project.name}
+        region={region}
+        presentationHref={`/dashboard/${project.id}/presentation`}
+      >
         {/* Interactive 2D Floor Plan Studio */}
         <div className="space-y-2">
           <EditorTab projectId={project.id} unitSystem={unitSystem} />
@@ -193,7 +167,7 @@ export default async function ProjectPage({
         {/* Voice AI Floating Controls */}
         <VoiceButton />
         <CommandHistory />
-      </div>
+      </ProjectSplitWorkspace>
     </VoiceProvider>
   );
 }

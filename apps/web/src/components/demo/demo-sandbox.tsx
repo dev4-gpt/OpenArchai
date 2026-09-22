@@ -7,7 +7,7 @@ import { floorPlanStore } from "@/components/floor-plan-editor/state/floor-plan-
 import { ModelViewer } from "@/components/model-viewer";
 import { CompliancePanel } from "@/app/dashboard/[projectId]/compliance-panel";
 import { CostPanel } from "@/app/dashboard/[projectId]/cost-panel";
-import { AgentTeamModal } from "@/app/dashboard/[projectId]/agent-team-modal";
+import { AgentTeamPanel } from "@/app/dashboard/[projectId]/agent-team-modal";
 import { VoiceProvider } from "@/components/voice-assistant/voice-provider";
 import { VoiceButton } from "@/components/voice-assistant/voice-button";
 import { CommandHistory } from "@/components/voice-assistant/command-history";
@@ -26,6 +26,9 @@ export function DemoSandbox({ demoData }: { demoData: DemoProjectData }) {
   const [selectedStyle, setSelectedStyle] = useState<string>(
     "Gurgaon luxury apartment, Italian marble floors, warm LED recessed lighting"
   );
+
+  const [isTeamChatOpen, setIsTeamChatOpen] = useState(true);
+  const [isChatMaximized, setIsChatMaximized] = useState(false);
 
   // Initialize the 2D floor plan editor with the demo studio apartment
   useEffect(() => {
@@ -85,9 +88,15 @@ export function DemoSandbox({ demoData }: { demoData: DemoProjectData }) {
           </div>
         </header>
 
-        <main className="mx-auto max-w-2xl space-y-8 px-4 pt-6">
+        <main
+          className={`mx-auto transition-all duration-300 pt-6 px-4 ${
+            isTeamChatOpen
+              ? "w-full max-w-[1800px] lg:px-6"
+              : "max-w-4xl"
+          }`}
+        >
           {/* Project Header */}
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between pb-4 mb-4 border-b border-border/60">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
                 <h1 className="text-lg font-semibold tracking-tight">{demoData.project.name}</h1>
@@ -116,12 +125,32 @@ export function DemoSandbox({ demoData }: { demoData: DemoProjectData }) {
                 onApplyPrompt={(prompt) => setSelectedStyle(prompt)}
               />
 
-              <AgentTeamModal
-                projectName={demoData.project.name}
-                region={demoData.project.region}
-              />
+              {/* Side-by-Side Team Studio Toggle Button */}
+              <button
+                type="button"
+                onClick={() => setIsTeamChatOpen((prev) => !prev)}
+                className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all shadow-xs ${
+                  isTeamChatOpen
+                    ? "border border-accent bg-accent text-accent-foreground font-bold ring-2 ring-accent/20"
+                    : "border border-accent/40 bg-accent/10 text-accent hover:bg-accent hover:text-accent-foreground"
+                }`}
+                title={isTeamChatOpen ? "Close side-by-side team chat" : "Open side-by-side team chat extension"}
+              >
+                <span>{isTeamChatOpen ? "✕" : "👥"}</span>
+                <span>{isTeamChatOpen ? "Close Team Studio" : "Consult AI Team (Side-by-Side)"}</span>
+              </button>
             </div>
           </div>
+
+          <div
+            className={`w-full transition-all duration-300 ${
+              isTeamChatOpen
+                ? "grid grid-cols-1 lg:grid-cols-2 gap-6 items-start"
+                : "space-y-8"
+            }`}
+          >
+            {/* Left Half: Project Section */}
+            <div className="w-full space-y-8 min-w-0">
 
           {/* Section 1: 2D Floor Plan Studio */}
           <div className="space-y-2">
@@ -271,7 +300,28 @@ export function DemoSandbox({ demoData }: { demoData: DemoProjectData }) {
               </Link>
             </div>
           </div>
-        </main>
+        </div>
+
+        {/* Right Half: AI Architectural Studio Team Chat (Docked Side-by-Side) */}
+        {isTeamChatOpen && (
+          <div
+            className={`w-full min-w-0 transition-all duration-300 ${
+              isChatMaximized
+                ? "fixed inset-4 z-50 rounded-2xl shadow-2xl bg-surface border border-border flex flex-col"
+                : "lg:sticky lg:top-4 lg:h-[calc(100vh-2rem)] flex flex-col rounded-xl border border-border bg-surface shadow-xl overflow-hidden animate-in slide-in-from-right-4 duration-200"
+            }`}
+          >
+            <AgentTeamPanel
+              projectName={demoData.project.name}
+              region={demoData.project.region}
+              onClose={() => setIsTeamChatOpen(false)}
+              onToggleExpand={() => setIsChatMaximized((prev) => !prev)}
+              isExpanded={isChatMaximized}
+            />
+          </div>
+        )}
+      </div>
+    </main>
 
         {/* Floating Voice AI Controls */}
         <VoiceButton />
