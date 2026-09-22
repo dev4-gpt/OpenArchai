@@ -194,6 +194,43 @@ const AGENT_SKILLS_DIRECTORY: AgentSkillProfile[] = [
   },
 ];
 
+export const ALL_SPECIALIST_ROLES: {
+  id: AgentRole;
+  label: string;
+  name: string;
+  avatar: string;
+  title: string;
+}[] = [
+  {
+    id: "chief_architect",
+    label: "Lead Architect",
+    name: "Vikram Mehta",
+    avatar: "📐",
+    title: "Lead Architectural Principal",
+  },
+  {
+    id: "code_specialist",
+    label: "Code & Vastu",
+    name: "Ananya Sharma",
+    avatar: "📜",
+    title: "Code & Statutory Specialist",
+  },
+  {
+    id: "interior_designer",
+    label: "Interiors & Finishes",
+    name: "Rohan Varma",
+    avatar: "🎨",
+    title: "Senior Interior & Material Architect",
+  },
+  {
+    id: "cost_estimator",
+    label: "Cost & QS",
+    name: "Sunil Bajaj",
+    avatar: "📊",
+    title: "Chief Quantity Surveyor & Cost Estimator",
+  },
+];
+
 export function AgentTeamModal({
   projectName,
   region = "india",
@@ -234,9 +271,15 @@ export function AgentTeamModal({
     "Recommend a contemporary Indian luxury material palette",
   ];
 
-  async function handleConsult(queryToRun?: string) {
+  async function handleConsult(queryToRun?: string, overrideRoles?: AgentRole[]) {
     const q = queryToRun || prompt;
     if (!q.trim() || loading) return;
+
+    const rolesToUse = overrideRoles && overrideRoles.length > 0 ? overrideRoles : selectedRoles;
+    if (rolesToUse.length === 0) {
+      alert("Please select at least 1 specialist agent to consult.");
+      return;
+    }
 
     // 1. Add User's Question directly to conversation
     const userMsg: AgentMessage = {
@@ -269,7 +312,7 @@ export function AgentTeamModal({
         body: JSON.stringify({
           prompt: q,
           context,
-          roles: selectedRoles,
+          roles: rolesToUse,
         }),
       });
 
@@ -316,12 +359,22 @@ export function AgentTeamModal({
 
   function toggleRole(role: AgentRole) {
     if (selectedRoles.includes(role)) {
-      if (selectedRoles.length > 1) {
-        setSelectedRoles(selectedRoles.filter((r) => r !== role));
-      }
+      setSelectedRoles(selectedRoles.filter((r) => r !== role));
     } else {
       setSelectedRoles([...selectedRoles, role]);
     }
+  }
+
+  function selectSolo(role: AgentRole) {
+    setSelectedRoles([role]);
+  }
+
+  function selectAll() {
+    setSelectedRoles(["chief_architect", "code_specialist", "interior_designer", "cost_estimator"]);
+  }
+
+  function selectPair(r1: AgentRole, r2: AgentRole) {
+    setSelectedRoles([r1, r2]);
   }
 
   return (
@@ -377,36 +430,95 @@ export function AgentTeamModal({
             </div>
 
             {/* Specialist Selector Bar & Skills Directory Toggle */}
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-surface px-5 py-2 text-xs">
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-muted text-[11px] font-medium mr-1">Consulting:</span>
-                {(
-                  [
-                    { id: "chief_architect", label: "Lead Architect", icon: "📐" },
-                    { id: "code_specialist", label: "Code & Vastu", icon: "📜" },
-                    { id: "interior_designer", label: "Interiors & Finishes", icon: "🎨" },
-                    { id: "cost_estimator", label: "Cost & QS", icon: "📊" },
-                  ] as const
-                ).map((r) => {
-                  const active = selectedRoles.includes(r.id);
-                  return (
-                    <button
-                      key={r.id}
-                      type="button"
-                      onClick={() => toggleRole(r.id)}
-                      className={`flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] transition-colors border ${
-                        active
-                          ? "border-accent bg-accent/10 text-accent font-semibold"
-                          : "border-border text-muted hover:text-foreground opacity-60"
-                      }`}
-                    >
-                      <span>{r.icon}</span>
-                      <span>{r.label}</span>
-                    </button>
-                  );
-                })}
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-surface px-5 py-2.5 text-xs">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-foreground text-[11px] font-bold flex items-center gap-1">
+                  <span>👥</span> Responding:
+                </span>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {ALL_SPECIALIST_ROLES.map((r) => {
+                    const active = selectedRoles.includes(r.id);
+                    return (
+                      <div
+                        key={r.id}
+                        className={`inline-flex items-center rounded-lg border text-[11px] transition-all overflow-hidden ${
+                          active
+                            ? "border-accent bg-accent/10 shadow-2xs"
+                            : "border-border bg-[#faf8f4] opacity-60 hover:opacity-100 hover:border-border/80"
+                        }`}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => toggleRole(r.id)}
+                          className={`flex items-center gap-1.5 px-2.5 py-1 transition-colors ${
+                            active
+                              ? "text-accent font-bold"
+                              : "text-muted hover:text-foreground"
+                          }`}
+                          title={active ? `Deselect ${r.name}` : `Select ${r.name}`}
+                        >
+                          <span className="font-mono text-xs">{active ? "☑" : "☐"}</span>
+                          <span>{r.avatar}</span>
+                          <span>{r.name}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => selectSolo(r.id)}
+                          className={`border-l px-1.5 py-1 text-[9px] font-bold uppercase transition-colors ${
+                            active
+                              ? "border-accent/30 text-accent/70 hover:bg-accent/20 hover:text-accent"
+                              : "border-border text-muted hover:bg-surface hover:text-foreground"
+                          }`}
+                          title={`Select ONLY ${r.name}`}
+                        >
+                          Solo
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-              <div className="flex items-center gap-2">
+
+              {/* Quick Preset Buttons & Matrix Toggle */}
+              <div className="flex items-center gap-1.5">
+                <div className="hidden sm:flex items-center gap-1 border-r border-border pr-2 mr-1 text-[10px]">
+                  <button
+                    type="button"
+                    onClick={selectAll}
+                    className={`rounded px-1.5 py-0.5 font-semibold transition-colors ${
+                      selectedRoles.length === 4
+                        ? "bg-accent/15 text-accent font-bold"
+                        : "text-muted hover:text-foreground hover:bg-border/40"
+                    }`}
+                  >
+                    All 4
+                  </button>
+                  <span className="text-muted/40">•</span>
+                  <button
+                    type="button"
+                    onClick={() => selectPair("chief_architect", "interior_designer")}
+                    className={`rounded px-1.5 py-0.5 font-semibold transition-colors ${
+                      selectedRoles.length === 2 && selectedRoles.includes("chief_architect") && selectedRoles.includes("interior_designer")
+                        ? "bg-accent/15 text-accent font-bold"
+                        : "text-muted hover:text-foreground hover:bg-border/40"
+                    }`}
+                  >
+                    Design Pair
+                  </button>
+                  <span className="text-muted/40">•</span>
+                  <button
+                    type="button"
+                    onClick={() => selectPair("code_specialist", "cost_estimator")}
+                    className={`rounded px-1.5 py-0.5 font-semibold transition-colors ${
+                      selectedRoles.length === 2 && selectedRoles.includes("code_specialist") && selectedRoles.includes("cost_estimator")
+                        ? "bg-accent/15 text-accent font-bold"
+                        : "text-muted hover:text-foreground hover:bg-border/40"
+                    }`}
+                  >
+                    Code & Cost
+                  </button>
+                </div>
+
                 <button
                   type="button"
                   onClick={() => setShowSkillsMatrix((prev) => !prev)}
@@ -417,7 +529,7 @@ export function AgentTeamModal({
                   }`}
                 >
                   <span>📋</span>
-                  <span>{showSkillsMatrix ? "Hide Skills Matrix" : "Co-Worker Skills Matrix"}</span>
+                  <span>{showSkillsMatrix ? "Close Matrix" : "Skills Matrix"}</span>
                 </button>
               </div>
             </div>
@@ -434,71 +546,110 @@ export function AgentTeamModal({
                       Directly grounded in Abhinavbwj/Skills-Architects, AlpacaLabs, and MeltFlex engineering frameworks.
                     </p>
                   </div>
-                  <span className="text-[10px] font-mono text-accent font-bold">4 Active Specialists</span>
+                  <span className="text-[10px] font-mono text-accent font-bold">
+                    {selectedRoles.length} of 4 Specialists Selected
+                  </span>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {AGENT_SKILLS_DIRECTORY.map((profile) => (
-                    <div
-                      key={profile.role}
-                      className="rounded-xl border border-border bg-surface p-3 text-xs space-y-2 shadow-2xs hover:border-accent/40 transition-all"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xl p-1 rounded-lg bg-accent/10 border border-accent/20">
-                            {profile.avatar}
-                          </span>
-                          <div>
-                            <h4 className="font-bold text-foreground text-xs">{profile.name}</h4>
-                            <p className="text-[10px] text-accent font-medium">{profile.title}</p>
-                          </div>
-                        </div>
-                        <span className="text-[9px] text-muted bg-[#faf8f4] border border-border px-1.5 py-0.5 rounded">
-                          {profile.experience}
-                        </span>
-                      </div>
-
-                      {/* Specific Skills */}
-                      <div className="space-y-1">
-                        <span className="text-[9px] font-bold uppercase text-muted tracking-wider">Specific Skills:</span>
-                        <ul className="space-y-0.5">
-                          {profile.coreSkills.map((skill, sIdx) => (
-                            <li key={sIdx} className="text-[10px] text-foreground flex items-start gap-1.5 leading-tight">
-                              <span className="text-accent font-bold">•</span>
-                              <span>{skill}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-
-                      {/* Standards */}
-                      <div className="flex flex-wrap items-center gap-1 pt-1 border-t border-border/60">
-                        <span className="text-[9px] text-muted font-bold">Standards:</span>
-                        {profile.keyStandards.map((std, idx) => (
-                          <span
-                            key={idx}
-                            className="rounded bg-[#f5f2ec] px-1.5 py-0.5 text-[9px] font-medium text-foreground border border-border/70"
-                          >
-                            {std}
-                          </span>
-                        ))}
-                      </div>
-
-                      {/* Quick Action */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedRoles([profile.role]);
-                          handleConsult(profile.sampleQuestion);
-                          setShowSkillsMatrix(false);
-                        }}
-                        className="w-full rounded-lg border border-accent/30 bg-accent/5 p-1.5 text-left text-[10px] text-accent hover:bg-accent/15 transition-colors flex items-center justify-between font-medium"
+                  {AGENT_SKILLS_DIRECTORY.map((profile) => {
+                    const isSelected = selectedRoles.includes(profile.role);
+                    return (
+                      <div
+                        key={profile.role}
+                        className={`rounded-xl border p-3 text-xs space-y-2 shadow-2xs transition-all ${
+                          isSelected
+                            ? "border-accent/60 bg-surface shadow-xs"
+                            : "border-border bg-surface/70 opacity-80 hover:opacity-100"
+                        }`}
                       >
-                        <span className="truncate">💡 Ask: &ldquo;{profile.sampleQuestion}&rdquo;</span>
-                        <span className="font-bold text-xs pl-1">➔</span>
-                      </button>
-                    </div>
-                  ))}
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xl p-1 rounded-lg bg-accent/10 border border-accent/20">
+                              {profile.avatar}
+                            </span>
+                            <div>
+                              <h4 className="font-bold text-foreground text-xs flex items-center gap-1.5">
+                                <span>{profile.name}</span>
+                                <span className={`text-[9px] px-1 py-0.2 rounded font-mono ${
+                                  isSelected ? "bg-accent/15 text-accent font-bold" : "bg-border text-muted"
+                                }`}>
+                                  {isSelected ? "Active" : "Off"}
+                                </span>
+                              </h4>
+                              <p className="text-[10px] text-accent font-medium">{profile.title}</p>
+                            </div>
+                          </div>
+                          <span className="text-[9px] text-muted bg-[#faf8f4] border border-border px-1.5 py-0.5 rounded">
+                            {profile.experience}
+                          </span>
+                        </div>
+
+                        {/* Specific Skills */}
+                        <div className="space-y-1">
+                          <span className="text-[9px] font-bold uppercase text-muted tracking-wider">Specific Skills:</span>
+                          <ul className="space-y-0.5">
+                            {profile.coreSkills.map((skill, sIdx) => (
+                              <li key={sIdx} className="text-[10px] text-foreground flex items-start gap-1.5 leading-tight">
+                                <span className="text-accent font-bold">•</span>
+                                <span>{skill}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+
+                        {/* Standards */}
+                        <div className="flex flex-wrap items-center gap-1 pt-1 border-t border-border/60">
+                          <span className="text-[9px] text-muted font-bold">Standards:</span>
+                          {profile.keyStandards.map((std, idx) => (
+                            <span
+                              key={idx}
+                              className="rounded bg-[#f5f2ec] px-1.5 py-0.5 text-[9px] font-medium text-foreground border border-border/70"
+                            >
+                              {std}
+                            </span>
+                          ))}
+                        </div>
+
+                        {/* Selection Toggles & Sample Question */}
+                        <div className="pt-2 border-t border-border/60 flex items-center justify-between gap-1.5">
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => toggleRole(profile.role)}
+                              className={`flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-bold transition-all border ${
+                                isSelected
+                                  ? "border-accent bg-accent text-accent-foreground shadow-xs"
+                                  : "border-border bg-[#faf8f4] text-muted hover:text-foreground"
+                              }`}
+                            >
+                              <span>{isSelected ? "☑ Active" : "☐ Select"}</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => selectSolo(profile.role)}
+                              className="rounded-md border border-border bg-[#faf8f4] px-1.5 py-1 text-[9px] font-medium text-muted hover:text-foreground hover:bg-surface"
+                              title={`Select only ${profile.name}`}
+                            >
+                              Solo
+                            </button>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedRoles([profile.role]);
+                              handleConsult(profile.sampleQuestion, [profile.role]);
+                              setShowSkillsMatrix(false);
+                            }}
+                            className="rounded-md border border-accent/30 bg-accent/5 px-2 py-1 text-[10px] text-accent hover:bg-accent hover:text-accent-foreground transition-colors font-medium truncate max-w-[160px]"
+                            title={`Run sample prompt: ${profile.sampleQuestion}`}
+                          >
+                            💡 Run Sample ➔
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -521,37 +672,75 @@ export function AgentTeamModal({
 
                   {/* 4 Agent Skills Cards in Empty State */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-w-2xl w-full pt-1">
-                    {AGENT_SKILLS_DIRECTORY.map((profile) => (
-                      <div
-                        key={profile.role}
-                        className="rounded-xl border border-border bg-[#faf8f4] p-3 text-left space-y-2 hover:border-accent/40 transition-all"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span className="text-lg">{profile.avatar}</span>
-                            <div>
-                              <p className="text-xs font-bold text-foreground leading-tight">{profile.name}</p>
-                              <p className="text-[10px] text-accent font-medium">{profile.title}</p>
+                    {AGENT_SKILLS_DIRECTORY.map((profile) => {
+                      const isSelected = selectedRoles.includes(profile.role);
+                      return (
+                        <div
+                          key={profile.role}
+                          onClick={() => toggleRole(profile.role)}
+                          className={`rounded-xl border p-3 text-left space-y-2 transition-all cursor-pointer ${
+                            isSelected
+                              ? "border-accent bg-accent/5 shadow-xs"
+                              : "border-border bg-[#faf8f4] opacity-75 hover:opacity-100 hover:border-border/80"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className="text-lg">{profile.avatar}</span>
+                              <div>
+                                <p className="text-xs font-bold text-foreground leading-tight flex items-center gap-1.5">
+                                  <span>{profile.name}</span>
+                                  <span
+                                    className={`text-[9px] font-mono px-1 py-0.2 rounded font-semibold ${
+                                      isSelected
+                                        ? "bg-accent/20 text-accent font-bold"
+                                        : "bg-border text-muted"
+                                    }`}
+                                  >
+                                    {isSelected ? "☑ Active" : "☐ Off"}
+                                  </span>
+                                </p>
+                                <p className="text-[10px] text-accent font-medium">{profile.title}</p>
+                              </div>
+                            </div>
+                            <div
+                              className="flex items-center gap-1"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <button
+                                type="button"
+                                onClick={() => selectSolo(profile.role)}
+                                className={`rounded px-1.5 py-0.5 text-[9px] font-bold border transition-colors ${
+                                  selectedRoles.length === 1 && selectedRoles[0] === profile.role
+                                    ? "border-accent bg-accent text-accent-foreground"
+                                    : "border-border bg-surface text-muted hover:text-foreground"
+                                }`}
+                                title={`Consult only ${profile.name}`}
+                              >
+                                Solo
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedRoles([profile.role]);
+                                  handleConsult(profile.sampleQuestion, [profile.role]);
+                                }}
+                                className="rounded bg-accent/10 px-2 py-1 text-[10px] font-bold text-accent hover:bg-accent hover:text-accent-foreground transition-colors"
+                              >
+                                Ask ➔
+                              </button>
                             </div>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedRoles([profile.role]);
-                              handleConsult(profile.sampleQuestion);
-                            }}
-                            className="rounded bg-accent/10 px-2 py-1 text-[10px] font-bold text-accent hover:bg-accent hover:text-accent-foreground transition-colors"
-                          >
-                            Consult ➔
-                          </button>
+                          <div className="space-y-0.5 text-[10px] text-muted">
+                            {profile.coreSkills.slice(0, 3).map((sk, idx) => (
+                              <p key={idx} className="truncate">
+                                • {sk}
+                              </p>
+                            ))}
+                          </div>
                         </div>
-                        <div className="space-y-0.5 text-[10px] text-muted">
-                          {profile.coreSkills.slice(0, 3).map((sk, idx) => (
-                            <p key={idx} className="truncate">• {sk}</p>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
 
                   {/* Quick Prompts */}
@@ -561,7 +750,7 @@ export function AgentTeamModal({
                         key={qp}
                         type="button"
                         onClick={() => handleConsult(qp)}
-                        disabled={loading}
+                        disabled={loading || selectedRoles.length === 0}
                         className="rounded-lg border border-border bg-surface p-2 text-left text-xs text-foreground hover:border-accent/50 hover:bg-accent/5 transition-colors disabled:opacity-50 flex items-center gap-1.5"
                       >
                         <span>💡</span>
@@ -625,6 +814,55 @@ export function AgentTeamModal({
               <div ref={messagesEndRef} />
             </div>
 
+            {/* Active Specialist Bar directly above Input */}
+            <div className="border-t border-border bg-[#faf8f4] px-4 py-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[11px] font-bold text-foreground flex items-center gap-1">
+                  <span>💬</span> Responding Specialists:
+                </span>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {ALL_SPECIALIST_ROLES.map((r) => {
+                    const isSelected = selectedRoles.includes(r.id);
+                    return (
+                      <button
+                        key={r.id}
+                        type="button"
+                        onClick={() => toggleRole(r.id)}
+                        className={`flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-medium transition-all border ${
+                          isSelected
+                            ? "border-accent bg-accent text-accent-foreground font-bold shadow-xs"
+                            : "border-border/80 bg-surface text-muted hover:text-foreground"
+                        }`}
+                        title={isSelected ? `Click to deselect ${r.name}` : `Click to select ${r.name}`}
+                      >
+                        <span>{isSelected ? "☑" : "☐"}</span>
+                        <span>{r.avatar}</span>
+                        <span>{r.name.split(" ")[0]}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="flex items-center gap-2 text-[10px]">
+                {selectedRoles.length === 0 ? (
+                  <span className="text-red-500 font-bold animate-pulse">
+                    ⚠️ 0 agents selected! Pick at least 1 agent
+                  </span>
+                ) : (
+                  <span className="text-muted font-medium">
+                    {selectedRoles.length} of 4 selected
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={selectAll}
+                  className="text-accent underline font-semibold hover:text-accent/80"
+                >
+                  Select All
+                </button>
+              </div>
+            </div>
+
             {/* Input Footer */}
             <div className="border-t border-border bg-surface p-3 flex gap-2">
               <Input
@@ -634,10 +872,18 @@ export function AgentTeamModal({
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
-                    handleConsult();
+                    if (selectedRoles.length > 0) {
+                      handleConsult();
+                    }
                   }
                 }}
-                placeholder="Ask the team (e.g., 'How can we maximize Vastu alignment while maintaining contemporary aesthetics?')"
+                placeholder={
+                  selectedRoles.length === 0
+                    ? "Please select at least 1 specialist agent above..."
+                    : `Ask ${selectedRoles
+                        .map((r) => ALL_SPECIALIST_ROLES.find((x) => x.id === r)?.name.split(" ")[0])
+                        .join(", ")}...`
+                }
                 disabled={loading}
                 className="text-xs"
               />
@@ -645,10 +891,16 @@ export function AgentTeamModal({
                 type="button"
                 variant="primary"
                 size="sm"
-                disabled={loading || !prompt.trim()}
+                disabled={loading || !prompt.trim() || selectedRoles.length === 0}
                 onClick={() => handleConsult()}
               >
-                {loading ? "Thinking…" : "Consult"}
+                {loading
+                  ? "Thinking…"
+                  : selectedRoles.length === 0
+                  ? "Select Agent"
+                  : selectedRoles.length === 4
+                  ? "Consult All (4)"
+                  : `Consult (${selectedRoles.length})`}
               </Button>
             </div>
           </div>
