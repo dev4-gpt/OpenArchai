@@ -394,6 +394,7 @@ export function DemoSandbox({ demoData }: { demoData: DemoProjectData }) {
             }`}
           >
             <AgentTeamPanel
+              projectId="demo-sandbox"
               projectName={demoData.project.name}
               region={demoData.project.region}
               onClose={() => setIsTeamChatOpen(false)}

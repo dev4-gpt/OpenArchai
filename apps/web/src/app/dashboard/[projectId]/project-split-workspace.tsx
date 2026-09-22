@@ -6,6 +6,7 @@ import { MoodboardTrigger } from "@/components/moodboard/moodboard-modal";
 import { AgentTeamPanel } from "./agent-team-modal";
 
 export function ProjectSplitWorkspace({
+  projectId,
   projectName,
   region,
   presentationHref,
@@ -14,6 +15,7 @@ export function ProjectSplitWorkspace({
   complianceScore,
   children,
 }: {
+  projectId?: string;
   projectName: string;
   region: "india" | "us";
   presentationHref: string;
@@ -98,6 +100,7 @@ export function ProjectSplitWorkspace({
             }`}
           >
             <AgentTeamPanel
+              projectId={projectId}
               projectName={projectName}
               region={region}
               floorAreaSqFt={floorAreaSqFt}

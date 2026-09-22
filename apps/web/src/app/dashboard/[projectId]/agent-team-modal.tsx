@@ -454,6 +454,7 @@ export const ALL_SPECIALIST_ROLES: {
 ];
 
 export function AgentTeamPanel({
+  projectId,
   projectName,
   region = "india",
   floorAreaSqFt,
@@ -468,6 +469,7 @@ export function AgentTeamPanel({
   onRecalculateBoq,
   onAuditCompliance,
 }: {
+  projectId?: string;
   projectName: string;
   region?: "india" | "us";
   floorAreaSqFt?: number;
@@ -482,9 +484,11 @@ export function AgentTeamPanel({
   onRecalculateBoq?: (payload: string) => void;
   onAuditCompliance?: (payload: string) => void;
 }) {
+  const storageKey = `atelier_agent_chat_${projectId || projectName.toLowerCase().replace(/[^a-z0-9]/g, "_") || "demo"}`;
   const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(false);
   const [messages, setMessages] = useState<AgentMessage[]>([]);
+  const [isLoaded, setIsLoaded] = useState(false);
   const [showSkillsMatrix, setShowSkillsMatrix] = useState(false);
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
   const [selectedRoles, setSelectedRoles] = useState<AgentRole[]>([
@@ -496,9 +500,81 @@ export function AgentTeamPanel({
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
+  // Load chat history from localStorage on client mount
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setMessages(parsed);
+        }
+      }
+    } catch (err) {
+      console.warn("Failed to load saved chat history:", err);
+    } finally {
+      setIsLoaded(true);
+    }
+  }, [storageKey]);
+
+  // Persist chat history whenever messages change (after initial hydration)
+  useEffect(() => {
+    if (typeof window === "undefined" || !isLoaded) return;
+    try {
+      if (messages.length > 0) {
+        localStorage.setItem(storageKey, JSON.stringify(messages));
+      } else {
+        localStorage.removeItem(storageKey);
+      }
+    } catch (err) {
+      console.warn("Failed to save chat history to localStorage:", err);
+    }
+  }, [messages, storageKey, isLoaded]);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
+
+  function handleClearChat() {
+    if (window.confirm("Are you sure you want to clear this architectural consultation history?")) {
+      setMessages([]);
+      try {
+        localStorage.removeItem(storageKey);
+      } catch (err) {
+        console.warn("Failed to clear chat from localStorage:", err);
+      }
+      setActionFeedback("🧹 Consultation history cleared.");
+    }
+  }
+
+  function handleExportChat() {
+    if (messages.length === 0) return;
+    const dateStr = new Date().toISOString().split("T")[0];
+    let md = `# AtelierOS Architectural Consultation Dossier\n\n`;
+    md += `**Project:** ${projectName}\n`;
+    md += `**Region:** ${region === "india" ? "India (NBC 2016 / Vastu Shastra)" : "US (IBC 2024 / ADA)"}\n`;
+    md += `**Generated:** ${new Date().toLocaleString()}\n\n---\n\n`;
+
+    for (const msg of messages) {
+      if ((msg.role as string) === "user") {
+        md += `### 👤 You (Project Architect) - ${msg.timestamp}\n\n${msg.content}\n\n---\n\n`;
+      } else {
+        md += `### ${msg.avatar} ${msg.name} (${msg.title}) - ${msg.timestamp}\n\n${msg.content}\n\n---\n\n`;
+      }
+    }
+
+    const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${projectName.toLowerCase().replace(/[^a-z0-9]/g, "_")}_consultation_${dateStr}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    setActionFeedback("📥 Consultation dossier exported successfully as Markdown.");
+  }
 
   function handleExecuteAction(action: ParsedAction) {
     const actId = (action.actionId || "").toLowerCase().trim();
@@ -655,26 +731,46 @@ export function AgentTeamPanel({
             <span className="rounded bg-accent/10 px-1.5 py-0.5 text-[10px] font-semibold text-accent border border-accent/20">
               {selectedRoles.length} Specialists
             </span>
+            <span
+              className="hidden sm:inline-flex items-center gap-1 rounded bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-medium text-emerald-700 border border-emerald-500/20"
+              title="Your consultation history is automatically saved in browser local storage and will persist across reloads and tab closures."
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span>Saved</span>
+            </span>
           </div>
           <p className="text-[11px] text-muted truncate max-w-[240px] sm:max-w-md">
             Collaborative multi-agent review for {projectName} ({region === "india" ? "Gurgaon NCR / NBC 2016" : "US / IBC & ADA"}).
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           {messages.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setMessages([])}
-              className="text-[11px] text-muted hover:text-foreground underline underline-offset-2 transition-colors"
-            >
-              Reset
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={handleExportChat}
+                className="flex items-center gap-1 rounded-md border border-border bg-[#faf8f4] px-2 py-1 text-[10px] font-semibold text-muted hover:text-foreground hover:border-accent/40 transition-colors cursor-pointer"
+                title="Download this consultation as a Markdown Dossier (.md)"
+              >
+                <span>📥</span>
+                <span>Export</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleClearChat}
+                className="flex items-center gap-1 rounded-md border border-border bg-[#faf8f4] px-2 py-1 text-[10px] font-semibold text-danger/80 hover:text-danger hover:border-danger/30 transition-colors cursor-pointer"
+                title="Clear saved chat history"
+              >
+                <span>🗑️</span>
+                <span>Clear</span>
+              </button>
+            </>
           )}
           {onToggleExpand && (
             <button
               type="button"
               onClick={onToggleExpand}
-              className="rounded-lg p-1.5 text-muted hover:text-foreground text-xs transition-colors hover:bg-border/40"
+              className="rounded-lg p-1.5 text-muted hover:text-foreground text-xs transition-colors hover:bg-border/40 cursor-pointer"
               title={isExpanded ? "Restore side-by-side view" : "Maximize chat window"}
             >
               {isExpanded ? "❐" : "⛶"}
@@ -1212,6 +1308,7 @@ export function AgentTeamPanel({
 }
 
 export function AgentTeamModal(props: {
+  projectId?: string;
   projectName: string;
   region?: "india" | "us";
   floorAreaSqFt?: number;

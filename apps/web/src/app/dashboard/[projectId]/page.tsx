@@ -86,6 +86,7 @@ export default async function ProjectPage({
   return (
     <VoiceProvider>
       <ProjectSplitWorkspace
+        projectId={project.id}
         projectName={project.name}
         region={region}
         presentationHref={`/dashboard/${project.id}/presentation`}
