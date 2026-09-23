@@ -490,8 +490,8 @@ export function ModelViewer({
         })}
       </div>
 
-      {/* Bottom Right: Live Material Swapper Palette Trigger */}
-      <div className="absolute bottom-2 right-2 z-10 flex flex-col items-end gap-2">
+      {/* Top Right: Live Material Swapper Palette Trigger */}
+      <div className="absolute top-2 right-2 z-10 flex flex-col items-end gap-2">
         {showMaterialDrawer && (
           <div className="w-72 rounded-xl border border-border bg-surface/95 backdrop-blur-md p-3 shadow-lg space-y-3 text-xs mb-1">
             <div className="flex items-center justify-between border-b border-border pb-2">
