@@ -9,6 +9,11 @@ export interface AgentMessage {
   content: string;
   timestamp: string;
   actionSuggestions?: string[];
+  // Observability fields (added Phase 1 production overhaul)
+  source?: "model" | "degraded";
+  modelUsed?: string;   // e.g. "google/gemini-2.5-flash via openrouter"
+  latencyMs?: number;
+  actionInjected?: boolean; // true when ensureActionTriggers() appended synthetic triggers
 }
 
 export interface ProjectContext {
@@ -68,399 +73,41 @@ MANDATORY INSTITUTIONAL RECONCILIATION RULE: Whenever a budget cut, Capex reduct
   },
 };
 
-function generateContextualFallback(role: AgentRole, prompt: string, context: ProjectContext): string {
-  const q = prompt.toLowerCase();
-  const projectName = context.projectName || "Sample Studio Apartment";
-  const curr = context.currency || "₹";
+// Roles where temperature should be low (arithmetic / compliance outputs)
+const LOW_TEMPERATURE_ROLES: Set<AgentRole> = new Set(["cost_estimator", "code_specialist"]);
 
-  // 1. Spatial Planning / NTG Ratio / Ensuite Bath / Corridor Reconfiguration
-  if (
-    q.includes("ntg") ||
-    q.includes("net-to-gross") ||
-    q.includes("ensuite") ||
-    q.includes("bath") ||
-    q.includes("corridor") ||
-    q.includes("76%") ||
-    q.includes("83%") ||
-    q.includes("riser") ||
-    q.includes("plumbing") ||
-    q.includes("circulation")
-  ) {
-    if (role === "chief_architect") {
-      return `To achieve the target 83% Net-to-Gross (NTG) ratio from 76% while accommodating the new 35 sq ft ensuite bath, we eliminate dedicated secondary corridors through a single-loaded central spine.
-
-### Area Allocation & Reclaiming Arithmetic:
-- Baseline (76% Net): 1,200 sq ft × 0.76 = 912 sq ft usable (Circulation/Walls: 288 sq ft)
-- Target (83% Net): 1,200 sq ft × 0.83 = 996 sq ft usable (Circulation/Walls: 204 sq ft)
-- Δ Usable Space Needed: +84 sq ft must be reclaimed
-- Ensuite Bath Footprint: 5'-0" × 7'-0" = 35 sq ft
-- Total Circulation Cut: 288 - (204 - 35) = 119 sq ft dedicated corridor eliminated
-
-${"```"}
-+-------------------------------------------------------------------+
-|  [BALCONY / EXT. GLAZING - Daylight 5000K]                       |
-|                                                                   |
-|  [OPEN LIVING & DINING ZONE]                [BEDROOM RETREAT]     |
-|                                                                   |
-+-----------------------------+               +---------------------+
-| [KITCHEN (Agni/SE)]         | <--0.9m Spine | [ENSUITE BATH (35sf]|
-| [Shared Wet Wall] ========= |============== | [Shaft 300x300mm]   |
-+-----------------------------+               +---------------------+
-| [MAIN ENTRY]                |               | [INTEGRATED WARDROBE|
-| (North-West)                |               |  VESTIBULE]         |
-+-----------------------------+---------------+---------------------+
-${"```"}
-
-By stacking the ensuite plumbing directly onto the existing kitchen wet wall, we share a single 300×300mm vertical shaft, avoiding structural slab penetrations and keeping structural grid rationality at 6–8m.
-
-[ACTION: 📐 Apply Single-Loaded Spine in 2D Plan | apply_layout | single_loaded_spine]
-[ACTION: 📜 Run NBC Egress Audit | audit_compliance | nbc_egress]`;
-    }
-
-    if (role === "code_specialist") {
-      return `Building on Vikram's single-loaded spine layout, here is the statutory compliance analysis under NBC 2016 Part 4 and Vastu Shastra:
-
-1. **Egress Clearance**: NBC 2016 Part 4 Table 2 allows internal private residential circulation spines to be reduced to **0.9m (3'-0")**, whereas common public corridors require 1.2m. Vikram's 0.9m spine is fully compliant.
-2. **Wet Core Plumbing Alignment**: Sharing the kitchen wet wall keeps drainage in the North-West / West zone, satisfying Vastu drainage rules and avoiding contamination of the North-East (Ishanya) sacred quadrant.
-3. **Shaft Sizing**: The 35 sq ft ensuite bath requires a minimum 0.3 sq m mechanical ventilation shaft or duct under NBC Part 3 Section 4.5.
-
-[ACTION: 📜 Run NBC Egress Audit | audit_compliance | nbc_egress]
-[ACTION: 📊 Recalculate BOQ with 35 sqft Ensuite | recalculate_boq | ensuite_35]`;
-    }
-
-    if (role === "interior_designer") {
-      return `Aesthetically, concealing the 300×300mm plumbing riser that Vikram and Ananya detailed gives us an opportunity for bespoke architectural millwork:
-- **Concealed Access Hatch**: We integrate the plumbing inspection hatch into vertical Burma Teak fluted wood panelling (Tone: Natural Satin Teak), rendering it completely invisible.
-- **Ensuite Bath Finishes**: For the compact 5' × 7' ensuite, specify large-format 1200×600mm honed Italian Statuario or light travertine tiles with zero-grout joints to visually double the spatial volume.
-- **Door Concealment**: Use a 2.4m floor-to-ceiling flush pivot door matching the wall finish so the bath entrance dissolves into the bedroom feature wall.
-
-[ACTION: 🎨 Apply Teak & Royale Palette | apply_materials | fl_wooden_teak,wl_fluted_wood]
-[ACTION: 📐 Apply Single-Loaded Spine in 2D Plan | apply_layout | single_loaded_spine]`;
-    }
-
-    if (role === "cost_estimator") {
-      return `Rohan, your Burma Teak fluting over the inspection hatch looks stunning, but at ₹420/sqft for 65 sqft, it will cost ₹27,300. Using MR-MDF with teak veneer saves ₹12,000, bringing it to ₹15,300.
-
-### Itemized Ensuite BOQ (${curr} NCR Schedule of Rates):
-1. **Civil & Core Cutting**: Slab core drilling (100mm waste + 75mm soil) & lightweight AAC blockwork: ${curr}28,500
-2. **Plumbing & Sanitaryware**: Concealed CPVC/UPVC manifold, wall-hung WC, and Grohe concealed cistern: ${curr}48,000
-3. **Waterproofing**: 3-coat elastomeric polyurethane membrane with 300mm skirting upturn: ${curr}14,200
-4. **Tiling & Finishes**: 1200×600 vitrified tile cladding + laying: ${curr}32,000
-5. **Aesthetic Joinery**: MR-MDF with teak veneer cladding over shaft: ${curr}15,300
-- **Total Ensuite Capital Cost**: ${curr}1,38,000 (well within our ${curr}2.5L contingency reserve).
-
-Eliminating 119 sq ft of dedicated corridor saves ${curr}1,96,000 in passage flooring and plastering, resulting in a **net cost saving of ${curr}58,000** for the project!
-
-[ACTION: 📊 Recalculate BOQ with 35 sqft Ensuite | recalculate_boq | ensuite_35]`;
-    }
-  }
-
-  if (q.includes("vastu") || q.includes("alignment") || q.includes("direction") || q.includes("energy") || q.includes("facing")) {
-    if (role === "code_specialist") {
-      return `For **${projectName}**, Vastu orientation requires strict directional discipline:
-1. **Kitchen / Hearth**: Must anchor in the South-East (Agni quadrant) facing East while cooking, ensuring positive energy and natural cross-draft away from sleeping quarters.
-2. **Master Sanctuary**: Anchor firmly in South-West (Nairutya) for structural stability and grounding.
-3. **Pooja / Clean Water**: Keep North-East (Ishanya) light, decluttered, and visually open. Under NBC 2016 Part 3, ensure this also aligns with standard 10% glazed perimeter window requirements.
-
-[ACTION: 📜 Run NBC Egress Audit | audit_compliance | nbc_egress]`;
-    }
-    if (role === "chief_architect") {
-      return `To marry Vastu with modern spatial design in **${projectName}**, we avoid heavy internal walls. Instead, use permeable vertical fluted timber slats or acoustic glass screens to demarcate the North-East transition zone without obstructing spatial sightlines. Ensure the main entrance in the East/North is celebrated with a generous 1.2m wide foyer entry pivot door.
-
-[ACTION: 📐 Apply Single-Loaded Spine in 2D Plan | apply_layout | single_loaded_spine]`;
-    }
-    if (role === "interior_designer") {
-      return `From a finishes standpoint, we ground the South-West master bedroom with rich textured walnut veneer and earthy warm neutral paint (Asian Paints Royale *Pumice Stone*). In the North-East, introduce reflective brushed brass trim and honed Kota stone or Bianco Statuario marble to reflect natural morning light.
-
-[ACTION: 🎨 Apply Teak & Royale Palette | apply_materials | fl_wooden_teak,wl_asian_paints_royale]`;
-    }
-    if (role === "cost_estimator") {
-      return `Aligning wet utilities (bathrooms, kitchen risers) to Vastu quadrants (SE/NW) costs 0 extra if resolved at the planning stage. If plumbing risers are relocated after MEP rough-ins, expect an additional ${curr}45,000 to ${curr}65,000 per shaft in core-cutting and PVC manifold rerouting.
-
-[ACTION: 📊 Recalculate BOQ with 35 sqft Ensuite | recalculate_boq | ensuite_35]`;
-    }
-  }
-
-  if (q.includes("cost") || q.includes("budget") || q.includes("value") || q.includes("reduce") || q.includes("save") || q.includes("engineer")) {
-    if (role === "cost_estimator") {
-      return `To achieve the required 20% Capex reduction (bringing ${curr}28,50,000 down to ${curr}22,80,000 / ${curr}1,900/sqft) while pushing Net-to-Gross efficiency to 84% on **${projectName}**:
-
-### Usable Carpet Area Arithmetic:
-- Gross Floor Area: 1,200 sq ft (111 m²)
-- Baseline Usable Area (78% NTG): 1,200 × 0.78 = 936 sq ft
-- Target Usable Area (84% NTG): 1,200 × 0.84 = 1,008 sq ft (+72 sq ft net usable gained)
-- Dedicated Circulation Eliminated: 108 sq ft reclaimed by transitioning to a single-loaded corridor spine.
-
-### Institutional BOQ Value-Engineering Reconciliation Table (${curr} Gurgaon SOR):
-| Trade Package / Item | Baseline Underwritten Cost (${curr}) | Value-Engineered Specification (${curr}) | Net Savings (${curr}) | Lead Time & Schedule Impact |
-|---|---|---|---|---|
-| **1. Flooring & Skirting** | ${curr}9,60,000 *(Italian Statuario @ ${curr}800/sf)* | ${curr}3,60,000 *(1200x600 Kajaria PGVT @ ${curr}300/sf)* | **-${curr}6,00,000** | -10 weeks lead time |
-| **2. Custom Joinery & Wardrobes** | ${curr}3,60,000 *(Burma Teak Veneer @ ${curr}1200/sf)* | ${curr}2,10,000 *(Engineered Wood Veneer @ ${curr}700/sf)* | **-${curr}1,50,000** | -2 weeks shop lead |
-| **3. False Ceiling & Lighting Coves**| ${curr}1,95,000 *(Multi-tier curved gypsum)* | ${curr}1,15,000 *(Single-tier cove trough)* | **-${curr}80,000** | -5 days site time |
-| **4. Architectural Fenestration** | ${curr}3,80,000 *(European Schuco sections)* | ${curr}2,40,000 *(Jindal thermal-break aluminium)*| **-${curr}1,40,000** | Local procurement |
-| **5. Wall Emulsion & Finishes** | ${curr}1,80,000 *(Royale Aspira)* | ${curr}1,20,000 *(Asian Paints Royale Luxury)* | **-${curr}60,000** | Readily available |
-| **6. Sanitary & Concealed Cistern** | ${curr}2,40,000 *(Imported Gessi / Kohler)* | ${curr}1,65,000 *(Grohe concealed system)* | **-${curr}75,000** | 48-hr dispatch |
-| **7. Wet Wall MEP & Risers** | ${curr}2,85,000 *(Split dual risers)* | ${curr}2,35,000 *(Single 300x300 stacked wet core)*| **-${curr}50,000** | Zero core cutting |
-| **Subtotal Packages** | ${curr}26,00,000 | ${curr}14,45,000 | **-${curr}11,55,000** | Critical path compressed |
-| **Contingency Reserve (10%)** | ${curr}2,50,000 | ${curr}1,85,000 | **-${curr}65,000** | Preserved buffer |
-| **TOTAL UNDERWRITTEN CAPEX** | **${curr}28,50,000 (${curr}2,375/sqft)** | **${curr}16,30,000 (${curr}1,358/sqft)** | **-${curr}12,20,000** | Target ${curr}22.8L exceeded! |
-
-[ACTION: 📊 Recalculate BOQ with Value-Engineered Swaps | recalculate_boq | ensuite_35]
-[ACTION: 📐 Apply High-Efficiency Studio Layout | apply_layout | single_loaded_spine]`;
-    }
-    if (role === "interior_designer") {
-      return `Aesthetic cost optimization: Reserve high-value tactile elements for eye-level and touch surfaces (fluted timber bed back, antique brass handles, fluted glass wardrobe shutters). For ceilings, use clean seamless gypsum boards with indirect LED cove troughs rather than expensive multi-tiered coffered profiles.
-
-[ACTION: 🎨 Apply Teak & Royale Palette | apply_materials | fl_wooden_teak,wl_fluted_wood]`;
-    }
-    if (role === "chief_architect") {
-      return `Structural efficiency in **${projectName}**: Rationalize perimeter wall spans to standard 3m structural grids. Minimizing odd-angle masonry and non-standard lintel spans reduces brickwork labor and reinforcement rebar scrap rates by nearly 8%.
-
-[ACTION: 📐 Apply Single-Loaded Spine in 2D Plan | apply_layout | single_loaded_spine]`;
-    }
-    if (role === "code_specialist") {
-      return `Ensure value-engineering does not breach mandatory statutory minimums under NBC 2016: Habitable rooms must retain minimum clear heights of 2.75m (under ceiling fan), and kitchen risers must have dedicated 100mm mechanical ventilation exhaust ducts.
-
-[ACTION: 📜 Run NBC Egress Audit | audit_compliance | nbc_egress]`;
-    }
-  }
-
-  if (q.includes("material") || q.includes("finish") || q.includes("color") || q.includes("paint") || q.includes("flooring") || q.includes("tile")) {
-    if (role === "interior_designer") {
-      return `For the curated material palette of **${projectName}**:
-- **Flooring**: Warm Wooden Teak planks (${curr}240/sqft) or Large-format honed Kota stone with 3mm polished brass inlay strips in circulation areas, transitioning to natural herringbone oak parquet in the private quarters.
-- **Walls**: Asian Paints Royale matte off-white (Tone: *Morning Fog*) paired with a focal feature wall in raw board-marked concrete or handmade terracotta jali screens.
-- **Lighting**: 2700K warm white recessed anti-glare architectural downlights (CRI > 90) paired with indirect concealed cove LED illumination.
-
-[ACTION: 🎨 Apply Teak & Royale Palette | apply_materials | fl_wooden_teak,wl_asian_paints_royale]`;
-    }
-    if (role === "chief_architect") {
-      return `Ensure selected materials respect regional climate performance: In North Indian summer conditions, Kota stone and high-thermal-mass terracotta maintain significantly cooler surface temperatures than synthetic vinyl or dark laminate flooring.
-
-[ACTION: 📐 Apply Single-Loaded Spine in 2D Plan | apply_layout | single_loaded_spine]`;
-    }
-    if (role === "cost_estimator") {
-      return `The proposed palette balances mid-market procurement with high perceived value. Kota stone procurement in Gurgaon runs at ${curr}45-${curr}65/sqft raw slab plus ${curr}55/sqft mirror polishing, making it 75% more cost-effective than imported Italian marble while offering authentic vernacular prestige.
-
-[ACTION: 📊 Recalculate BOQ with 35 sqft Ensuite | recalculate_boq | ensuite_35]`;
-    }
-    if (role === "code_specialist") {
-      return `Specify anti-skid wet area flooring (R10 slip resistance rating) in all bathrooms and kitchen service balconies to satisfy NBC 2016 Part 3 Table 2 accessibility guidelines.
-
-[ACTION: 📜 Run NBC Egress Audit | audit_compliance | nbc_egress]`;
-    }
-  }
-
-  // 5. Seismic Integrity, Structural Bays & Wet Core Penetration Limits
-  if (
-    q.includes("seismic") ||
-    q.includes("structural") ||
-    q.includes("core-cut") ||
-    q.includes("coring") ||
-    q.includes("shear wall") ||
-    q.includes("tendon") ||
-    q.includes("slab") ||
-    q.includes("is 1893")
-  ) {
-    if (role === "chief_architect") {
-      return `Regarding structural seismic discipline under IS 1893:2016 (Zone IV NCR) for **${projectName}**:
-We strictly prohibit blind core-cutting through post-tensioned slabs or ductile moment frames.
-
-### Structural Bay & Core Strategy:
-- **Bay Rationalization**: Primary column bays are organized on a 6.0m × 7.2m grid, keeping shear walls free of unauthorized penetrations.
-- **Stacked Vertical Wet Core**: The 35 sq ft ensuite bath is back-to-back with the kitchen plumbing wall, sharing a single **300×300mm pre-sleeved MEP shaft**.
-- **Zero Structural Weakening**: All sanitary drops route above the structural slab within a 120mm recessed sunken slab or lightweight aerated screed build-up, completely eliminating structural slab coring.
-
-${"```"}
-+-------------------------------------------------------------+
-| [MAIN RESIDENCE GRID: 6.0m x 7.2m IS 1893 ZONE IV FRAME]    |
-|                                                             |
-|  [OPEN ZONE]       <-- Single Central Spine -->  [BEDROOM]  |
-|                                                             |
-|  [KITCHEN (SE)]    [PRE-SLEEVED 300x300 SHAFT]   [ENSUITE]  |
-|  [Wet Services] == [NO SLAB PENETRATIONS] ===== [Sunken 120]|
-+-------------------------------------------------------------+
-${"```"}
-
-[ACTION: 📐 Apply Single-Loaded Spine in 2D Plan | apply_layout | single_loaded_spine]
-[ACTION: 📜 Run NBC Egress Audit | audit_compliance | nbc_egress]`;
-    }
-
-    if (role === "code_specialist") {
-      return `Structural & Life-Safety Compliance Analysis (IS 1893:2016 / NBC 2016 Part 4):
-1. **Slab & Shaft Penetration**: Stacking wet utilities into Vikram's single 300×300mm shaft preserves the integrity of the diaphragm slab in Seismic Zone IV.
-2. **Fire & Smoke Stopping**: The annular gap around soil/waste pipes inside the 300×300mm shaft must be sealed with 2-hour fire-rated intumescent collars and mineral wool firestop as per NBC Part 4 Section 3.4.8.
-3. **Plumbing Run Slope**: Horizontal manifold runs in the 120mm screed maintain a 1:40 self-cleansing gradient to prevent clogging without requiring sub-slab core cuts.
-
-[ACTION: 📜 Run NBC Egress Audit | audit_compliance | nbc_egress]
-[ACTION: 📊 Recalculate BOQ with 35 sqft Ensuite | recalculate_boq | ensuite_35]`;
-    }
-
-    if (role === "cost_estimator") {
-      return `Avoiding slab core-drilling by utilizing a pre-sleeved 300×300mm shaft saves ${curr}45,000 in specialized diamond core-drilling, scanning, and re-sealing fees, while eliminating the risk of structural rebar/tendon damage.
-
-[ACTION: 📊 Recalculate BOQ with 35 sqft Ensuite | recalculate_boq | ensuite_35]`;
-    }
-  }
-
-  // 6. Statutory Fire Evacuation, Travel Distance & Egress Clearance (NBC 2016)
-  if (
-    q.includes("egress") ||
-    q.includes("fire") ||
-    q.includes("dead-end") ||
-    q.includes("travel distance") ||
-    q.includes("exit") ||
-    q.includes("evacuation") ||
-    q.includes("table 2")
-  ) {
-    if (role === "code_specialist") {
-      return `Comprehensive Statutory Evacuation Audit under **NBC 2016 Part 4 (Fire and Life Safety)** for **${projectName}**:
-
-1. **Internal Circulation Width**: Under NBC 2016 Part 4 Table 2, the minimum internal passage width within a residential apartment unit is **0.9m (3'-0")**. Our central spine measures 1.05m clear, exceeding statutory threshold by 150mm.
-2. **Travel Distance**: Maximum travel distance from the remotest point of the bedroom retreat to the foyer unit exit door is **18.4m**, well within the NBC 2016 limit of **30.0m** for residential unsprinklered suites (and 45.0m sprinklered).
-3. **Dead-End Corridor**: Zero dead-end condition. The layout utilizes a continuous linear spine connecting directly to the main egress door without any secondary dead-end pockets exceeding 6.0m.
-4. **Doorway Clearances**: Main exit door specified at 1.05m × 2.4m with 1-hour fire resistance rating (FD60) and lever-action non-locking hardware in the direction of escape.
-
-[ACTION: 📜 Run NBC Egress Audit | audit_compliance | nbc_egress]
-[ACTION: 📐 Apply Single-Loaded Spine in 2D Plan | apply_layout | single_loaded_spine]`;
-    }
-
-    if (role === "chief_architect") {
-      return `From an architectural egress layout perspective in **${projectName}**:
-The central circulation spine serves as a continuous, unobstructed egress trajectory. We eliminated all vestibule pinch-points, ensuring door swings (both ensuite and wardrobe) fold parallel to walls without encroaching upon the 0.9m clear walking path.
-
-[ACTION: 📐 Apply Single-Loaded Spine in 2D Plan | apply_layout | single_loaded_spine]`;
-    }
-  }
-
-  // 7. Acoustics (STC 55), Zero-VOC & Circadian Wellness
-  if (
-    q.includes("acoustic") ||
-    q.includes("stc") ||
-    q.includes("circadian") ||
-    q.includes("voc") ||
-    q.includes("wellness") ||
-    q.includes("biophilic") ||
-    q.includes("museum") ||
-    q.includes("cri")
-  ) {
-    if (role === "interior_designer") {
-      return `Curating museum-grade wellness and acoustic isolation for **${projectName}**:
-
-1. **Acoustic Decoupling (STC 55)**:
-   - Partition separating bedroom retreat from open living space: Double staggered 75mm GI studs on independent neoprene isolation tracks.
-   - Core infill: 50mm high-density Rockwool insulation (60 kg/m³).
-   - Facing: Dual layers of 12.5mm Saint-Gobain Gyproc SoundStop boards with Green Glue damping polymer between layers, achieving tested **STC 56**.
-2. **Zero-VOC Environmental Health**:
-   - Primary walls finished in **Asian Paints Royale Health Shield** (GreenGuard Gold certified, ultra-low VOC < 5g/L, anti-bacterial silver ion technology).
-   - Joinery adhesives: Non-toxic water-based Henkel aliphatic resin, completely free of off-gassing formaldehydes.
-3. **Circadian Lighting Simulation**:
-   - 98+ CRI museum-grade architectural LED fixtures (Xicato / Luminii chips, R9 > 95 for natural fabric and art rendering).
-   - Tunable white schedule: 5500K crisp morning alertness, declining to 3000K afternoon ambient, and 2200K warm anti-blue evening glow. Anti-glare deep baffles maintain UGR < 16.
-
-[ACTION: 🎨 Apply Teak & Royale Palette | apply_materials | fl_wooden_teak,wl_asian_paints_royale]
-[ACTION: 📊 Recalculate BOQ with 35 sqft Ensuite | recalculate_boq | premium_finishes]`;
-    }
-
-    if (role === "code_specialist") {
-      return `Environmental & Wellness Code Verification:
-The proposed STC 56 acoustic partition meets NBC 2016 Part 8 Section 4 (Acoustic Comfort) criteria for high-comfort residential zones (NC 30-35). Low-VOC specifications satisfy IGBC / GRIHA green building credits for Indoor Environmental Quality (IEQ).
-
-[ACTION: 📜 Run NBC Egress Audit | audit_compliance | nbc_egress]`;
-    }
-  }
-
-  // 8. Monsoon Buildability, Humidity Warping & Supply Chain Optimization
-  if (
-    q.includes("monsoon") ||
-    q.includes("humidity") ||
-    q.includes("warp") ||
-    q.includes("swelling") ||
-    q.includes("efflorescence") ||
-    q.includes("lead time") ||
-    q.includes("supply chain")
-  ) {
-    if (role === "interior_designer") {
-      return `Detaiing for Delhi-NCR's extreme 95% monsoon humidity in **${projectName}**:
-
-1. **Fluted Timber Joinery (Warp Prevention)**:
-   - Timber kiln-dried to strict **8-12% equilibrium moisture content**.
-   - Substrate: 12mm Marine-Grade BWP 710 plywood or Wood-Plastic Composite (WPC) backer board mechanically fastened with a 5mm ventilated rear cavity.
-   - Expansion Reveals: 2mm shadow gaps between 600mm fluted modules filled with elastomeric color-matched silicone.
-   - Sealing: 3 coats of moisture-cured polyurethane (PU) lacquer applied to all 6 faces (including back-priming and end-grains) to seal against vapor absorption.
-2. **Honed Kota Stone with Brass Inlays**:
-   - Substrate: Cleaned, cured concrete base with a flexible elastomeric polyurethane moisture vapor barrier.
-   - Bedding: C2TE S1 polymer-modified cementitious adhesive (IS 15477 compliant) applied with 100% buttering.
-   - Brass Detailing: 3mm solid brass flat bar anchored into stone rebates with flexible two-part Araldite epoxy adhesive. Joints filled with anti-fungal epoxy grout to stop efflorescence.
-
-[ACTION: 🎨 Apply Teak & Royale Palette | apply_materials | fl_wooden_teak,wl_fluted_wood]
-[ACTION: 📊 Recalculate BOQ with 35 sqft Ensuite | recalculate_boq | premium_finishes]`;
-    }
-
-    if (role === "cost_estimator") {
-      return `Supply Chain Risk Mitigation & Schedule Compression:
-- **Imported Italian Marble**: 12-14 week lead time, high breakage risk, ₹650-800/sqft.
-- **Local Kota Stone / Kajaria PGVT Alternative**: Rajasthan quarry-cut Kota stone or Gujarat PGVT tiles have a **2-3 week procurement cycle**.
-- **Financial & Schedule Savings**: Replaces ₹9,60,000 marble line item with ₹2,40,000 locally sourced finishes, **saving ${curr}7,20,000** while slashing project critical path delivery by 8 to 10 weeks.
-
-[ACTION: 📊 Recalculate BOQ with 35 sqft Ensuite | recalculate_boq | ensuite_35]`;
-    }
-  }
-
-  // Default intelligent contextual response
-  if (role === "chief_architect") {
-    return `Regarding "${prompt}" for **${projectName}**: From an architectural perspective, we balance spatial fluidity with structural logic. I recommend prioritizing natural cross-ventilation corridors, opening lintel spans to 2.4m, and maintaining clear circulation axes between the living core and private zones.
-
-[ACTION: 📐 Apply Single-Loaded Spine in 2D Plan | apply_layout | single_loaded_spine]`;
-  } else if (role === "code_specialist") {
-    return `Regarding "${prompt}" for **${projectName}**: Reviewing under building regulations (NBC 2016 / Local Bylaws), ensure all primary egress pathways maintain at least 0.9m clear width, window daylighting covers >10% floor plate area, and fire separation distances meet municipal clearance norms.
-
-[ACTION: 📜 Run NBC Egress Audit | audit_compliance | nbc_egress]`;
-  } else if (role === "interior_designer") {
-    return `Regarding "${prompt}" for **${projectName}**: I recommend layering tactile natural materials—warm timber veneers, textured limewash or Asian Paints Royale finishes, and calibrated circadian lighting (5000K daylight shifting to 2700K warm evening glow) to accentuate architectural depth.
-
-[ACTION: 🎨 Apply Teak & Royale Palette | apply_materials | fl_wooden_teak,wl_asian_paints_royale]`;
-  } else {
-    return `Regarding "${prompt}" for **${projectName}**: At current specifications, budget allocation should be weighted 45% civil/core structure, 35% interior joinery and finishes, and 20% MEP services, with a mandatory 10% contingency reserve for unforeseen site variations.
-
-[ACTION: 📊 Recalculate BOQ with 35 sqft Ensuite | recalculate_boq | ensuite_35]`;
-  }
-}
-
-export interface ModelRoute {
-  provider: "groq" | "openrouter" | "gemini" | "nvidia" | "cerebras" | "github" | "mistral" | "custom";
-  model: string;
-}
-
-const AGENT_MODEL_ROUTES: Record<AgentRole, ModelRoute[]> = {
+const AGENT_MODEL_ROUTES: Record<AgentRole, Array<{ provider: string; model: string }>> = {
   chief_architect: [
-    { provider: "openrouter", model: "meta-llama/llama-3.3-70b-instruct" },
     { provider: "openrouter", model: "google/gemini-2.5-flash" },
-    { provider: "cerebras", model: "llama-3.3-70b" },
     { provider: "groq", model: "llama-3.3-70b-versatile" },
-    { provider: "gemini", model: "gemini-2.0-flash" },
+    { provider: "gemini", model: "gemini-2.5-flash" },
+    { provider: "mistral", model: "mistral-large-latest" },
+    { provider: "github", model: "gpt-4o" },
+    { provider: "cerebras", model: "llama-3.3-70b" },
   ],
   code_specialist: [
     { provider: "openrouter", model: "google/gemini-2.5-flash" },
-    { provider: "openrouter", model: "meta-llama/llama-3.3-70b-instruct" },
-    { provider: "cerebras", model: "llama-3.3-70b" },
     { provider: "groq", model: "llama-3.3-70b-versatile" },
-    { provider: "gemini", model: "gemini-2.0-flash" },
+    { provider: "gemini", model: "gemini-2.5-flash" },
+    { provider: "mistral", model: "mistral-large-latest" },
+    { provider: "github", model: "gpt-4o" },
+    { provider: "cerebras", model: "llama-3.3-70b" },
   ],
   interior_designer: [
-    { provider: "openrouter", model: "google/gemini-2.5-flash" },
     { provider: "openrouter", model: "meta-llama/llama-3.3-70b-instruct" },
-    { provider: "cerebras", model: "llama-3.3-70b" },
     { provider: "groq", model: "llama-3.3-70b-versatile" },
-    { provider: "gemini", model: "gemini-2.0-flash" },
+    { provider: "gemini", model: "gemini-2.5-flash" },
+    { provider: "openrouter", model: "google/gemini-2.5-flash" },
+    { provider: "mistral", model: "mistral-large-latest" },
+    { provider: "github", model: "gpt-4o" },
   ],
   cost_estimator: [
     { provider: "openrouter", model: "google/gemini-2.5-flash" },
-    { provider: "openrouter", model: "meta-llama/llama-3.3-70b-instruct" },
-    { provider: "cerebras", model: "llama-3.3-70b" },
     { provider: "groq", model: "llama-3.3-70b-versatile" },
-    { provider: "openrouter", model: "deepseek/deepseek-r1-distill-llama-70b" },
-    { provider: "gemini", model: "gemini-2.0-flash" },
+    { provider: "gemini", model: "gemini-2.5-flash" },
+    { provider: "mistral", model: "mistral-large-latest" },
+    { provider: "github", model: "gpt-4o" },
+    { provider: "cerebras", model: "llama-3.3-70b" },
   ],
 };
 
@@ -471,9 +118,11 @@ async function callOpenAICompatible(
   messages: Array<{ role: string; content: string }>,
   maxTokens = 1800,
   extraHeaders: Record<string, string> = {},
+  temperature = 0.7,
 ): Promise<string> {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 8000);
+  // Raised from 8 000 ms → 45 000 ms so institutional-grade answers have time to land
+  const timeoutId = setTimeout(() => controller.abort(), 45000);
 
   try {
     const res = await fetch(endpointUrl, {
@@ -486,7 +135,7 @@ async function callOpenAICompatible(
       body: JSON.stringify({
         model,
         messages,
-        temperature: 0.7,
+        temperature,
         max_tokens: maxTokens,
       }),
       signal: controller.signal,
@@ -517,9 +166,11 @@ async function callGeminiDirect(
   model: string,
   fullPrompt: string,
   maxTokens = 1800,
+  temperature = 0.7,
 ): Promise<string> {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 8000);
+  // Raised from 8 000 ms → 45 000 ms
+  const timeoutId = setTimeout(() => controller.abort(), 45000);
 
   try {
     const res = await fetch(
@@ -531,7 +182,7 @@ async function callGeminiDirect(
           contents: [{ role: "user", parts: [{ text: fullPrompt }] }],
           generationConfig: {
             maxOutputTokens: maxTokens,
-            temperature: 0.7,
+            temperature,
           },
         }),
         signal: controller.signal,
@@ -555,13 +206,17 @@ async function callGeminiDirect(
   }
 }
 
-function ensureActionTriggers(content: string, role: AgentRole): string {
-  // If content already contains valid [ACTION: ...], preserve as is
+/**
+ * Appends guaranteed action triggers only when the LLM response contains none.
+ * Returns the final text AND whether injection occurred (for MiroFish tagging).
+ */
+function ensureActionTriggers(content: string, role: AgentRole): { text: string; injected: boolean } {
+  // If content already contains valid [ACTION: ...], preserve as-is — no injection
   if (/\[ACTION:\s*[^\]]+\]/i.test(content)) {
-    return content;
+    return { text: content, injected: false };
   }
 
-  // Guaranteed fallback action triggers to maintain programmatic studio control
+  // Fallback triggers appended only when the LLM omitted them entirely
   const triggers: Record<AgentRole, string> = {
     chief_architect: `\n\n[ACTION: 📐 Apply Single-Loaded Spine in 2D Plan | apply_layout | single_loaded_spine]\n[ACTION: 📜 Audit NBC 2016 Egress Path | audit_compliance | nbc_egress]`,
     code_specialist: `\n\n[ACTION: 📜 Run NBC Egress & Fire Audit | audit_compliance | nbc_egress]\n[ACTION: 📐 Verify 0.9m Corridor Clearances | apply_layout | single_loaded_spine]`,
@@ -569,13 +224,14 @@ function ensureActionTriggers(content: string, role: AgentRole): string {
     cost_estimator: `\n\n[ACTION: 📊 Recalculate BOQ with Value-Engineered Swaps | recalculate_boq | ensuite_35]\n[ACTION: 📐 Apply High-Efficiency Studio Layout | apply_layout | single_loaded_spine]`,
   };
 
-  return `${content.trim()}${triggers[role] || ""}`;
+  return { text: `${content.trim()}${triggers[role] || ""}`, injected: true };
 }
 
 /**
  * Executes a collaborative consultation across the specified agent roles in parallel.
  * Utilizes a multi-model smart router with automatic provider failover:
- * Groq LPUs -> OpenRouter -> Gemini Direct -> Domain Fallback.
+ * OpenRouter → Groq LPUs → Gemini Direct → GitHub Models → Mistral → Cerebras → Custom Gateway.
+ * If ALL providers fail, returns a degraded card (content: "") — no hardcoded fallback prose.
  */
 export async function consultAgentTeam(
   prompt: string,
@@ -608,6 +264,9 @@ Project Context:
         { provider: "openrouter", model: "google/gemini-2.5-flash" },
       ];
 
+      // Arithmetic/compliance agents use lower temperature to avoid invented numbers
+      const temperature = LOW_TEMPERATURE_ROLES.has(role) ? 0.1 : 0.7;
+
       const systemPrompt = `${profile.systemPrompt}
 
 ${contextSummary}
@@ -632,6 +291,8 @@ Deliver authoritative, highly concrete architectural recommendations. Follow the
 Format cleanly with readable paragraphs and avoid raw markdown asterisks (**) for bolding unless in headers.`;
 
       let responseText = "";
+      let modelUsed = "";
+      const t0 = Date.now();
 
       for (const route of routes) {
         if (route.provider === "cerebras" && cerebrasKey) {
@@ -644,8 +305,10 @@ Format cleanly with readable paragraphs and avoid raw markdown asterisks (**) fo
               { role: "user", content: prompt },
             ],
             1800,
+            {},
+            temperature,
           );
-          if (responseText) break;
+          if (responseText) { modelUsed = `${route.model} via cerebras`; break; }
         }
 
         if (route.provider === "groq" && groqKey) {
@@ -658,8 +321,10 @@ Format cleanly with readable paragraphs and avoid raw markdown asterisks (**) fo
               { role: "user", content: prompt },
             ],
             1800,
+            {},
+            temperature,
           );
-          if (responseText) break;
+          if (responseText) { modelUsed = `${route.model} via groq`; break; }
         }
 
         if (route.provider === "github" && githubKey) {
@@ -672,8 +337,10 @@ Format cleanly with readable paragraphs and avoid raw markdown asterisks (**) fo
               { role: "user", content: prompt },
             ],
             1800,
+            {},
+            temperature,
           );
-          if (responseText) break;
+          if (responseText) { modelUsed = `${route.model} via github`; break; }
         }
 
         if (route.provider === "mistral" && mistralKey) {
@@ -686,8 +353,10 @@ Format cleanly with readable paragraphs and avoid raw markdown asterisks (**) fo
               { role: "user", content: prompt },
             ],
             1800,
+            {},
+            temperature,
           );
-          if (responseText) break;
+          if (responseText) { modelUsed = `${route.model} via mistral`; break; }
         }
 
         if (route.provider === "openrouter" && openRouterKey) {
@@ -704,8 +373,9 @@ Format cleanly with readable paragraphs and avoid raw markdown asterisks (**) fo
               "HTTP-Referer": "https://atelieros-cloud.vercel.app",
               "X-Title": "AtelierOS Architectural Studio",
             },
+            temperature,
           );
-          if (responseText) break;
+          if (responseText) { modelUsed = `${route.model} via openrouter`; break; }
         }
 
         if (route.provider === "nvidia" && nvidiaKey) {
@@ -718,8 +388,10 @@ Format cleanly with readable paragraphs and avoid raw markdown asterisks (**) fo
               { role: "user", content: prompt },
             ],
             1800,
+            {},
+            temperature,
           );
-          if (responseText) break;
+          if (responseText) { modelUsed = `${route.model} via nvidia`; break; }
         }
 
         if (route.provider === "gemini" && geminiKey) {
@@ -728,8 +400,9 @@ Format cleanly with readable paragraphs and avoid raw markdown asterisks (**) fo
             route.model,
             `${systemPrompt}\n\nUser Question/Brief:\n"${prompt}"`,
             1800,
+            temperature,
           );
-          if (responseText) break;
+          if (responseText) { modelUsed = `${route.model} via gemini-direct`; break; }
         }
       }
 
@@ -746,13 +419,32 @@ Format cleanly with readable paragraphs and avoid raw markdown asterisks (**) fo
             { role: "user", content: prompt },
           ],
           1800,
+          {},
+          temperature,
         );
+        if (responseText) modelUsed = "default via custom-gateway";
       }
 
-      // 3. Dynamic domain fallback if all API calls are unavailable or rate-limited
+      const latencyMs = Date.now() - t0;
+
+      // If all providers failed → degraded card (no hardcoded fallback prose)
       if (!responseText) {
-        responseText = generateContextualFallback(role, prompt, context);
+        return {
+          id: `msg_${Date.now()}_${role}_${Math.random().toString(36).slice(2, 6)}`,
+          role,
+          name: profile.name,
+          title: profile.title,
+          avatar: profile.avatar,
+          content: "",
+          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          source: "degraded" as const,
+          modelUsed: "none",
+          latencyMs,
+          actionInjected: false,
+        } as AgentMessage;
       }
+
+      const { text: finalContent, injected } = ensureActionTriggers(responseText, role);
 
       return {
         id: `msg_${Date.now()}_${role}_${Math.random().toString(36).slice(2, 6)}`,
@@ -760,8 +452,12 @@ Format cleanly with readable paragraphs and avoid raw markdown asterisks (**) fo
         name: profile.name,
         title: profile.title,
         avatar: profile.avatar,
-        content: ensureActionTriggers(responseText, role),
+        content: finalContent,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        source: "model" as const,
+        modelUsed,
+        latencyMs,
+        actionInjected: injected,
       } as AgentMessage;
     }),
   );

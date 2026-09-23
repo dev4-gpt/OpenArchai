@@ -1155,11 +1155,16 @@ export function AgentTeamPanel({
                   }
 
                   const { cleanText, actions } = extractActionsFromText(m.content);
+                  const isDegraded = (m as any).source === "degraded" || !m.content?.trim();
 
                   return (
                     <div
                       key={m.id}
-                      className="flex gap-3 rounded-xl border border-border bg-[#faf8f4] p-4 text-xs shadow-xs animate-in fade-in duration-150"
+                      className={`flex gap-3 rounded-xl border p-4 text-xs shadow-xs animate-in fade-in duration-150 ${
+                        isDegraded
+                          ? "border-border/50 bg-[#faf8f4]/60 opacity-70"
+                          : "border-border bg-[#faf8f4]"
+                      }`}
                     >
                       <div className="h-8 w-8 rounded-full bg-surface border border-border flex items-center justify-center text-base shrink-0 shadow-xs">
                         {m.avatar}
@@ -1171,32 +1176,48 @@ export function AgentTeamPanel({
                             <span className="text-[10px] text-accent font-medium rounded bg-accent/10 px-1.5 py-0.5">
                               {m.title}
                             </span>
+                            {isDegraded && (
+                              <span className="text-[9px] font-semibold rounded bg-amber-100 text-amber-700 border border-amber-200 px-1.5 py-0.5">
+                                Unavailable
+                              </span>
+                            )}
                           </div>
                           <span className="text-[10px] text-muted">{m.timestamp}</span>
                         </div>
-                        <div className="pt-1">
-                          <FormattedMessage
-                            text={cleanText}
-                            isUser={false}
-                            onExecuteAction={handleExecuteAction}
-                          />
-                        </div>
-                        {actions.length > 0 && (
-                          <div className="flex flex-wrap gap-2 pt-2.5 border-t border-border/60 mt-2.5">
-                            {actions.map((act, actIdx) => (
-                              <button
-                                key={actIdx}
-                                type="button"
-                                onClick={() => handleExecuteAction(act)}
-                                className="inline-flex items-center gap-2 rounded-lg border-2 border-accent bg-accent/15 px-3.5 py-1.5 text-xs font-bold text-accent hover:bg-accent hover:text-accent-foreground shadow-sm ring-2 ring-accent/20 transition-all active:scale-95 cursor-pointer"
-                                title={`Execute studio action: ${act.label}`}
-                              >
-                                <span className="text-sm">⚡</span>
-                                <span>{act.label}</span>
-                                <span className="text-xs opacity-75 font-mono">➔</span>
-                              </button>
-                            ))}
+                        {isDegraded ? (
+                          <div className="pt-1 flex items-start gap-2 text-muted">
+                            <span className="text-sm mt-0.5">⚠️</span>
+                            <p className="text-[11px] leading-relaxed">
+                              {m.name} is temporarily unavailable — all model providers timed out. Please try again in a moment, or simplify your question.
+                            </p>
                           </div>
+                        ) : (
+                          <>
+                            <div className="pt-1">
+                              <FormattedMessage
+                                text={cleanText}
+                                isUser={false}
+                                onExecuteAction={handleExecuteAction}
+                              />
+                            </div>
+                            {actions.length > 0 && (
+                              <div className="flex flex-wrap gap-2 pt-2.5 border-t border-border/60 mt-2.5">
+                                {actions.map((act, actIdx) => (
+                                  <button
+                                    key={actIdx}
+                                    type="button"
+                                    onClick={() => handleExecuteAction(act)}
+                                    className="inline-flex items-center gap-2 rounded-lg border-2 border-accent bg-accent/15 px-3.5 py-1.5 text-xs font-bold text-accent hover:bg-accent hover:text-accent-foreground shadow-sm ring-2 ring-accent/20 transition-all active:scale-95 cursor-pointer"
+                                    title={`Execute studio action: ${act.label}`}
+                                  >
+                                    <span className="text-sm">⚡</span>
+                                    <span>{act.label}</span>
+                                    <span className="text-xs opacity-75 font-mono">➔</span>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
                     </div>
@@ -1205,9 +1226,39 @@ export function AgentTeamPanel({
               )}
 
               {loading && (
-                <div className="flex items-center justify-center gap-2 p-4 text-xs text-accent">
-                  <div className="h-4 w-4 border-2 border-accent border-t-transparent rounded-full animate-spin" />
-                  <span>Specialist agents are reviewing your question…</span>
+                <div className="space-y-3">
+                  {selectedRoles.map((role) => {
+                    const spec = ALL_SPECIALIST_ROLES.find((r) => r.id === role)!;
+                    return (
+                      <div
+                        key={role}
+                        className="flex gap-3 rounded-xl border border-border bg-[#faf8f4] p-4 shadow-xs"
+                      >
+                        <div className="h-8 w-8 rounded-full bg-surface border border-border flex items-center justify-center text-base shrink-0 shadow-xs animate-pulse">
+                          {spec.avatar}
+                        </div>
+                        <div className="flex-1 space-y-2 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-foreground">{spec.name}</span>
+                            <span className="text-[10px] text-accent font-medium rounded bg-accent/10 px-1.5 py-0.5">
+                              {spec.title}
+                            </span>
+                            <span className="ml-auto flex items-center gap-1.5 text-[10px] text-accent">
+                              <span className="h-1.5 w-1.5 rounded-full bg-accent animate-ping" />
+                              Consulting…
+                            </span>
+                          </div>
+                          {/* Skeleton lines */}
+                          <div className="space-y-1.5 pt-1">
+                            <div className="h-2.5 w-full rounded bg-border/60 animate-pulse" />
+                            <div className="h-2.5 w-5/6 rounded bg-border/60 animate-pulse" style={{ animationDelay: "0.15s" }} />
+                            <div className="h-2.5 w-4/6 rounded bg-border/60 animate-pulse" style={{ animationDelay: "0.3s" }} />
+                            <div className="h-2.5 w-3/4 rounded bg-border/60 animate-pulse" style={{ animationDelay: "0.45s" }} />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
 

@@ -74,37 +74,103 @@ def print_banner(text: str):
     print(f"🐟 MIROFISH SWARM ENGINE: {text}")
     print("=" * 74 + "\n")
 
-def evaluate_rubric(content: str) -> dict:
+def evaluate_rubric(
+    content: str,
+    expected_criteria: list = None,
+    source: str = "model",
+    action_injected: bool = False,
+) -> dict:
     """
-    Evaluates response across 4 architectural dimensions (0-25 each, Total 100):
-    1. Quantitative & Spatial Rigor (Math, areas, %, currency)
-    2. Statutory & Regulatory Grounding (NBC, IS codes, bylaws, Vastu)
-    3. Constructability & Detailing (Site methods, joints, membranes, rates)
-    4. Actionable Studio Triggers ([ACTION: ...])
+    Honest multi-dimensional rubric (0-25 each, Total 100).
+
+    Scoring rules:
+    - Degraded responses (source == "degraded" or empty content) score 0.
+    - Action triggers that were auto-injected by ensureActionTriggers() score 0.
+    - expected_criteria hits add up to 25 pts to the Statutory dimension.
+    - Regex alone is worth at most 12/25 per dimension (half-credit).
+
+    Dimensions:
+      1. Quantitative & Spatial Rigor  — numeric values in architectural units
+      2. Statutory & Regulatory        — code mentions + expected_criteria hits
+      3. Constructability & Detailing  — site-method vocabulary
+      4. Actionable Studio Triggers    — [ACTION: ...] present AND not injected
     """
     scores = {}
-    
-    # 1. Quantitative Rigor
-    num_matches = len(re.findall(r'(\d+[\d,]*\s*(?:sq\s*ft|sqft|m²|%|mm|m|₹|INR|\/sqft))', content, re.IGNORECASE))
-    scores["quant_rigor"] = min(25, num_matches * 5)
-    
+    degraded = (source == "degraded") or (not content.strip())
+
+    if degraded:
+        return {
+            "scores": {k: 0 for k in ["quant_rigor", "statutory", "constructability", "action_triggers"]},
+            "total": 0,
+            "actions_found": 0,
+            "degraded": True,
+            "action_injected": action_injected,
+            "criteria_hits": [],
+        }
+
+    # 1. Quantitative Rigor (regex: up to 12/25; full 25 only with rich arithmetic)
+    num_matches = len(re.findall(
+        r'(\d+[\d,]*\s*(?:sq\s*ft|sqft|m²|%|mm|m|₹|INR|\/sqft))', content, re.IGNORECASE
+    ))
+    quant_raw = min(12, num_matches * 3)  # regex half-credit cap
+    # Bonus: explicit arithmetic expressions (e.g. "÷", "×", "= ") indicate real calculation
+    arithmetic_markers = len(re.findall(r'(÷|×|\*\s*\d|\d\s*[÷×]|=\s*\d)', content))
+    quant_bonus = min(13, arithmetic_markers * 5)
+    scores["quant_rigor"] = min(25, quant_raw + quant_bonus)
+
     # 2. Statutory / Regulatory
-    code_matches = len(re.findall(r'(NBC|IS\s*\d+|Table\s*\d+|Zone\s*IV|Vastu|FAR|FD60|STC|VOC|IEQ|ADA|IBC)', content, re.IGNORECASE))
-    scores["statutory"] = min(25, code_matches * 6)
-    
-    # 3. Constructability & Detailing
-    const_matches = len(re.findall(r'(membrane|grout|epoxy|fluting|c2te|expansion|shaft|sleeved|screed|plywood|kiln|cove|rockwool|cavity)', content, re.IGNORECASE))
-    scores["constructability"] = min(25, const_matches * 5)
-    
+    #    a) Regex keyword matches — half credit (up to 12/25)
+    code_matches = len(re.findall(
+        r'(NBC\s*20\d\d|IS\s*\d{3,}|Table\s*\d+|Clause\s*\d|Cl\.\s*\d|Zone\s*IV|Vastu|FAR|FD60|STC\s*\d|VOC|IBC\s*20\d\d|ADA)',
+        content, re.IGNORECASE
+    ))
+    stat_regex = min(12, code_matches * 4)
+
+    #    b) expected_criteria hits — up to 13 additional points
+    criteria_hits = []
+    if expected_criteria:
+        for criterion in expected_criteria:
+            # Case-insensitive substring match for each expected term
+            if criterion.lower().replace(" ", "") in content.lower().replace(" ", ""):
+                criteria_hits.append(criterion)
+        stat_criteria = min(13, len(criteria_hits) * (13 // max(1, len(expected_criteria)) + 1))
+    else:
+        stat_criteria = 0
+
+    scores["statutory"] = min(25, stat_regex + stat_criteria)
+
+    # 3. Constructability & Detailing (regex: up to 12/25; detail density bonus up to 13)
+    const_terms = re.findall(
+        r'(membrane|grout|epoxy|fluting|c2te|expansion|shaft|sleeved|screed|plywood|kiln|cove|rockwool|cavity|backer|WPC|BWP|mortar|sealant)',
+        content, re.IGNORECASE
+    )
+    const_raw = min(12, len(const_terms) * 4)
+    # Bonus for brand/standard specificity (e.g. "Gyproc SoundStop", "Kajaria PGVT")
+    brand_refs = len(re.findall(
+        r'(Gyproc|SoundStop|Kajaria|Grohe|Rockwool|Asian\s*Paints|Royale|Green\s*Glue|UPVC|CPVC|IS\s*15477)',
+        content, re.IGNORECASE
+    ))
+    scores["constructability"] = min(25, const_raw + min(13, brand_refs * 5))
+
     # 4. Action Triggers
     action_matches = len(re.findall(r'\[ACTION:\s*[^\]]+\]', content))
-    scores["action_triggers"] = 25 if action_matches >= 1 else 0
-    
+    if action_matches >= 1 and not action_injected:
+        # LLM produced genuine action triggers
+        scores["action_triggers"] = 25
+    elif action_matches >= 1 and action_injected:
+        # Triggers were appended mechanically — score zero (rubric gaming)
+        scores["action_triggers"] = 0
+    else:
+        scores["action_triggers"] = 0
+
     total = sum(scores.values())
     return {
         "scores": scores,
         "total": total,
-        "actions_found": action_matches
+        "actions_found": action_matches,
+        "degraded": False,
+        "action_injected": action_injected,
+        "criteria_hits": criteria_hits,
     }
 
 def run_heavy_mirofish_simulation():
@@ -257,23 +323,44 @@ def run_heavy_mirofish_simulation():
         print(f"⚡ Received {len(messages)} specialist responses in {elapsed:.2f}s:\n")
 
         round_scores = []
+        all_degraded = True
         for m in messages:
             content = m.get("content", "")
+            source = m.get("source", "model")   # "model" | "degraded"
+            action_injected = m.get("actionInjected", False)
             total_tokens_generated += len(content.split())
             print(f"   {m.get('avatar', '👤')} {m.get('name')} ({m.get('title')}):")
-            
-            # Print indented lines
-            for line in content.split("\n"):
-                if line.strip():
-                    print(f"      {line}")
+
+            if source == "degraded" or not content.strip():
+                print("      ⚠️  [DEGRADED — all providers failed, no LLM response]")
+            else:
+                all_degraded = False
+                # Print indented lines
+                for line in content.split("\n"):
+                    if line.strip():
+                        print(f"      {line}")
+            if m.get("modelUsed"):
+                print(f"      📡 Model: {m['modelUsed']}  ⏱ {m.get('latencyMs', '?')}ms")
+            if action_injected:
+                print("      ⚠️  Action triggers were AUTO-INJECTED (not LLM-generated) → action score = 0")
             print()
 
-            # Rubric Evaluation
-            rubric = evaluate_rubric(content)
+            # Honest rubric evaluation
+            rubric = evaluate_rubric(
+                content,
+                expected_criteria=sim.get("expected_criteria", []),
+                source=source,
+                action_injected=action_injected,
+            )
             round_scores.append(rubric)
 
         # Average Round Score
         avg_score = sum(r["total"] for r in round_scores) / max(1, len(round_scores))
+        all_criteria_hits = []
+        for r in round_scores:
+            all_criteria_hits.extend(r.get("criteria_hits", []))
+        all_criteria_hits = list(dict.fromkeys(all_criteria_hits))  # deduplicate
+
         round_evaluations.append({
             "round": sim["round"],
             "title": sim["title"],
@@ -284,32 +371,39 @@ def run_heavy_mirofish_simulation():
                 "statutory": sum(r["scores"]["statutory"] for r in round_scores) / max(1, len(round_scores)),
                 "construct": sum(r["scores"]["constructability"] for r in round_scores) / max(1, len(round_scores)),
                 "actions": sum(r["scores"]["action_triggers"] for r in round_scores) / max(1, len(round_scores)),
-            }
+            },
+            "criteria_hits": all_criteria_hits,
+            "degraded": all_degraded,
         })
 
-        # Synthesize Persona Verdict based on criteria
+        # Synthesize Persona Verdict based on actual score
         verdict = "APPROVED" if avg_score >= 75 else "CONDITIONALLY APPROVED" if avg_score >= 50 else "REVISE & RESUBMIT"
-        
-        if sim["round"] == 1:
-            reaction = f"Capex squeezed by ₹5.7L to ₹22.8L ({seed_context['currency']}1,900/sqft) using Kajaria PGVT and engineered veneer. 84% NTG achieved by reclaiming 119 sqft dedicated corridor."
-        elif sim["round"] == 2:
-            reaction = "IS 1893 Zone IV structural compliance verified. 6.0m x 7.2m grid preserved with single 300x300mm pre-sleeved MEP shaft. Zero slab coring required."
-        elif sim["round"] == 3:
-            reaction = "NBC 2016 Part 4 Table 2 verified: 1.05m clear spine exceeds 0.9m requirement. Travel distance 18.4m < 30m maximum. 0 dead ends."
-        elif sim["round"] == 4:
-            reaction = "STC 56 tested partition specified (SoundStop + Rockwool). Asian Paints Royale Health Shield (<5g/L VOC) and 98+ CRI circadian schedule confirmed."
-        elif sim["round"] == 5:
-            reaction = "Kiln-drying to 8-12% moisture content + 2mm expansion reveals prevents monsoon buckling. Kota stone swap saves ₹7.2L and recovers 10 weeks of schedule."
+
+        # Real reaction: report which expected criteria were hit vs missed
+        expected = sim.get("expected_criteria", [])
+        missed = [c for c in expected if c not in all_criteria_hits]
+        if all_degraded:
+            reaction = "⚠️  ALL PROVIDERS FAILED — no LLM response received. Rubric score: 0/100."
+        elif not expected:
+            reaction = f"Score {avg_score:.0f}/100 — no expected_criteria defined for this round."
+        else:
+            hits_str = ", ".join(all_criteria_hits) if all_criteria_hits else "none"
+            missed_str = ", ".join(missed) if missed else "none"
+            reaction = (
+                f"Criteria hits ({len(all_criteria_hits)}/{len(expected)}): [{hits_str}]. "
+                f"Missed: [{missed_str}]. Score {avg_score:.0f}/100."
+            )
 
         emergent_insights.append({
             "round": sim["round"],
             "stakeholder": f"{initiator['name']} ({initiator['role']})",
             "verdict": verdict,
             "score": avg_score,
-            "reaction": reaction
+            "reaction": reaction,
         })
 
         print(f"   📊 Round {sim['round']} Rubric Score: {avg_score:.1f}/100 [{verdict}]")
+        print(f"   🎯 Criteria: {reaction}")
         print("-" * 74)
 
     # 4. Generate MiroFish Comprehensive Digital Sandbox Report
