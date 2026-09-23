@@ -128,7 +128,7 @@ export function MoodboardModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
-      <div className="w-full max-w-2xl rounded-xl border border-border bg-surface shadow-2xl p-6 space-y-5 my-8">
+      <div className="w-full max-w-2xl rounded-xl border border-border bg-surface shadow-2xl p-6 space-y-5 my-8 max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border pb-3">
           <div>
@@ -215,7 +215,7 @@ export function MoodboardModal({
                   <span className="text-[10px] font-bold uppercase tracking-wider text-muted">
                     Extracted Palette:
                   </span>
-                  <div className="grid grid-cols-5 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                     {result.palette.map((p, idx) => (
                       <button
                         key={idx}

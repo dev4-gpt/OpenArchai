@@ -178,9 +178,9 @@ export function FFESchedulePanel({
                       alt={row.item.name}
                       className="h-9 w-9 rounded object-cover border border-border shrink-0"
                     />
-                    <div>
-                      <p className="font-semibold text-foreground">{row.item.name}</p>
-                      <p className="text-[10px] text-muted line-clamp-1">{row.item.notes}</p>
+                    <div className="min-w-0 max-w-[220px]">
+                      <p className="font-semibold text-foreground break-words leading-tight">{row.item.name}</p>
+                      <p className="text-[10px] text-muted break-words leading-snug mt-0.5">{row.item.notes}</p>
                     </div>
                   </div>
                 </td>
@@ -196,9 +196,9 @@ export function FFESchedulePanel({
                   <p className="font-medium text-foreground">{row.selectedVendor}</p>
                   <span className="text-[10px] text-muted font-mono">{row.item.suggestedVendors[0]?.leadTimeWeeks}</span>
                 </td>
-                <td className="py-2 px-3 text-[11px] text-muted">
-                  <p className="font-medium text-foreground truncate max-w-[140px]">{row.item.finish}</p>
-                  <p className="text-[10px] truncate max-w-[140px]">{row.item.materials.join(", ")}</p>
+                <td className="py-2 px-3 text-[11px] text-muted max-w-[240px]">
+                  <p className="font-medium text-foreground break-words leading-tight">{row.item.finish}</p>
+                  <p className="text-[10px] text-muted break-words leading-snug mt-0.5">{row.item.materials.join(", ")}</p>
                 </td>
                 <td className="py-2 px-3 text-center font-mono font-semibold">{row.quantity}</td>
                 <td className="py-2 px-3 text-right font-mono">{row.unitRate.toLocaleString()}</td>

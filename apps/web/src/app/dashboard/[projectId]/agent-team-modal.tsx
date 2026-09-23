@@ -739,7 +739,7 @@ export function AgentTeamPanel({
               <span>Saved</span>
             </span>
           </div>
-          <p className="text-[11px] text-muted truncate max-w-[240px] sm:max-w-md">
+          <p className="text-[11px] text-muted max-w-sm sm:max-w-md line-clamp-2">
             Collaborative multi-agent review for {projectName} ({region === "india" ? "Gurgaon NCR / NBC 2016" : "US / IBC & ADA"}).
           </p>
         </div>
@@ -1001,7 +1001,7 @@ export function AgentTeamPanel({
                               handleConsult(profile.sampleQuestion, [profile.role]);
                               setShowSkillsMatrix(false);
                             }}
-                            className="rounded-md border border-accent/30 bg-accent/5 px-2 py-1 text-[10px] text-accent hover:bg-accent hover:text-accent-foreground transition-colors font-medium truncate max-w-[160px]"
+                            className="rounded-md border border-accent/30 bg-accent/5 px-2.5 py-1 text-[10px] text-accent hover:bg-accent hover:text-accent-foreground transition-colors font-medium whitespace-nowrap shrink-0"
                             title={`Run sample prompt: ${profile.sampleQuestion}`}
                           >
                             💡 Run Sample ➔

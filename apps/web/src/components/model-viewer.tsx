@@ -416,9 +416,9 @@ export function ModelViewer({
       } ${className}`}
     >
       {/* Top Controls Bar */}
-      <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 rounded-lg bg-surface/85 backdrop-blur-md p-1.5 shadow-sm border border-border">
+      <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1 sm:gap-1.5 rounded-lg bg-surface/85 backdrop-blur-md p-1.5 shadow-sm border border-border max-w-[calc(100%-16px)] overflow-x-auto">
         {/* View Presets */}
-        <div className="flex items-center gap-0.5 border-r border-border pr-1.5">
+        <div className="flex items-center gap-0.5 border-r border-border pr-1.5 shrink-0">
           <button onClick={() => setView([0, 10, 0])} className="flex items-center gap-1 px-2 py-1 text-xs hover:bg-accent/10 hover:text-accent rounded transition-colors" title="Top">
             <TopIcon /> <span className="hidden sm:inline">Top</span>
           </button>
@@ -434,7 +434,7 @@ export function ModelViewer({
         </div>
 
         {/* Tools */}
-        <div className="flex items-center gap-0.5 border-r border-border pr-1.5 pl-1">
+        <div className="flex items-center gap-0.5 border-r border-border pr-1.5 pl-1 shrink-0">
           <button
             onClick={toggleMeasuring}
             className={`flex items-center gap-1 px-2 py-1 text-xs rounded transition-colors ${
@@ -447,7 +447,7 @@ export function ModelViewer({
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-0.5 pl-1">
+        <div className="flex items-center gap-0.5 pl-1 shrink-0">
           <button onClick={handleScreenshot} className="flex items-center gap-1 px-2 py-1 text-xs hover:bg-accent/10 hover:text-accent rounded transition-colors" title="Screenshot">
             <ScreenshotIcon /> <span className="hidden sm:inline">Screenshot</span>
           </button>
@@ -478,7 +478,7 @@ export function ModelViewer({
           >
             <span>🎨</span>
             <span className="hidden sm:inline">Materials</span>
-            <span className="text-[10px] font-mono text-accent hidden lg:inline">
+            <span className="text-[10px] font-mono text-accent hidden xl:inline">
               ({selectedFlooring.name.split(" ")[0]})
             </span>
           </button>
