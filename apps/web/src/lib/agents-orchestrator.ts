@@ -219,6 +219,162 @@ Eliminating 119 sq ft of dedicated corridor saves ${curr}1,96,000 in passage flo
     }
   }
 
+  // 5. Seismic Integrity, Structural Bays & Wet Core Penetration Limits
+  if (
+    q.includes("seismic") ||
+    q.includes("structural") ||
+    q.includes("core-cut") ||
+    q.includes("coring") ||
+    q.includes("shear wall") ||
+    q.includes("tendon") ||
+    q.includes("slab") ||
+    q.includes("is 1893")
+  ) {
+    if (role === "chief_architect") {
+      return `Regarding structural seismic discipline under IS 1893:2016 (Zone IV NCR) for **${projectName}**:
+We strictly prohibit blind core-cutting through post-tensioned slabs or ductile moment frames.
+
+### Structural Bay & Core Strategy:
+- **Bay Rationalization**: Primary column bays are organized on a 6.0m × 7.2m grid, keeping shear walls free of unauthorized penetrations.
+- **Stacked Vertical Wet Core**: The 35 sq ft ensuite bath is back-to-back with the kitchen plumbing wall, sharing a single **300×300mm pre-sleeved MEP shaft**.
+- **Zero Structural Weakening**: All sanitary drops route above the structural slab within a 120mm recessed sunken slab or lightweight aerated screed build-up, completely eliminating structural slab coring.
+
+${"```"}
++-------------------------------------------------------------+
+| [MAIN RESIDENCE GRID: 6.0m x 7.2m IS 1893 ZONE IV FRAME]    |
+|                                                             |
+|  [OPEN ZONE]       <-- Single Central Spine -->  [BEDROOM]  |
+|                                                             |
+|  [KITCHEN (SE)]    [PRE-SLEEVED 300x300 SHAFT]   [ENSUITE]  |
+|  [Wet Services] == [NO SLAB PENETRATIONS] ===== [Sunken 120]|
++-------------------------------------------------------------+
+${"```"}
+
+[ACTION: 📐 Apply Single-Loaded Spine in 2D Plan | apply_layout | single_loaded_spine]
+[ACTION: 📜 Run NBC Egress Audit | audit_compliance | nbc_egress]`;
+    }
+
+    if (role === "code_specialist") {
+      return `Structural & Life-Safety Compliance Analysis (IS 1893:2016 / NBC 2016 Part 4):
+1. **Slab & Shaft Penetration**: Stacking wet utilities into Vikram's single 300×300mm shaft preserves the integrity of the diaphragm slab in Seismic Zone IV.
+2. **Fire & Smoke Stopping**: The annular gap around soil/waste pipes inside the 300×300mm shaft must be sealed with 2-hour fire-rated intumescent collars and mineral wool firestop as per NBC Part 4 Section 3.4.8.
+3. **Plumbing Run Slope**: Horizontal manifold runs in the 120mm screed maintain a 1:40 self-cleansing gradient to prevent clogging without requiring sub-slab core cuts.
+
+[ACTION: 📜 Run NBC Egress Audit | audit_compliance | nbc_egress]
+[ACTION: 📊 Recalculate BOQ with 35 sqft Ensuite | recalculate_boq | ensuite_35]`;
+    }
+
+    if (role === "cost_estimator") {
+      return `Avoiding slab core-drilling by utilizing a pre-sleeved 300×300mm shaft saves ${curr}45,000 in specialized diamond core-drilling, scanning, and re-sealing fees, while eliminating the risk of structural rebar/tendon damage.
+
+[ACTION: 📊 Recalculate BOQ with 35 sqft Ensuite | recalculate_boq | ensuite_35]`;
+    }
+  }
+
+  // 6. Statutory Fire Evacuation, Travel Distance & Egress Clearance (NBC 2016)
+  if (
+    q.includes("egress") ||
+    q.includes("fire") ||
+    q.includes("dead-end") ||
+    q.includes("travel distance") ||
+    q.includes("exit") ||
+    q.includes("evacuation") ||
+    q.includes("table 2")
+  ) {
+    if (role === "code_specialist") {
+      return `Comprehensive Statutory Evacuation Audit under **NBC 2016 Part 4 (Fire and Life Safety)** for **${projectName}**:
+
+1. **Internal Circulation Width**: Under NBC 2016 Part 4 Table 2, the minimum internal passage width within a residential apartment unit is **0.9m (3'-0")**. Our central spine measures 1.05m clear, exceeding statutory threshold by 150mm.
+2. **Travel Distance**: Maximum travel distance from the remotest point of the bedroom retreat to the foyer unit exit door is **18.4m**, well within the NBC 2016 limit of **30.0m** for residential unsprinklered suites (and 45.0m sprinklered).
+3. **Dead-End Corridor**: Zero dead-end condition. The layout utilizes a continuous linear spine connecting directly to the main egress door without any secondary dead-end pockets exceeding 6.0m.
+4. **Doorway Clearances**: Main exit door specified at 1.05m × 2.4m with 1-hour fire resistance rating (FD60) and lever-action non-locking hardware in the direction of escape.
+
+[ACTION: 📜 Run NBC Egress Audit | audit_compliance | nbc_egress]
+[ACTION: 📐 Apply Single-Loaded Spine in 2D Plan | apply_layout | single_loaded_spine]`;
+    }
+
+    if (role === "chief_architect") {
+      return `From an architectural egress layout perspective in **${projectName}**:
+The central circulation spine serves as a continuous, unobstructed egress trajectory. We eliminated all vestibule pinch-points, ensuring door swings (both ensuite and wardrobe) fold parallel to walls without encroaching upon the 0.9m clear walking path.
+
+[ACTION: 📐 Apply Single-Loaded Spine in 2D Plan | apply_layout | single_loaded_spine]`;
+    }
+  }
+
+  // 7. Acoustics (STC 55), Zero-VOC & Circadian Wellness
+  if (
+    q.includes("acoustic") ||
+    q.includes("stc") ||
+    q.includes("circadian") ||
+    q.includes("voc") ||
+    q.includes("wellness") ||
+    q.includes("biophilic") ||
+    q.includes("museum") ||
+    q.includes("cri")
+  ) {
+    if (role === "interior_designer") {
+      return `Curating museum-grade wellness and acoustic isolation for **${projectName}**:
+
+1. **Acoustic Decoupling (STC 55)**:
+   - Partition separating bedroom retreat from open living space: Double staggered 75mm GI studs on independent neoprene isolation tracks.
+   - Core infill: 50mm high-density Rockwool insulation (60 kg/m³).
+   - Facing: Dual layers of 12.5mm Saint-Gobain Gyproc SoundStop boards with Green Glue damping polymer between layers, achieving tested **STC 56**.
+2. **Zero-VOC Environmental Health**:
+   - Primary walls finished in **Asian Paints Royale Health Shield** (GreenGuard Gold certified, ultra-low VOC < 5g/L, anti-bacterial silver ion technology).
+   - Joinery adhesives: Non-toxic water-based Henkel aliphatic resin, completely free of off-gassing formaldehydes.
+3. **Circadian Lighting Simulation**:
+   - 98+ CRI museum-grade architectural LED fixtures (Xicato / Luminii chips, R9 > 95 for natural fabric and art rendering).
+   - Tunable white schedule: 5500K crisp morning alertness, declining to 3000K afternoon ambient, and 2200K warm anti-blue evening glow. Anti-glare deep baffles maintain UGR < 16.
+
+[ACTION: 🎨 Apply Teak & Royale Palette | apply_materials | fl_wooden_teak,wl_asian_paints_royale]
+[ACTION: 📊 Recalculate BOQ with 35 sqft Ensuite | recalculate_boq | premium_finishes]`;
+    }
+
+    if (role === "code_specialist") {
+      return `Environmental & Wellness Code Verification:
+The proposed STC 56 acoustic partition meets NBC 2016 Part 8 Section 4 (Acoustic Comfort) criteria for high-comfort residential zones (NC 30-35). Low-VOC specifications satisfy IGBC / GRIHA green building credits for Indoor Environmental Quality (IEQ).
+
+[ACTION: 📜 Run NBC Egress Audit | audit_compliance | nbc_egress]`;
+    }
+  }
+
+  // 8. Monsoon Buildability, Humidity Warping & Supply Chain Optimization
+  if (
+    q.includes("monsoon") ||
+    q.includes("humidity") ||
+    q.includes("warp") ||
+    q.includes("swelling") ||
+    q.includes("efflorescence") ||
+    q.includes("lead time") ||
+    q.includes("supply chain")
+  ) {
+    if (role === "interior_designer") {
+      return `Detaiing for Delhi-NCR's extreme 95% monsoon humidity in **${projectName}**:
+
+1. **Fluted Timber Joinery (Warp Prevention)**:
+   - Timber kiln-dried to strict **8-12% equilibrium moisture content**.
+   - Substrate: 12mm Marine-Grade BWP 710 plywood or Wood-Plastic Composite (WPC) backer board mechanically fastened with a 5mm ventilated rear cavity.
+   - Expansion Reveals: 2mm shadow gaps between 600mm fluted modules filled with elastomeric color-matched silicone.
+   - Sealing: 3 coats of moisture-cured polyurethane (PU) lacquer applied to all 6 faces (including back-priming and end-grains) to seal against vapor absorption.
+2. **Honed Kota Stone with Brass Inlays**:
+   - Substrate: Cleaned, cured concrete base with a flexible elastomeric polyurethane moisture vapor barrier.
+   - Bedding: C2TE S1 polymer-modified cementitious adhesive (IS 15477 compliant) applied with 100% buttering.
+   - Brass Detailing: 3mm solid brass flat bar anchored into stone rebates with flexible two-part Araldite epoxy adhesive. Joints filled with anti-fungal epoxy grout to stop efflorescence.
+
+[ACTION: 🎨 Apply Teak & Royale Palette | apply_materials | fl_wooden_teak,wl_fluted_wood]
+[ACTION: 📊 Recalculate BOQ with 35 sqft Ensuite | recalculate_boq | premium_finishes]`;
+    }
+
+    if (role === "cost_estimator") {
+      return `Supply Chain Risk Mitigation & Schedule Compression:
+- **Imported Italian Marble**: 12-14 week lead time, high breakage risk, ₹650-800/sqft.
+- **Local Kota Stone / Kajaria PGVT Alternative**: Rajasthan quarry-cut Kota stone or Gujarat PGVT tiles have a **2-3 week procurement cycle**.
+- **Financial & Schedule Savings**: Replaces ₹9,60,000 marble line item with ₹2,40,000 locally sourced finishes, **saving ${curr}7,20,000** while slashing project critical path delivery by 8 to 10 weeks.
+
+[ACTION: 📊 Recalculate BOQ with 35 sqft Ensuite | recalculate_boq | ensuite_35]`;
+    }
+  }
+
   // Default intelligent contextual response
   if (role === "chief_architect") {
     return `Regarding "${prompt}" for **${projectName}**: From an architectural perspective, we balance spatial fluidity with structural logic. I recommend prioritizing natural cross-ventilation corridors, opening lintel spans to 2.4m, and maintaining clear circulation axes between the living core and private zones.
@@ -288,7 +444,7 @@ async function callOpenAICompatible(
   extraHeaders: Record<string, string> = {},
 ): Promise<string> {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 15000);
+  const timeoutId = setTimeout(() => controller.abort(), 8000);
 
   try {
     const res = await fetch(endpointUrl, {
@@ -334,7 +490,7 @@ async function callGeminiDirect(
   maxTokens = 1000,
 ): Promise<string> {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 15000);
+  const timeoutId = setTimeout(() => controller.abort(), 8000);
 
   try {
     const res = await fetch(
