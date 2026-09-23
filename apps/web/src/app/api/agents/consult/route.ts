@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { consultAgentTeam, type AgentRole, type ProjectContext } from "@/lib/agents-orchestrator";
 import { checkRateLimit } from "@/lib/rate-limit";
 
+export const maxDuration = 60;
+
 export async function POST(req: NextRequest) {
   try {
     // Each consult fires up to one paid Gemini call per selected persona —
