@@ -310,6 +310,26 @@ export function JurisdictionInspector({
     URL.revokeObjectURL(url);
   }
 
+  const hasCADData = elements?.walls && elements.walls.length > 0;
+
+  if (!hasCADData) {
+    return (
+      <div className="space-y-4 rounded-lg border border-border bg-surface p-4 shadow-xs">
+        <div className="flex items-center gap-2 border-b border-border pb-3">
+          <h2 className="text-sm font-semibold text-foreground">Municipal Due-Diligence &amp; International Codes</h2>
+          <span className="rounded bg-accent/10 px-1.5 py-0.5 text-[10px] font-semibold text-accent border border-accent/20">
+            {region === "india" ? "🇮🇳 Haryana DTCP / NBC 2016" : region === "us" ? "🇺🇸 NYC DOB / IBC 2024" : region === "uk" ? "🇬🇧 UK Part B & M / NDSS" : "🇦🇪 Dubai DBC / UAE FLSC"}
+          </span>
+        </div>
+        <div className="flex flex-col items-center justify-center py-8 text-center gap-2">
+          <span className="text-2xl">📐</span>
+          <p className="text-sm font-medium text-foreground">No floor plan uploaded yet</p>
+          <p className="text-xs text-muted max-w-xs">Upload a floor plan above to automatically calculate egress widths, daylight ratios, occupancy loads, and zoning compliance for your jurisdiction.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4 rounded-lg border border-border bg-surface p-4 shadow-xs">
       {/* Header */}
@@ -317,7 +337,7 @@ export function JurisdictionInspector({
         <div>
           <div className="flex items-center gap-2">
             <h2 className="text-sm font-semibold text-foreground">
-              Municipal Due-Diligence & International Codes
+              Municipal Due-Diligence &amp; International Codes
             </h2>
             <span className="rounded bg-accent/10 px-1.5 py-0.5 text-[10px] font-semibold text-accent border border-accent/20">
               {region === "india"

@@ -52,25 +52,30 @@ export async function POST(req: Request) {
 
         if (hgRes.ok) {
           const hgData = await hgRes.json();
-          const response: HiggsfieldJobResponse = {
-            jobId: hgData.id || `hg_${Date.now()}`,
-            status: "completed",
-            progress: 100,
-            videoUrl: hgData.video_url || "/videos/reel-360-turntable.mp4",
-            thumbnailUrl: hgData.thumbnail_url || "/images/render-hero.jpg",
-            cameraPath: waypoints,
-            prompt,
-            motionConfig: {
-              engine: "higgsfield_ai_v2",
-              model: "open-higgsfield-cinema-pro",
-              dopPreset: "28mm Architectural Steadicam",
-              focalLength: "28mm",
-              shutterSpeed: "1/120s (180° shutter)",
-              fps: 60,
-            },
-            createdAt: new Date().toISOString(),
-          };
-          return NextResponse.json(response);
+          // If Higgsfield returns a real video URL, serve it directly.
+          // If not (no video_url), fall through to client-capture — never serve a stock MP4.
+          if (hgData.video_url) {
+            const response: HiggsfieldJobResponse = {
+              jobId: hgData.id || `hg_${Date.now()}`,
+              status: "completed",
+              progress: 100,
+              videoUrl: hgData.video_url,
+              thumbnailUrl: hgData.thumbnail_url || undefined,
+              cameraPath: waypoints,
+              prompt,
+              motionConfig: {
+                engine: "higgsfield_ai_v2",
+                model: "open-higgsfield-cinema-pro",
+                dopPreset: "28mm Architectural Steadicam",
+                focalLength: "28mm",
+                shutterSpeed: "1/120s (180° shutter)",
+                fps: 60,
+              },
+              createdAt: new Date().toISOString(),
+            };
+            return NextResponse.json(response);
+          }
+          // No video_url from Higgsfield — fall through to client-capture below
         }
       } catch (err) {
         console.warn("Higgsfield upstream API call failed, falling back to conditioned pipeline:", err);

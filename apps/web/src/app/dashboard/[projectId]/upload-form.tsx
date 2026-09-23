@@ -31,7 +31,9 @@ export function UploadForm({ projectId }: { projectId: string }) {
       } = await supabase.auth.getUser();
       if (!user) throw new Error("Not signed in");
 
-      const path = `${user.id}/${projectId}/${crypto.randomUUID()}-${file.name}`;
+      // Sanitize filename: strip special chars and cap at 80 chars to avoid storage path limits
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 80);
+      const path = `${user.id}/${projectId}/${crypto.randomUUID()}-${safeName}`;
       const { error: uploadError } = await supabase.storage
         .from("floorplans")
         .upload(path, file);
@@ -90,7 +92,7 @@ export function UploadForm({ projectId }: { projectId: string }) {
         {pending ? "Uploading & Processing…" : "Choose a JPEG, PNG, or WebP floorplan"}
         <input
           type="file"
-          accept="image/*"
+          accept="image/jpeg,image/png,image/webp"
           disabled={pending}
           onChange={handleChange}
           className="hidden"

@@ -24,8 +24,26 @@ export function CostPanel({
 
   const estimate: ProjectCostEstimate = calculateProjectCost(elements, customRegion);
 
+  const hasCADData = elements?.walls && elements.walls.length > 0;
   const grandTotal = estimate.grandTotal[tier];
   const ratePerSqFt = Math.round(grandTotal / Math.max(1, estimate.floorAreaSqFt));
+
+  if (!hasCADData) {
+    return (
+      <div className="space-y-4 rounded-lg border border-border bg-surface p-4 shadow-xs">
+        <div className="border-b border-border pb-3">
+          <h2 className="text-sm font-semibold text-foreground">Bill of Quantities (BOQ) &amp; Cost Estimation</h2>
+          <p className="text-xs text-muted">Automated takeoffs from floor plan geometry.</p>
+        </div>
+        <div className="flex flex-col items-center justify-center py-8 text-center gap-2">
+          <span className="text-2xl">📊</span>
+          <p className="text-sm font-medium text-foreground">No floor plan uploaded yet</p>
+          <p className="text-xs text-muted max-w-xs">Upload a floor plan above to automatically generate a Bill of Quantities with architect-grade SOR rates across Budget, Mid, and Premium tiers.</p>
+        </div>
+      </div>
+    );
+  }
+
 
   function exportCsv() {
     const headers = ["Category", "Description", "Quantity", "Unit", "Unit Rate", "Total"];
