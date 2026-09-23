@@ -462,11 +462,99 @@ export function ModelViewer({
               </>
             )}
           </button>
+
+          <div className="mx-1 h-4 w-px bg-border" />
+
+          {/* Material Swapper Button in Top Toolbar */}
+          <button
+            type="button"
+            onClick={() => setShowMaterialDrawer((prev) => !prev)}
+            className={`flex items-center gap-1.5 px-2 py-1 text-xs font-semibold rounded transition-colors ${
+              showMaterialDrawer
+                ? "bg-accent text-accent-foreground shadow-xs"
+                : "text-foreground hover:bg-accent/10 hover:text-accent"
+            }`}
+            title="Swap PBR Flooring & Wall Materials"
+          >
+            <span>🎨</span>
+            <span className="hidden sm:inline">Materials</span>
+            <span className="text-[10px] font-mono text-accent hidden lg:inline">
+              ({selectedFlooring.name.split(" ")[0]})
+            </span>
+          </button>
         </div>
       </div>
 
-      {/* Bottom Left: Circadian Lighting Simulation Bar */}
-      <div className="absolute bottom-2 left-2 z-10 flex items-center gap-1 rounded-lg bg-surface/85 backdrop-blur-md p-1 shadow-sm border border-border text-xs">
+      {/* Floating Material Drawer (Anchored from Top) */}
+      {showMaterialDrawer && (
+        <div className="absolute top-12 right-2 sm:right-6 z-20 w-72 rounded-xl border border-border bg-surface/95 backdrop-blur-md p-3.5 shadow-xl space-y-3 text-xs animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center justify-between border-b border-border pb-2">
+            <span className="font-bold text-foreground flex items-center gap-1.5">
+              <span>🎨</span> Live Material Swapper (PBR)
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowMaterialDrawer(false)}
+              className="text-muted hover:text-foreground text-xs p-1"
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* Flooring Swaps */}
+          <div className="space-y-1.5">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted">Flooring:</span>
+            <div className="grid grid-cols-1 gap-1">
+              {FLOORING_SWAPS.map((f) => (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => handleSelectFlooring(f)}
+                  className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg border text-left transition-all ${
+                    selectedFlooring.id === f.id
+                      ? "border-accent bg-accent/10 font-semibold text-accent"
+                      : "border-border/60 hover:border-accent/40 text-foreground"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="h-3 w-3 rounded-full border border-black/20 shrink-0" style={{ backgroundColor: f.colorHex }} />
+                    <span className="truncate">{f.name}</span>
+                  </div>
+                  {selectedFlooring.id === f.id && <span className="text-[10px]">✓</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Wall Swaps */}
+          <div className="space-y-1.5">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted">Wall Finishes:</span>
+            <div className="grid grid-cols-1 gap-1">
+              {WALL_SWAPS.map((w) => (
+                <button
+                  key={w.id}
+                  type="button"
+                  onClick={() => handleSelectWall(w)}
+                  className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg border text-left transition-all ${
+                    selectedWall.id === w.id
+                      ? "border-accent bg-accent/10 font-semibold text-accent"
+                      : "border-border/60 hover:border-accent/40 text-foreground"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="h-3 w-3 rounded-full border border-black/20 shrink-0" style={{ backgroundColor: w.colorHex }} />
+                    <span className="truncate">{w.name}</span>
+                  </div>
+                  {selectedWall.id === w.id && <span className="text-[10px]">✓</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bottom: Circadian Lighting Simulation Bar */}
+      <div className="absolute bottom-2 left-2 sm:left-4 z-10 flex flex-wrap items-center gap-1 rounded-lg bg-surface/85 backdrop-blur-md p-1 shadow-sm border border-border text-xs">
         <span className="px-1 text-[10px] font-bold text-muted uppercase tracking-wider hidden sm:inline">Sun:</span>
         {(Object.keys(CIRCADIAN_CONFIGS) as CircadianPreset[]).map((key) => {
           const cfg = CIRCADIAN_CONFIGS[key];
@@ -488,88 +576,6 @@ export function ModelViewer({
             </button>
           );
         })}
-      </div>
-
-      {/* Top Right: Live Material Swapper Palette Trigger */}
-      <div className="absolute top-2 right-2 z-10 flex flex-col items-end gap-2">
-        {showMaterialDrawer && (
-          <div className="w-72 rounded-xl border border-border bg-surface/95 backdrop-blur-md p-3 shadow-lg space-y-3 text-xs mb-1">
-            <div className="flex items-center justify-between border-b border-border pb-2">
-              <span className="font-bold text-foreground flex items-center gap-1.5">
-                <span>🎨</span> Live Material Swapper (PBR)
-              </span>
-              <button
-                type="button"
-                onClick={() => setShowMaterialDrawer(false)}
-                className="text-muted hover:text-foreground text-xs"
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* Flooring Swaps */}
-            <div className="space-y-1.5">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-muted">Flooring:</span>
-              <div className="grid grid-cols-1 gap-1">
-                {FLOORING_SWAPS.map((f) => (
-                  <button
-                    key={f.id}
-                    type="button"
-                    onClick={() => handleSelectFlooring(f)}
-                    className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg border text-left transition-all ${
-                      selectedFlooring.id === f.id
-                        ? "border-accent bg-accent/10 font-semibold text-accent"
-                        : "border-border/60 hover:border-accent/40 text-foreground"
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="h-3 w-3 rounded-full border border-black/20" style={{ backgroundColor: f.colorHex }} />
-                      <span className="truncate">{f.name}</span>
-                    </div>
-                    {selectedFlooring.id === f.id && <span className="text-[10px]">✓</span>}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Wall Swaps */}
-            <div className="space-y-1.5">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-muted">Wall Finishes:</span>
-              <div className="grid grid-cols-1 gap-1">
-                {WALL_SWAPS.map((w) => (
-                  <button
-                    key={w.id}
-                    type="button"
-                    onClick={() => handleSelectWall(w)}
-                    className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg border text-left transition-all ${
-                      selectedWall.id === w.id
-                        ? "border-accent bg-accent/10 font-semibold text-accent"
-                        : "border-border/60 hover:border-accent/40 text-foreground"
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="h-3 w-3 rounded-full border border-black/20" style={{ backgroundColor: w.colorHex }} />
-                      <span className="truncate">{w.name}</span>
-                    </div>
-                    {selectedWall.id === w.id && <span className="text-[10px]">✓</span>}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        <button
-          type="button"
-          onClick={() => setShowMaterialDrawer(!showMaterialDrawer)}
-          className="flex items-center gap-1.5 rounded-lg bg-surface/90 backdrop-blur-md px-3 py-1.5 text-xs font-semibold text-foreground hover:border-accent/40 shadow-sm border border-border transition-colors"
-        >
-          <span>🎨</span>
-          <span>Material Swapper</span>
-          <span className="text-[10px] font-mono text-accent">
-            ({selectedFlooring.name.split(" ")[0]} / {selectedWall.name.split(" ")[0]})
-          </span>
-        </button>
       </div>
 
       <Canvas
