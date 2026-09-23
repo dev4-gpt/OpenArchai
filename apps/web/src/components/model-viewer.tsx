@@ -478,9 +478,6 @@ export function ModelViewer({
           >
             <span>🎨</span>
             <span className="hidden sm:inline">Materials</span>
-            <span className="text-[10px] font-mono text-accent hidden xl:inline">
-              ({selectedFlooring.name.split(" ")[0]})
-            </span>
           </button>
         </div>
       </div>
