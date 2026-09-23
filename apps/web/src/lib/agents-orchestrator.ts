@@ -29,28 +29,42 @@ const AGENT_PROFILES: Record<AgentRole, { name: string; title: string; avatar: s
     title: "Lead Architectural Principal",
     avatar: "📐",
     systemPrompt: `You are Vikram Mehta, Principal Architect at PDCO Architects (Gurgaon). You have 20+ years of experience designing high-end residences in DLF Phase 5, Golf Course Road, and South Delhi farmhouses.
-Focus on: Spatial planning archetypes (single/double-loaded corridors, central core, side core), structural grid rationality (6-8m bays), Net-to-Gross (NTG) efficiency (targeting 78-85% residential), daylight orientation, transition between public and private zones, and architectural elegance. Keep advice practical, authoritative, and concise.`,
+Focus on: Spatial planning archetypes (single/double-loaded corridors, central core, side core), structural grid rationality (6.0m to 7.2m bays), Net-to-Gross (NTG) efficiency (targeting 82-85% residential), daylight orientation, transition between public and private zones, and architectural elegance.
+Seismic Discipline: Under IS 1893:2016 (Zone IV NCR), prohibit random slab core cuts; integrate wet services into a single 300x300mm pre-sleeved vertical shaft. Keep advice practical, authoritative, and concise.`,
   },
   code_specialist: {
     name: "Ananya Sharma",
     title: "Building Code & Vastu Consultant",
     avatar: "📜",
     systemPrompt: `You are Ananya Sharma, Head of Regulatory Compliance at PDCO Architects. You specialize in the National Building Code of India (NBC 2016), Haryana DTCP / HRERA plotted bylaws, US IBC/ADA standards, and classical Vastu Shastra spatial orientation.
-Focus on: Statutory occupant load calculations (IBC Table 1004.5 / NBC Part 4), egress capacity sizing (minimum 0.9m doors, 1.2m corridors, 0.15in/occupant width), minimum room areas, window daylighting (>= 10% floor plate), Vastu zoning (Kitchen in SE/Agni, Master in SW/Nairutya, Water in NE/Ishanya), and Gurgaon FAR/height restrictions. Be precise with code clauses.`,
+Focus on:
+- NBC 2016 Part 4 Table 2: Minimum clear width of internal residential exit doorway is 0.9m (900mm) and corridor is 1.2m (internal passage 0.9m). Egress width factor: 0.15 inch (3.81mm)/occupant.
+- NBC 2016 Part 4 Clause 4.5.1: Maximum travel distance to exit stair <= 30m (residential unsprinklered) or 45m (sprinklered).
+- NBC 2016 Part 4 Clause 4.6: Absolute zero dead-end corridors exceeding 6.0m.
+- NBC 2016 Part 4 Table 1: Residential occupant load factor is 9.3 m²/person (100 sq ft/person).
+- IS 1893:2016 (Seismic Zone IV): Diaphragm slab preservation, zero uncoordinated coring into post-tensioned slabs, pre-sleeved 300x300mm shafts.
+- Vastu Shastra: Agni (SE) kitchen, Nairutya (SW) master suite, Ishanya (NE) clean water and light.
+Always cite the specific NBC 2016 Part, Section, Table, and Clause numbers.`,
   },
   interior_designer: {
     name: "Rohan Varma",
     title: "Senior Interior & Material Architect",
     avatar: "🎨",
-    systemPrompt: `You are Rohan Varma, Interior Design Director. You specialize in contemporary Indian luxury interiors blending natural materials (honed Kota stone, Makrana white marble, Italian Statuario, Burma teak, terracotta jalis) with Asian Paints Royale palettes, circadian lighting, and advanced AI restyling frameworks (MeltFlex restyle, virtual staging, wall texture, floor replacement).
-Focus on: Material pairings, tactile textures, color palettes, custom joinery, false ceiling coves, acoustic fluted timber detailing, and bespoke finishes.`,
+    systemPrompt: `You are Rohan Varma, Interior Design Director. You specialize in contemporary Indian luxury interiors blending natural materials (honed Kota stone, Makrana white marble, Italian Statuario, Burma teak, terracotta jalis) with Asian Paints Royale palettes, circadian lighting, and advanced AI restyling frameworks.
+Focus on:
+- IS 15477:2019 (Type 2 / Type 3 C2TE S1 polymer-modified adhesive) for Kota stone with 2-3mm joints filled with flexible anti-fungal epoxy grout.
+- IS 287: Kiln-drying timber to 8-12% equilibrium moisture content, mounted on BWP 710 marine plywood or WPC backer boards with 2mm expansion reveals and ventilated 10mm rear cavity to withstand Delhi-NCR 95% monsoon humidity.
+- Tested STC 56 acoustic decoupling: Double-stud 90mm frames, 25mm air cavity, 50mm high-density Rockwool (60 kg/m³), dual 12.5mm Saint-Gobain Gyproc SoundStop boards with Green Glue damping.
+- Zero-VOC finishes: Asian Paints Royale Health Shield (<5g/L VOC, silver-ion antibacterial).
+- Circadian lighting: 98+ CRI tunable architectural LEDs (2700K to 6500K, UGR < 16).`,
   },
   cost_estimator: {
     name: "Sunil Bajaj",
     title: "Chief Quantity Surveyor & Cost Estimator",
     avatar: "📊",
     systemPrompt: `You are Sunil Bajaj, Chief Quantity Surveyor. You track real-time construction, finishing, and workplace programming costs across Gurgaon NCR, Delhi, and Mumbai (Schedule of Rates).
-Focus on: Usable vs gross floor area budgeting, civil vs finishes splits, cost per sq ft (Budget ₹1,650/sqft, Standard ₹2,350/sqft, Luxury ₹3,800/sqft), value-engineering alternates (e.g. Kajaria GVT tiles vs Italian marble), MEP cost allowances, and 10% contingency buffers. Be direct and realistic with numbers.`,
+Focus on: Usable vs gross floor area budgeting, civil vs finishes splits, cost per sq ft (Budget ₹1,650/sqft, Standard ₹2,350/sqft, Luxury ₹3,800/sqft), value-engineering alternates (e.g. Kajaria GVT tiles vs Italian marble), MEP cost allowances, and 10% contingency buffers.
+MANDATORY INSTITUTIONAL RECONCILIATION RULE: Whenever a budget cut, Capex reduction, or value engineering is requested, you MUST provide an explicit markdown Before/After BOQ reconciliation table with columns: [Trade Package / Item, Baseline Cost (₹), Value-Engineered Spec (₹), Net Savings (₹), Lead Time Impact]. Show exact arithmetic.`,
   },
 };
 
@@ -169,12 +183,30 @@ Eliminating 119 sq ft of dedicated corridor saves ${curr}1,96,000 in passage flo
 
   if (q.includes("cost") || q.includes("budget") || q.includes("value") || q.includes("reduce") || q.includes("save") || q.includes("engineer")) {
     if (role === "cost_estimator") {
-      return `To value-engineer **${projectName}** by 12-15% without compromising luxury perception:
-- **Flooring**: Swap imported Italian Statuario (${curr}350/sqft material + ${curr}120/sqft laying) with 1200x600 Kajaria polished vitrified tiles (${curr}85/sqft + ${curr}55/sqft laying) — immediate savings of ~${curr}1,80,000.
-- **Fenestration**: Specify powder-coated Jindal thermal-break aluminium profiles instead of imported European Schuco sections, saving ~${curr}450/sqft of glazed area.
-- **Paint**: Apply Asian Paints Royale Luxury Emulsion on primary walls, reserving Royale Aspira exclusively for the double-height foyer and master suite.
+      return `To achieve the required 20% Capex reduction (bringing ${curr}28,50,000 down to ${curr}22,80,000 / ${curr}1,900/sqft) while pushing Net-to-Gross efficiency to 84% on **${projectName}**:
 
-[ACTION: 📊 Recalculate BOQ with 35 sqft Ensuite | recalculate_boq | ensuite_35]`;
+### Usable Carpet Area Arithmetic:
+- Gross Floor Area: 1,200 sq ft (111 m²)
+- Baseline Usable Area (78% NTG): 1,200 × 0.78 = 936 sq ft
+- Target Usable Area (84% NTG): 1,200 × 0.84 = 1,008 sq ft (+72 sq ft net usable gained)
+- Dedicated Circulation Eliminated: 108 sq ft reclaimed by transitioning to a single-loaded corridor spine.
+
+### Institutional BOQ Value-Engineering Reconciliation Table (${curr} Gurgaon SOR):
+| Trade Package / Item | Baseline Underwritten Cost (${curr}) | Value-Engineered Specification (${curr}) | Net Savings (${curr}) | Lead Time & Schedule Impact |
+|---|---|---|---|---|
+| **1. Flooring & Skirting** | ${curr}9,60,000 *(Italian Statuario @ ${curr}800/sf)* | ${curr}3,60,000 *(1200x600 Kajaria PGVT @ ${curr}300/sf)* | **-${curr}6,00,000** | -10 weeks lead time |
+| **2. Custom Joinery & Wardrobes** | ${curr}3,60,000 *(Burma Teak Veneer @ ${curr}1200/sf)* | ${curr}2,10,000 *(Engineered Wood Veneer @ ${curr}700/sf)* | **-${curr}1,50,000** | -2 weeks shop lead |
+| **3. False Ceiling & Lighting Coves**| ${curr}1,95,000 *(Multi-tier curved gypsum)* | ${curr}1,15,000 *(Single-tier cove trough)* | **-${curr}80,000** | -5 days site time |
+| **4. Architectural Fenestration** | ${curr}3,80,000 *(European Schuco sections)* | ${curr}2,40,000 *(Jindal thermal-break aluminium)*| **-${curr}1,40,000** | Local procurement |
+| **5. Wall Emulsion & Finishes** | ${curr}1,80,000 *(Royale Aspira)* | ${curr}1,20,000 *(Asian Paints Royale Luxury)* | **-${curr}60,000** | Readily available |
+| **6. Sanitary & Concealed Cistern** | ${curr}2,40,000 *(Imported Gessi / Kohler)* | ${curr}1,65,000 *(Grohe concealed system)* | **-${curr}75,000** | 48-hr dispatch |
+| **7. Wet Wall MEP & Risers** | ${curr}2,85,000 *(Split dual risers)* | ${curr}2,35,000 *(Single 300x300 stacked wet core)*| **-${curr}50,000** | Zero core cutting |
+| **Subtotal Packages** | ${curr}26,00,000 | ${curr}14,45,000 | **-${curr}11,55,000** | Critical path compressed |
+| **Contingency Reserve (10%)** | ${curr}2,50,000 | ${curr}1,85,000 | **-${curr}65,000** | Preserved buffer |
+| **TOTAL UNDERWRITTEN CAPEX** | **${curr}28,50,000 (${curr}2,375/sqft)** | **${curr}16,30,000 (${curr}1,358/sqft)** | **-${curr}12,20,000** | Target ${curr}22.8L exceeded! |
+
+[ACTION: 📊 Recalculate BOQ with Value-Engineered Swaps | recalculate_boq | ensuite_35]
+[ACTION: 📐 Apply High-Efficiency Studio Layout | apply_layout | single_loaded_spine]`;
     }
     if (role === "interior_designer") {
       return `Aesthetic cost optimization: Reserve high-value tactile elements for eye-level and touch surfaces (fluted timber bed back, antique brass handles, fluted glass wardrobe shutters). For ceilings, use clean seamless gypsum boards with indirect LED cove troughs rather than expensive multi-tiered coffered profiles.
@@ -526,6 +558,23 @@ async function callGeminiDirect(
   }
 }
 
+function ensureActionTriggers(content: string, role: AgentRole): string {
+  // If content already contains valid [ACTION: ...], preserve as is
+  if (/\[ACTION:\s*[^\]]+\]/i.test(content)) {
+    return content;
+  }
+
+  // Guaranteed fallback action triggers to maintain programmatic studio control
+  const triggers: Record<AgentRole, string> = {
+    chief_architect: `\n\n[ACTION: 📐 Apply Single-Loaded Spine in 2D Plan | apply_layout | single_loaded_spine]\n[ACTION: 📜 Audit NBC 2016 Egress Path | audit_compliance | nbc_egress]`,
+    code_specialist: `\n\n[ACTION: 📜 Run NBC Egress & Fire Audit | audit_compliance | nbc_egress]\n[ACTION: 📐 Verify 0.9m Corridor Clearances | apply_layout | single_loaded_spine]`,
+    interior_designer: `\n\n[ACTION: 🎨 Apply Curated Material Palette | apply_materials | fl_wooden_teak,wl_asian_paints_royale]\n[ACTION: 📊 Recalculate Specification Finishes | recalculate_boq | premium_finishes]`,
+    cost_estimator: `\n\n[ACTION: 📊 Recalculate BOQ with Value-Engineered Swaps | recalculate_boq | ensuite_35]\n[ACTION: 📐 Apply High-Efficiency Studio Layout | apply_layout | single_loaded_spine]`,
+  };
+
+  return `${content.trim()}${triggers[role] || ""}`;
+}
+
 /**
  * Executes a collaborative consultation across the specified agent roles in parallel.
  * Utilizes a multi-model smart router with automatic provider failover:
@@ -714,7 +763,7 @@ Format cleanly with readable paragraphs and avoid raw markdown asterisks (**) fo
         name: profile.name,
         title: profile.title,
         avatar: profile.avatar,
-        content: responseText,
+        content: ensureActionTriggers(responseText, role),
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       } as AgentMessage;
     }),
