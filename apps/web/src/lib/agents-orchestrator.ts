@@ -62,8 +62,8 @@ Focus on:
     name: "Sunil Bajaj",
     title: "Chief Quantity Surveyor & Cost Estimator",
     avatar: "📊",
-    systemPrompt: `You are Sunil Bajaj, Chief Quantity Surveyor. You track real-time construction, finishing, and workplace programming costs across Gurgaon NCR, Delhi, and Mumbai (Schedule of Rates).
-Focus on: Usable vs gross floor area budgeting, civil vs finishes splits, cost per sq ft (Budget ₹1,650/sqft, Standard ₹2,350/sqft, Luxury ₹3,800/sqft), value-engineering alternates (e.g. Kajaria GVT tiles vs Italian marble), MEP cost allowances, and 10% contingency buffers.
+    systemPrompt: `You are Sunil Bajaj, Chief Quantity Surveyor. You track real-time construction, finishing, and workplace programming costs across Gurgaon NCR, Delhi, and Mumbai (Schedule of Rates & CPWD DSR).
+Focus on: Usable vs gross floor area budgeting, civil vs finishes splits, cost per sq ft (Budget ₹1,650/sqft, Standard ₹2,350/sqft, Luxury ₹3,800/sqft), value-engineering alternates (e.g. 1200x600 Kajaria PGVT vitrified tiles vs imported Italian marble, BWP 710 marine plywood, IS 15477 C2TE S1 adhesive, IS 287 kiln-drying 8-12%), MEP cost allowances, and 10% contingency buffers.
 MANDATORY INSTITUTIONAL RECONCILIATION RULE: Whenever a budget cut, Capex reduction, or value engineering is requested, you MUST provide an explicit markdown Before/After BOQ reconciliation table with columns: [Trade Package / Item, Baseline Cost (₹), Value-Engineered Spec (₹), Net Savings (₹), Lead Time Impact]. Show exact arithmetic.`,
   },
 };
@@ -472,7 +472,7 @@ async function callOpenAICompatible(
   apiKey: string,
   model: string,
   messages: Array<{ role: string; content: string }>,
-  maxTokens = 1000,
+  maxTokens = 1800,
   extraHeaders: Record<string, string> = {},
 ): Promise<string> {
   const controller = new AbortController();
@@ -519,7 +519,7 @@ async function callGeminiDirect(
   geminiKey: string,
   model: string,
   fullPrompt: string,
-  maxTokens = 1000,
+  maxTokens = 1800,
 ): Promise<string> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 8000);
@@ -622,8 +622,8 @@ Deliver authoritative, highly concrete architectural recommendations. Follow the
 3. Inter-Agent Cross-Talk: Reference and build upon your colleagues in the studio by name:
    - Vikram Mehta (Lead Architectural Principal)
    - Ananya Sharma (Building Code & Statutory Specialist)
-   - Rohan Joshi (Senior Interior Architect)
-   - Kabir Verma (Principal Cost & BOQ Quantity Surveyor)
+   - Rohan Varma (Senior Interior & Material Architect)
+   - Sunil Bajaj (Chief Quantity Surveyor & Cost Estimator)
 4. Action Triggers: Always conclude your message with 1 or 2 actionable studio triggers formatted exactly as:
    [ACTION: Button Label | action_type | payload]
    Available action_types:
@@ -646,7 +646,7 @@ Format cleanly with readable paragraphs and avoid raw markdown asterisks (**) fo
               { role: "system", content: systemPrompt },
               { role: "user", content: prompt },
             ],
-            1000,
+            1800,
           );
           if (responseText) break;
         }
@@ -660,7 +660,7 @@ Format cleanly with readable paragraphs and avoid raw markdown asterisks (**) fo
               { role: "system", content: systemPrompt },
               { role: "user", content: prompt },
             ],
-            1000,
+            1800,
           );
           if (responseText) break;
         }
@@ -674,7 +674,7 @@ Format cleanly with readable paragraphs and avoid raw markdown asterisks (**) fo
               { role: "system", content: systemPrompt },
               { role: "user", content: prompt },
             ],
-            1000,
+            1800,
           );
           if (responseText) break;
         }
@@ -688,7 +688,7 @@ Format cleanly with readable paragraphs and avoid raw markdown asterisks (**) fo
               { role: "system", content: systemPrompt },
               { role: "user", content: prompt },
             ],
-            1000,
+            1800,
           );
           if (responseText) break;
         }
@@ -702,7 +702,7 @@ Format cleanly with readable paragraphs and avoid raw markdown asterisks (**) fo
               { role: "system", content: systemPrompt },
               { role: "user", content: prompt },
             ],
-            1000,
+            1800,
             {
               "HTTP-Referer": "https://atelieros-cloud.vercel.app",
               "X-Title": "AtelierOS Architectural Studio",
@@ -720,7 +720,7 @@ Format cleanly with readable paragraphs and avoid raw markdown asterisks (**) fo
               { role: "system", content: systemPrompt },
               { role: "user", content: prompt },
             ],
-            1000,
+            1800,
           );
           if (responseText) break;
         }
@@ -730,7 +730,7 @@ Format cleanly with readable paragraphs and avoid raw markdown asterisks (**) fo
             geminiKey,
             route.model,
             `${systemPrompt}\n\nUser Question/Brief:\n"${prompt}"`,
-            1000,
+            1800,
           );
           if (responseText) break;
         }
@@ -748,7 +748,7 @@ Format cleanly with readable paragraphs and avoid raw markdown asterisks (**) fo
             { role: "system", content: systemPrompt },
             { role: "user", content: prompt },
           ],
-          1000,
+          1800,
         );
       }
 
