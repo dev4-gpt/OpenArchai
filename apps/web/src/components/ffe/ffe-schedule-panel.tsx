@@ -98,37 +98,37 @@ export function FFESchedulePanel({
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="rounded-lg border border-border bg-[#faf8f4]/60 p-3 text-center">
-          <span className="text-[10px] font-semibold text-muted uppercase">FF&E Line Items</span>
-          <p className="text-lg font-bold text-foreground">{schedule.items.length} Elements</p>
-          <span className="text-[10px] text-muted">Architectural specs</span>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+        <div className="flex flex-col justify-between rounded-lg border border-border bg-[#faf8f4]/60 p-3.5 text-center min-w-0">
+          <span className="text-[10px] font-semibold text-muted uppercase tracking-wider">FF&E Line Items</span>
+          <p className="text-base font-bold text-foreground my-1">{schedule.items.length} Elements</p>
+          <span className="text-[11px] text-muted">Architectural specs</span>
         </div>
 
-        <div className="rounded-lg border border-border bg-[#faf8f4]/60 p-3 text-center">
-          <span className="text-[10px] font-semibold text-muted uppercase">Vendor Partners</span>
-          <p className="text-lg font-bold text-foreground">{schedule.vendorCount} Brands</p>
-          <span className="text-[10px] text-muted">Herman Miller, Jaquar, etc.</span>
+        <div className="flex flex-col justify-between rounded-lg border border-border bg-[#faf8f4]/60 p-3.5 text-center min-w-0">
+          <span className="text-[10px] font-semibold text-muted uppercase tracking-wider">Vendor Partners</span>
+          <p className="text-base font-bold text-foreground my-1">{schedule.vendorCount} Brands</p>
+          <span className="text-[11px] text-muted">Herman Miller, Jaquar, etc.</span>
         </div>
 
-        <div className="rounded-lg border border-border bg-[#faf8f4]/60 p-3 text-center">
-          <span className="text-[10px] font-semibold text-muted uppercase">Avg. Lead Time</span>
-          <p className="text-lg font-bold text-foreground">3 - 5 Wks</p>
-          <span className="text-[10px] text-muted">Procurement buffer</span>
+        <div className="flex flex-col justify-between rounded-lg border border-border bg-[#faf8f4]/60 p-3.5 text-center min-w-0">
+          <span className="text-[10px] font-semibold text-muted uppercase tracking-wider">Avg. Lead Time</span>
+          <p className="text-base font-bold text-foreground my-1">3 - 5 Wks</p>
+          <span className="text-[11px] text-muted">Procurement buffer</span>
         </div>
 
-        <div className="rounded-lg border border-accent/40 bg-accent/5 p-3 text-center">
-          <span className="text-[10px] font-bold text-accent uppercase">Total FF&E Budget</span>
-          <p className="text-lg font-bold text-accent">
+        <div className="flex flex-col justify-between rounded-lg border border-accent/40 bg-accent/5 p-3.5 text-center min-w-0">
+          <span className="text-[10px] font-bold text-accent uppercase tracking-wider">Total FF&E Budget</span>
+          <p className="text-base font-bold text-accent my-1">
             {schedule.symbol}
             {schedule.totalCost.toLocaleString()}
           </p>
-          <span className="text-[10px] text-muted capitalize">{tier} grade finishes</span>
+          <span className="text-[11px] text-muted capitalize">{tier} grade finishes</span>
         </div>
       </div>
 
       {/* Filter Tabs */}
-      <div className="flex items-center gap-1 border-b border-border pb-2 text-xs">
+      <div className="flex flex-wrap items-center gap-1 border-b border-border pb-2 text-xs">
         {[
           { id: "all", label: "All Items" },
           { id: "living", label: "Living Room" },
@@ -153,7 +153,7 @@ export function FFESchedulePanel({
 
       {/* Spec Table */}
       <div className="overflow-x-auto rounded-lg border border-border bg-surface">
-        <table className="w-full text-left text-xs">
+        <table className="w-full min-w-[850px] text-left text-xs">
           <thead className="bg-[#faf8f4] border-b border-border text-[10px] font-semibold text-muted uppercase tracking-wider">
             <tr>
               <th className="py-2.5 px-3">Tag</th>

@@ -146,44 +146,46 @@ export function CostPanel({
       </div>
 
       {/* Summary KPI Cards */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="rounded-lg border border-border bg-[#faf8f4] p-3 text-center">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+        <div className="flex flex-col justify-between rounded-lg border border-border bg-[#faf8f4] p-3.5 text-center min-w-0">
           <span className="text-[10px] font-semibold uppercase tracking-wider text-muted">Carpet Area</span>
-          <p className="text-base font-bold text-foreground">
+          <p className="text-base font-bold text-foreground my-1">
             {estimate.floorAreaSqFt.toLocaleString()} <span className="text-xs font-normal text-muted">sqft</span>
           </p>
-          <span className="text-[10px] text-muted">({estimate.floorAreaSqM} m²)</span>
+          <span className="text-[11px] text-muted">({estimate.floorAreaSqM} m²)</span>
         </div>
 
-        <div className="rounded-lg border border-border bg-[#faf8f4] p-3 text-center">
+        <div className="flex flex-col justify-between rounded-lg border border-border bg-[#faf8f4] p-3.5 text-center min-w-0">
           <span className="text-[10px] font-semibold uppercase tracking-wider text-muted">Wall Surface</span>
-          <p className="text-base font-bold text-foreground">
+          <p className="text-base font-bold text-foreground my-1">
             {estimate.wallAreaSqFt.toLocaleString()} <span className="text-xs font-normal text-muted">sqft</span>
           </p>
-          <span className="text-[10px] text-muted">({estimate.linearWallMeters}m run · {estimate.doorCount} doors, {estimate.windowCount} windows)</span>
+          <span className="block text-[11px] text-muted leading-tight">
+            {estimate.linearWallMeters}m wall run · {estimate.doorCount} doors, {estimate.windowCount} windows
+          </span>
         </div>
 
-        <div className="rounded-lg border border-accent/40 bg-accent/5 p-3 text-center">
+        <div className="flex flex-col justify-between rounded-lg border border-accent/40 bg-accent/5 p-3.5 text-center min-w-0">
           <span className="text-[10px] font-semibold uppercase tracking-wider text-accent">Unit Rate</span>
-          <p className="text-base font-bold text-accent">
+          <p className="text-base font-bold text-accent my-1">
             {estimate.symbol}{ratePerSqFt.toLocaleString()}
             <span className="text-xs font-normal"> / sqft</span>
           </p>
-          <span className="text-[10px] text-muted capitalize">{tier} tier</span>
+          <span className="text-[11px] text-muted capitalize">{tier} tier</span>
         </div>
 
-        <div className="rounded-lg border border-accent/40 bg-accent/5 p-3 text-center">
+        <div className="flex flex-col justify-between rounded-lg border border-accent/40 bg-accent/5 p-3.5 text-center min-w-0">
           <span className="text-[10px] font-semibold uppercase tracking-wider text-accent">Total Estimate</span>
-          <p className="text-base font-bold text-accent">
+          <p className="text-base font-bold text-accent my-1">
             {estimate.symbol}{grandTotal.toLocaleString()}
           </p>
-          <span className="text-[10px] text-muted">incl. 10% contingency</span>
+          <span className="text-[11px] text-muted">incl. 10% contingency</span>
         </div>
       </div>
 
       {/* Itemized BOQ Table */}
       <div className="overflow-x-auto rounded-lg border border-border">
-        <table className="w-full text-left text-xs">
+        <table className="w-full min-w-[700px] text-left text-xs">
           <thead className="bg-[#faf8f4] border-b border-border text-[11px] font-semibold text-muted">
             <tr>
               <th className="py-2.5 px-3">Trade / Category</th>

@@ -24,32 +24,32 @@ export function ProjectSplitWorkspace({
   complianceScore?: number;
   children: React.ReactNode;
 }) {
-  const [isTeamChatOpen, setIsTeamChatOpen] = useState(true);
+  const [isTeamChatOpen, setIsTeamChatOpen] = useState(false);
   const [isChatMaximized, setIsChatMaximized] = useState(false);
 
   return (
     <div
-      className={`mx-auto transition-all duration-300 ${
+      className={`mx-auto transition-all duration-300 w-full ${
         isTeamChatOpen
-          ? "w-full max-w-[1800px] px-3 lg:px-6"
-          : "max-w-4xl px-4"
+          ? "max-w-[1720px] px-3 lg:px-6"
+          : "max-w-[1560px] px-4 sm:px-6 lg:px-8"
       }`}
     >
       {/* Top Header Bar */}
-      <div className="flex items-center justify-between py-4 mb-4 border-b border-border/60">
+      <div className="flex flex-wrap items-center justify-between gap-3 py-4 mb-6 border-b border-border/60">
         <div className="space-y-1">
           <Link href="/dashboard" className="text-xs text-muted hover:text-foreground transition-colors">
             ← Projects
           </Link>
           <div className="flex items-center gap-2">
-            <h1 className="text-lg font-semibold tracking-tight">{projectName}</h1>
-            <span className="rounded border border-border bg-surface px-1.5 py-0.5 text-[10px] font-medium text-muted">
+            <h1 className="text-xl font-bold tracking-tight">{projectName}</h1>
+            <span className="rounded border border-border bg-surface px-2 py-0.5 text-xs font-medium text-muted">
               {region === "india" ? "🇮🇳 India (NBC)" : "🇺🇸 US (IBC)"}
             </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Link
             href={presentationHref}
             className="flex items-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-foreground hover:border-accent/40 shadow-xs transition-colors"
@@ -72,20 +72,20 @@ export function ProjectSplitWorkspace({
             title={isTeamChatOpen ? "Close side-by-side team chat" : "Open side-by-side team chat extension"}
           >
             <span>{isTeamChatOpen ? "✕" : "👥"}</span>
-            <span>{isTeamChatOpen ? "Close Team Studio" : "Consult AI Team (Side-by-Side)"}</span>
+            <span>{isTeamChatOpen ? "Close Team Studio" : "Consult AI Team Studio"}</span>
           </button>
         </div>
       </div>
 
-      {/* Main Workspace Layout */}
+      {/* Main Workspace Layout: Spacious CAD workspace */}
       <div
         className={`w-full transition-all duration-300 ${
           isTeamChatOpen
-            ? "grid grid-cols-1 lg:grid-cols-2 gap-6 items-start"
-            : "space-y-8"
+            ? "grid grid-cols-1 lg:grid-cols-[1fr_420px] xl:grid-cols-[1fr_460px] gap-6 items-start"
+            : "w-full space-y-8"
         }`}
       >
-        {/* Left Half: Project Section */}
+        {/* Left/Main Area: Project Section */}
         <div className="w-full space-y-8 min-w-0">
           {children}
         </div>

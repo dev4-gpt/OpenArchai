@@ -408,39 +408,39 @@ export function JurisdictionInspector({
       </div>
 
       {/* KPI Cards: Zoning & Envelope Highlights */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="rounded-lg border border-border bg-[#faf8f4] p-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+        <div className="flex flex-col justify-between rounded-lg border border-border bg-[#faf8f4] p-3.5 min-w-0">
           <span className="text-[10px] font-semibold uppercase tracking-wider text-muted">Allowable FAR</span>
-          <p className="text-sm font-bold text-foreground mt-0.5">{auditResults.farAllowed}</p>
-          <span className="text-[10px] text-muted">{auditResults.groundCoverage}</span>
+          <p className="text-sm font-bold text-foreground mt-1 break-words">{auditResults.farAllowed}</p>
+          <span className="text-[11px] text-muted mt-1 leading-snug break-words">{auditResults.groundCoverage}</span>
         </div>
 
-        <div className="rounded-lg border border-border bg-[#faf8f4] p-3">
+        <div className="flex flex-col justify-between rounded-lg border border-border bg-[#faf8f4] p-3.5 min-w-0">
           <span className="text-[10px] font-semibold uppercase tracking-wider text-muted">Building Height Cap</span>
-          <p className="text-sm font-bold text-foreground mt-0.5">{auditResults.maxHeight}</p>
-          <span className="text-[10px] text-muted">{auditResults.minClearHeight}</span>
+          <p className="text-sm font-bold text-foreground mt-1 break-words">{auditResults.maxHeight}</p>
+          <span className="text-[11px] text-muted mt-1 leading-snug break-words">{auditResults.minClearHeight}</span>
         </div>
 
-        <div className="rounded-lg border border-border bg-[#faf8f4] p-3">
+        <div className="flex flex-col justify-between rounded-lg border border-border bg-[#faf8f4] p-3.5 min-w-0">
           <span className="text-[10px] font-semibold uppercase tracking-wider text-muted">Occupancy Load</span>
-          <p className="text-sm font-bold text-foreground mt-0.5">
+          <p className="text-sm font-bold text-foreground mt-1">
             {metrics.occupants} Persons <span className="text-xs font-normal text-muted">max</span>
           </p>
-          <span className="text-[10px] text-muted">Basis: {metrics.floorAreaSqM} m² carpet area</span>
+          <span className="text-[11px] text-muted mt-1 leading-snug">Basis: {metrics.floorAreaSqM} m² carpet area</span>
         </div>
 
-        <div className="rounded-lg border border-border bg-[#faf8f4] p-3">
+        <div className="flex flex-col justify-between rounded-lg border border-border bg-[#faf8f4] p-3.5 min-w-0">
           <span className="text-[10px] font-semibold uppercase tracking-wider text-muted">Daylight Opening</span>
-          <p className="text-sm font-bold text-foreground mt-0.5">
+          <p className="text-sm font-bold text-foreground mt-1">
             {metrics.daylightRatio}% <span className="text-xs font-normal text-muted">of floor</span>
           </p>
-          <span className="text-[10px] text-muted">{metrics.windowAreaSqM} m² glazed area</span>
+          <span className="text-[11px] text-muted mt-1 leading-snug">{metrics.windowAreaSqM} m² glazed area</span>
         </div>
       </div>
 
       {/* Code Clauses Table */}
       <div className="overflow-x-auto rounded-lg border border-border">
-        <table className="w-full text-left text-xs">
+        <table className="w-full min-w-[660px] text-left text-xs">
           <thead className="bg-[#faf8f4] border-b border-border text-[11px] font-semibold text-muted">
             <tr>
               <th className="py-2.5 px-3">Statutory Code</th>

@@ -113,9 +113,9 @@ export default async function ProjectPage({
               {uploads.map((upload) => (
                 <li
                   key={upload.id}
-                  className="space-y-2 rounded-lg border border-border bg-surface px-4 py-2.5 text-sm"
+                  className="space-y-2 rounded-lg border border-border bg-surface px-4 py-2.5 text-sm overflow-hidden"
                 >
-                  <span>{upload.storage_path.split("/").pop()}</span>
+                  <span className="font-medium truncate block">{upload.storage_path.split("/").pop()}</span>
                   <ScaleCalibration
                     uploadId={upload.id}
                     projectId={project.id}

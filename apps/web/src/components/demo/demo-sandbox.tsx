@@ -36,7 +36,7 @@ export function DemoSandbox({ demoData }: { demoData: DemoProjectData }) {
   );
   const [notification, setNotification] = useState<string | null>(null);
 
-  const [isTeamChatOpen, setIsTeamChatOpen] = useState(true);
+  const [isTeamChatOpen, setIsTeamChatOpen] = useState(false);
   const [isChatMaximized, setIsChatMaximized] = useState(false);
 
   // Initialize the 2D floor plan editor with the demo studio apartment
@@ -141,53 +141,17 @@ export function DemoSandbox({ demoData }: { demoData: DemoProjectData }) {
                 <span>Presentation</span>
               </Link>
 
+              {/* Moodboard / Inspiration Trigger */}
               <MoodboardTrigger
                 onApplyMaterials={(flId, wlId) => {
                   setActiveFlooringId(flId);
                   setActiveWallId(wlId);
-                  setNotification(`✨ Applied ${flId.replace("fl_", "").replace(/_/g, " ")} floor and ${wlId.replace("wl_", "").replace(/_/g, " ")} finish to 3D room!`);
-                  setTimeout(() => setNotification(null), 4500);
+                  setNotification(`Applied ${flId.replace("fl_", "").replace(/_/g, " ")} floor and ${wlId.replace("wl_", "").replace(/_/g, " ")} finish!`);
+                  setTimeout(() => setNotification(null), 4000);
                 }}
                 onApplyPrompt={(prompt) => {
                   setSelectedStyle(prompt);
                   setActiveRenderPrompt(prompt);
-                }}
-                onApplyLayout={(result, imageBase64) => {
-                  setActiveFlooringId(result.flooringMatch.id);
-                  setActiveWallId(result.wallMatch.id);
-
-                  const sum = (result.summary + " " + result.aesthetic).toLowerCase();
-                  if (sum.includes("sunset") || sum.includes("golden") || sum.includes("warm")) {
-                    setActiveCircadian("golden");
-                  } else if (sum.includes("twilight") || sum.includes("evening") || sum.includes("fairy")) {
-                    setActiveCircadian("evening");
-                  }
-
-                  setActiveRenderUrl(imageBase64);
-                  setActiveRenderPrompt(result.suggestedPrompt);
-                  setSelectedStyle(result.suggestedPrompt);
-
-                  // Adapt 2D floor plan with matching furniture
-                  const currentPlan = floorPlanStore.getState().floorPlan;
-                  const isBedroom = sum.includes("bedroom") || sum.includes("bohemian") || sum.includes("bed") || sum.includes("cozy");
-
-                  if (isBedroom) {
-                    const adaptedFurniture = [
-                      { id: "f_bed_1", ffeId: "ffe_king_bed", name: "King Platform Bed", type: "bed" as const, position: { x: 3.6, y: 1.6 }, width: 1.9, depth: 2.1, rotation: 0 },
-                      { id: "f_rug_1", ffeId: "ffe_circular_rug", name: "Plush Ivory Rug", type: "custom" as const, position: { x: 2.2, y: 1.8 }, width: 1.6, depth: 1.6, rotation: 0 },
-                      { id: "f_desk_1", ffeId: "ffe_desk", name: "Oak Work Desk", type: "table" as const, position: { x: 4.4, y: 2.4 }, width: 1.2, depth: 0.6, rotation: 90 },
-                      { id: "f_chair_1", ffeId: "ffe_chair", name: "Minimalist Desk Chair", type: "chair" as const, position: { x: 3.8, y: 2.4 }, width: 0.6, depth: 0.6, rotation: 90 },
-                      { id: "f_lamp_1", ffeId: "ffe_floor_lamp", name: "Warm Standing Floor Lamp", type: "lamp" as const, position: { x: 2.5, y: 0.5 }, width: 0.45, depth: 0.45, rotation: 0 },
-                      { id: "f_plant_1", ffeId: "ffe_plant", name: "Potted Fiddle-Leaf Fig", type: "custom" as const, position: { x: 1.0, y: 0.6 }, width: 0.5, depth: 0.5, rotation: 0 },
-                    ];
-                    floorPlanStore.loadPlan({
-                      ...currentPlan,
-                      furniture: adaptedFurniture,
-                    });
-                  }
-
-                  setNotification(`✨ Transformed room into "${result.aesthetic}" with matched materials, 2D/3D layout, and render!`);
-                  setTimeout(() => setNotification(null), 5500);
                 }}
               />
 
@@ -203,7 +167,7 @@ export function DemoSandbox({ demoData }: { demoData: DemoProjectData }) {
                 title={isTeamChatOpen ? "Close side-by-side team chat" : "Open side-by-side team chat extension"}
               >
                 <span>{isTeamChatOpen ? "✕" : "👥"}</span>
-                <span>{isTeamChatOpen ? "Close Team Studio" : "Consult AI Team (Side-by-Side)"}</span>
+                <span>{isTeamChatOpen ? "Close Team Studio" : "Consult AI Team Studio"}</span>
               </button>
             </div>
           </div>
@@ -223,11 +187,11 @@ export function DemoSandbox({ demoData }: { demoData: DemoProjectData }) {
           <div
             className={`w-full transition-all duration-300 ${
               isTeamChatOpen
-                ? "grid grid-cols-1 lg:grid-cols-2 gap-6 items-start"
-                : "space-y-8"
+                ? "grid grid-cols-1 lg:grid-cols-[1fr_420px] xl:grid-cols-[1fr_460px] gap-6 items-start"
+                : "w-full space-y-8"
             }`}
           >
-            {/* Left Half: Project Section */}
+            {/* Left/Main Area: Project Section */}
             <div className="w-full space-y-8 min-w-0">
 
           {/* Section 1: 2D Floor Plan Studio */}

@@ -367,7 +367,7 @@ export function PresentationClient({
         </div>
 
         <div className="overflow-x-auto rounded-lg border border-border print:border-black bg-surface">
-          <table className="w-full text-left text-xs">
+          <table className="w-full min-w-[760px] text-left text-xs">
             <thead className="bg-[#faf8f4] print:bg-gray-100 border-b border-border print:border-black text-[10px] font-semibold text-muted print:text-black uppercase">
               <tr>
                 <th className="py-2.5 px-3">Tag</th>
@@ -424,7 +424,7 @@ export function PresentationClient({
           </div>
 
           <div className="overflow-x-auto rounded-lg border border-border print:border-black bg-surface">
-            <table className="w-full text-left text-xs">
+            <table className="w-full min-w-[720px] text-left text-xs">
               <thead className="bg-[#faf8f4] print:bg-gray-100 border-b border-border print:border-black text-[10px] font-semibold text-muted print:text-black uppercase">
                 <tr>
                   <th className="py-2.5 px-3">Package / Trade</th>

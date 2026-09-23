@@ -13,9 +13,9 @@ export default async function DashboardPage() {
     .order("created_at", { ascending: false });
 
   return (
-    <div className="mx-auto max-w-2xl space-y-8">
+    <div className="mx-auto max-w-5xl space-y-8">
       <div className="space-y-1">
-        <h1 className="text-lg font-semibold tracking-tight">Projects</h1>
+        <h1 className="text-xl font-bold tracking-tight">Projects</h1>
         <p className="text-sm text-muted">Upload a floorplan to reconstruct and render it.</p>
       </div>
 
