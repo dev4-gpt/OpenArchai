@@ -77,7 +77,7 @@ export function PresentationClient({
       <header className="sticky top-0 z-30 flex flex-wrap items-center justify-between gap-4 border-b border-border bg-[#faf8f4]/95 backdrop-blur px-4 py-3 rounded-xl shadow-xs print:hidden">
         <div className="flex items-center gap-3">
           <Link
-            href={`/dashboard/${project.id}`}
+            href={project.id === "demo" ? "/" : `/dashboard/${project.id}`}
             className="rounded-lg border border-border bg-surface px-3 py-1.5 text-xs text-muted hover:text-foreground shadow-xs transition-colors"
           >
             ← Back to Editor

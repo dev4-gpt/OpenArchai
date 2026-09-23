@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { UploadForm } from "./upload-form";
@@ -28,6 +28,9 @@ export default async function ProjectPage({
   params: Promise<{ projectId: string }>;
 }) {
   const { projectId } = await params;
+  if (projectId === "demo") {
+    redirect("/");
+  }
   const supabase = await createClient();
 
   const { data: project } = await supabase
