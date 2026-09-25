@@ -1,3 +1,6 @@
+import { generateEgressProof } from "./calculators/nbc-egress";
+import { generateNTGProof, generateCapexProof } from "./calculators/pe-boq";
+
 export type AgentRole = "chief_architect" | "code_specialist" | "interior_designer" | "cost_estimator";
 
 export interface AgentMessage {
@@ -228,6 +231,88 @@ function ensureActionTriggers(content: string, role: AgentRole): { text: string;
 }
 
 /**
+ * Runs deterministic calculators against the project context and returns
+ * a verbatim proof block to inject into the agent's system prompt.
+ *
+ * Each role receives only the calculations relevant to its domain so the
+ * LLM cites exact numbers rather than approximating them.
+ *
+ * Defaults mirror the MiroFish seed context (1,200 sq ft, 111 m², ₹28.5L)
+ * so the injection is always meaningful even without detailed project data.
+ */
+function buildCalculatorInjection(role: AgentRole, context: ProjectContext): string {
+  const sqFt = context.floorAreaSqFt || 1200;
+  const sqM = context.carpetAreaSqM || 111;
+  const cost = context.estimatedCost || 2850000;
+  const currency = context.currency || "₹";
+
+  const sections: string[] = [];
+
+  // ── Egress proof → code_specialist and chief_architect ───────────────────
+  if (role === "code_specialist" || role === "chief_architect") {
+    try {
+      const egress = generateEgressProof({
+        carpetAreaSqM: sqM,
+        corridorClearWidthM: 1.05,   // standard AtelierOS residential spine
+        travelDistanceM: 18.4,        // worst-case path in typical 1,200 sq ft layout
+        deadEndM: 0,
+        sprinklered: false,
+      });
+      sections.push(egress.proofText);
+    } catch {
+      // Non-fatal: skip injection if inputs are invalid
+    }
+  }
+
+  // ── NTG proof → chief_architect and cost_estimator ────────────────────────
+  if (role === "chief_architect" || role === "cost_estimator") {
+    try {
+      const ntg = generateNTGProof({
+        grossAreaSqFt: sqFt,
+        currentNtgPct: 76,
+        targetNtgPct: 84,
+      });
+      sections.push(ntg.proofText);
+    } catch {
+      // Non-fatal
+    }
+  }
+
+  // ── Capex cut proof → cost_estimator and chief_architect ─────────────────
+  if (role === "cost_estimator" || role === "chief_architect") {
+    try {
+      const capex = generateCapexProof({
+        baselineCapex: cost,
+        cutPercent: 20,
+        currency,
+        grossAreaSqFt: sqFt,
+      });
+      sections.push(capex.proofText);
+    } catch {
+      // Non-fatal
+    }
+  }
+
+  // ── Material spec reminder → interior_designer ───────────────────────────
+  if (role === "interior_designer") {
+    sections.push(`Material & Acoustic Specification Recall
+=========================================
+Timber (IS 287):        Kiln-dried 8-12% EMC; mount on BWP 710 marine plywood or WPC backer board
+                        with 2mm expansion reveals and ventilated 10mm rear cavity.
+Tile Adhesive (IS 15477): C2TE S1 polymer-modified adhesive; 2-3mm joints; flexible anti-fungal epoxy grout.
+Acoustic Partition:     STC 56 tested — double-stud 90mm frame, 25mm air cavity, 50mm Rockwool (60kg/m³),
+                        dual 12.5mm Gyproc SoundStop boards with Green Glue damping compound.
+Finishes (Zero-VOC):    Asian Paints Royale Health Shield (<5g/L VOC, silver-ion antibacterial).
+Kota Stone Lead Time:   2-3 weeks (local Rajasthan quarry) vs 14-week Italian marble import.
+Circadian Lighting:     98+ CRI tunable LEDs, 2700K-6500K, UGR < 16.`);
+  }
+
+  if (sections.length === 0) return "";
+
+  return `\n\n--- STUDIO PRE-CALCULATIONS (authoritative — cite these verbatim in your response) ---\n${sections.join("\n\n")}\n---`;
+}
+
+/**
  * Executes a collaborative consultation across the specified agent roles in parallel.
  * Utilizes a multi-model smart router with automatic provider failover:
  * OpenRouter → Groq LPUs → Gemini Direct → GitHub Models → Mistral → Cerebras → Custom Gateway.
@@ -290,6 +375,12 @@ Deliver authoritative, highly concrete architectural recommendations. Follow the
 
 Format cleanly with readable paragraphs and avoid raw markdown asterisks (**) for bolding unless in headers.`;
 
+      // Inject deterministic calculator outputs — LLMs must cite these exact numbers
+      const calcInjection = buildCalculatorInjection(role, context);
+      const systemPromptWithCalcs = calcInjection
+        ? `${systemPrompt}${calcInjection}`
+        : systemPrompt;
+
       let responseText = "";
       let modelUsed = "";
       const t0 = Date.now();
@@ -301,7 +392,7 @@ Format cleanly with readable paragraphs and avoid raw markdown asterisks (**) fo
             cerebrasKey,
             route.model,
             [
-              { role: "system", content: systemPrompt },
+              { role: "system", content: systemPromptWithCalcs },
               { role: "user", content: prompt },
             ],
             1800,
@@ -317,7 +408,7 @@ Format cleanly with readable paragraphs and avoid raw markdown asterisks (**) fo
             groqKey,
             route.model,
             [
-              { role: "system", content: systemPrompt },
+              { role: "system", content: systemPromptWithCalcs },
               { role: "user", content: prompt },
             ],
             1800,
@@ -333,7 +424,7 @@ Format cleanly with readable paragraphs and avoid raw markdown asterisks (**) fo
             githubKey,
             route.model,
             [
-              { role: "system", content: systemPrompt },
+              { role: "system", content: systemPromptWithCalcs },
               { role: "user", content: prompt },
             ],
             1800,
@@ -349,7 +440,7 @@ Format cleanly with readable paragraphs and avoid raw markdown asterisks (**) fo
             mistralKey,
             route.model,
             [
-              { role: "system", content: systemPrompt },
+              { role: "system", content: systemPromptWithCalcs },
               { role: "user", content: prompt },
             ],
             1800,
@@ -365,7 +456,7 @@ Format cleanly with readable paragraphs and avoid raw markdown asterisks (**) fo
             openRouterKey,
             route.model,
             [
-              { role: "system", content: systemPrompt },
+              { role: "system", content: systemPromptWithCalcs },
               { role: "user", content: prompt },
             ],
             1800,
@@ -384,7 +475,7 @@ Format cleanly with readable paragraphs and avoid raw markdown asterisks (**) fo
             nvidiaKey,
             route.model,
             [
-              { role: "system", content: systemPrompt },
+              { role: "system", content: systemPromptWithCalcs },
               { role: "user", content: prompt },
             ],
             1800,
@@ -398,7 +489,7 @@ Format cleanly with readable paragraphs and avoid raw markdown asterisks (**) fo
           responseText = await callGeminiDirect(
             geminiKey,
             route.model,
-            `${systemPrompt}\n\nUser Question/Brief:\n"${prompt}"`,
+            `${systemPromptWithCalcs}\n\nUser Question/Brief:\n"${prompt}"`,
             1800,
             temperature,
           );
@@ -415,7 +506,7 @@ Format cleanly with readable paragraphs and avoid raw markdown asterisks (**) fo
           customGatewayKey,
           "default",
           [
-            { role: "system", content: systemPrompt },
+            { role: "system", content: systemPromptWithCalcs },
             { role: "user", content: prompt },
           ],
           1800,
