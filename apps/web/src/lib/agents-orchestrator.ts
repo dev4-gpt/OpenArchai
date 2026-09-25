@@ -114,12 +114,14 @@ const AGENT_MODEL_ROUTES: Record<AgentRole, Array<{ provider: string; model: str
   ],
 };
 
+const DEFAULT_MAX_TOKENS = 2500;
+
 async function callOpenAICompatible(
   endpointUrl: string,
   apiKey: string,
   model: string,
   messages: Array<{ role: string; content: string }>,
-  maxTokens = 1800,
+  maxTokens = DEFAULT_MAX_TOKENS,
   extraHeaders: Record<string, string> = {},
   temperature = 0.7,
 ): Promise<string> {
@@ -168,7 +170,7 @@ async function callGeminiDirect(
   geminiKey: string,
   model: string,
   fullPrompt: string,
-  maxTokens = 1800,
+  maxTokens = DEFAULT_MAX_TOKENS,
   temperature = 0.7,
 ): Promise<string> {
   const controller = new AbortController();
@@ -293,14 +295,23 @@ function buildCalculatorInjection(role: AgentRole, context: ProjectContext): str
     }
   }
 
-  // ── Material spec reminder → interior_designer ───────────────────────────
-  if (role === "interior_designer") {
+  // ── Structural & Seismic discipline → chief_architect and code_specialist ─
+  if (role === "chief_architect" || role === "code_specialist") {
+    sections.push(`Structural & Seismic Discipline (IS 1893:2016 Zone IV)
+======================================================
+Structural Bay Grid:    6.0m × 7.2m regular bay spans (or 6.0m × 6.0m).
+Vertical Wet Core:      Single 300×300mm pre-sleeved MEP shaft consolidating all kitchen & bath lines.
+Post-Tensioned Slabs:   Zero uncoordinated core drilling through diaphragm slabs; sunken slab screed.`);
+  }
+
+  // ── Material spec reminder → interior_designer and cost_estimator ────────
+  if (role === "interior_designer" || role === "cost_estimator") {
     sections.push(`Material & Acoustic Specification Recall
 =========================================
 Timber (IS 287):        Kiln-dried 8-12% EMC; mount on BWP 710 marine plywood or WPC backer board
                         with 2mm expansion reveals and ventilated 10mm rear cavity.
 Tile Adhesive (IS 15477): C2TE S1 polymer-modified adhesive; 2-3mm joints; flexible anti-fungal epoxy grout.
-Acoustic Partition:     STC 56 tested — double-stud 90mm frame, 25mm air cavity, 50mm Rockwool (60kg/m³),
+Acoustic Partition:     STC 55/56 tested — double-stud 90mm frame, 25mm air cavity, 50mm Rockwool (60kg/m³),
                         dual 12.5mm Gyproc SoundStop boards with Green Glue damping compound.
 Finishes (Zero-VOC):    Asian Paints Royale Health Shield (<5g/L VOC, silver-ion antibacterial).
 Kota Stone Lead Time:   2-3 weeks (local Rajasthan quarry) vs 14-week Italian marble import.
@@ -349,8 +360,8 @@ Project Context:
         { provider: "openrouter", model: "google/gemini-2.5-flash" },
       ];
 
-      // Arithmetic/compliance agents use lower temperature to avoid invented numbers
-      const temperature = LOW_TEMPERATURE_ROLES.has(role) ? 0.1 : 0.7;
+      // Arithmetic/compliance agents use temperature 0.35 to prevent repetitive loops while staying disciplined
+      const temperature = LOW_TEMPERATURE_ROLES.has(role) ? 0.35 : 0.7;
 
       const systemPrompt = `${profile.systemPrompt}
 
@@ -359,7 +370,7 @@ ${contextSummary}
 You are consulting as ${profile.name} (${profile.title}) on the user's project in AtelierOS.
 Deliver authoritative, highly concrete architectural recommendations. Follow these 4 operational studio rules:
 1. Exact Quantitative Math: Whenever spatial planning, NTG (Net-to-Gross), circulation, or budgets are touched, calculate and show the exact numbers (e.g. 1,200 sq ft × 0.76 = 912 sq ft vs 83% = 996 sq ft, delta = +84 sq ft usable).
-2. ASCII Spatial Diagrams: When explaining circulation, shafts, or zoning, include a crisp ASCII plan diagram enclosed in a markdown code block (${"```"} ... ${"```"}).
+2. ASCII Spatial Diagrams: When explaining circulation, shafts, or zoning, include a concise ASCII plan diagram (strictly under 15 lines) enclosed in a markdown code block (${"```"} ... ${"```"}). Do not generate repetitive blank lines.
 3. Inter-Agent Cross-Talk: Reference and build upon your colleagues in the studio by name:
    - Vikram Mehta (Lead Architectural Principal)
    - Ananya Sharma (Building Code & Statutory Specialist)
@@ -373,6 +384,7 @@ Deliver authoritative, highly concrete architectural recommendations. Follow the
    - 'audit_compliance' with payload 'nbc_egress' | 'vastu_check'
    - 'apply_materials' with payload 'fl_wooden_teak,wl_asian_paints_royale' | 'fl_italian_marble,wl_fluted_wood'
 
+Keep your response focused and authoritative (under 600 words) so you do not exceed token limits, and ensure your final [ACTION: ...] triggers are always generated at the end.
 Format cleanly with readable paragraphs and avoid raw markdown asterisks (**) for bolding unless in headers.`;
 
       // Inject deterministic calculator outputs — LLMs must cite these exact numbers
@@ -395,7 +407,7 @@ Format cleanly with readable paragraphs and avoid raw markdown asterisks (**) fo
               { role: "system", content: systemPromptWithCalcs },
               { role: "user", content: prompt },
             ],
-            1800,
+            DEFAULT_MAX_TOKENS,
             {},
             temperature,
           );
@@ -411,7 +423,7 @@ Format cleanly with readable paragraphs and avoid raw markdown asterisks (**) fo
               { role: "system", content: systemPromptWithCalcs },
               { role: "user", content: prompt },
             ],
-            1800,
+            DEFAULT_MAX_TOKENS,
             {},
             temperature,
           );
@@ -427,7 +439,7 @@ Format cleanly with readable paragraphs and avoid raw markdown asterisks (**) fo
               { role: "system", content: systemPromptWithCalcs },
               { role: "user", content: prompt },
             ],
-            1800,
+            DEFAULT_MAX_TOKENS,
             {},
             temperature,
           );
@@ -443,7 +455,7 @@ Format cleanly with readable paragraphs and avoid raw markdown asterisks (**) fo
               { role: "system", content: systemPromptWithCalcs },
               { role: "user", content: prompt },
             ],
-            1800,
+            DEFAULT_MAX_TOKENS,
             {},
             temperature,
           );
@@ -459,7 +471,7 @@ Format cleanly with readable paragraphs and avoid raw markdown asterisks (**) fo
               { role: "system", content: systemPromptWithCalcs },
               { role: "user", content: prompt },
             ],
-            1800,
+            DEFAULT_MAX_TOKENS,
             {
               "HTTP-Referer": "https://atelieros-cloud.vercel.app",
               "X-Title": "AtelierOS Architectural Studio",
@@ -478,7 +490,7 @@ Format cleanly with readable paragraphs and avoid raw markdown asterisks (**) fo
               { role: "system", content: systemPromptWithCalcs },
               { role: "user", content: prompt },
             ],
-            1800,
+            DEFAULT_MAX_TOKENS,
             {},
             temperature,
           );
@@ -490,7 +502,7 @@ Format cleanly with readable paragraphs and avoid raw markdown asterisks (**) fo
             geminiKey,
             route.model,
             `${systemPromptWithCalcs}\n\nUser Question/Brief:\n"${prompt}"`,
-            1800,
+            DEFAULT_MAX_TOKENS,
             temperature,
           );
           if (responseText) { modelUsed = `${route.model} via gemini-direct`; break; }
@@ -509,7 +521,7 @@ Format cleanly with readable paragraphs and avoid raw markdown asterisks (**) fo
             { role: "system", content: systemPromptWithCalcs },
             { role: "user", content: prompt },
           ],
-          1800,
+          DEFAULT_MAX_TOKENS,
           {},
           temperature,
         );

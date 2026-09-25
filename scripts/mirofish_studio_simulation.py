@@ -74,6 +74,44 @@ def print_banner(text: str):
     print(f"🐟 MIROFISH SWARM ENGINE: {text}")
     print("=" * 74 + "\n")
 
+CRITERION_PATTERNS = {
+    # Round 1: Capex & NTG Squeeze
+    "20% Capex": [r"20\s*%", r"capex|22\.8|22,80,000|reduction|savings|target"],
+    "84% NTG": [r"84\s*%", r"ntg|net-to-gross|net to gross"],
+    "Usable area math": [r"usable|carpet", r"912|1,008|1008|96\s*sq\s*ft|reclaim|circulation"],
+    "Kajaria GVT / Marble swap": [r"kajaria|vitrified|pgvt|gvt", r"marble"],
+
+    # Round 2: Seismic & Structural Shaft
+    "IS 1893 Zone IV": [r"1893", r"zone\s*iv|zone\s*4|seismic"],
+    "300x300mm shaft": [r"300\s*[xX*]\s*300|300mm", r"shaft|vertical|service"],
+    "6.0m x 7.2m grid": [r"6(?:\.0)?\s*m", r"7(?:\.2)?\s*m|bay|grid|span"],
+    "Sunken slab screed": [r"slab|screed", r"core|coring|pre-sleeved|sleeved|penetration|diaphragm|sunken"],
+
+    # Round 3: NBC 2016 Egress
+    "NBC 2016 Part 4 Table 2": [r"nbc", r"table\s*2|part\s*4"],
+    "0.9m clear width": [r"0\.9\s*m|900\s*mm", r"width|door|corridor|passage|clear"],
+    "Travel distance < 30m": [r"travel\s*distance", r"30\s*m|18\.4\s*m|≤|<=|<"],
+    "0 dead ends": [r"dead[\s-]*end", r"6(?:\.0)?\s*m|0(?:\.0)?\s*m|zero|none|no\s+dead"],
+
+    # Round 4: Acoustics, Zero-VOC, Lighting, Vastu
+    "STC 55 acoustic drywall": [r"stc\s*5[56]", r"acoustic|soundstop|rockwool|wall|partition|drywall"],
+    "Asian Paints Royale Health Shield": [r"asian\s*paints|royale", r"health\s*shield|voc|anti"],
+    "98+ CRI circadian": [r"98\s*\+\s*cri|cri", r"circadian|tunable|led|lighting"],
+    "Vastu Agni/Nairutya": [r"vastu", r"agni|nairutya|ishanya|south-east|south-west|north-east"],
+
+    # Round 5: Monsoon Detailing & Supply Chain
+    "Kiln-dried 8-12%": [r"kiln", r"8-12|8\s*to\s*12|moisture|is\s*287"],
+    "BWP 710 / WPC backer": [r"bwp|710|wpc", r"plywood|backer|board|marine"],
+    "C2TE S1 adhesive": [r"c2te|15477|s1", r"adhesive|grout|epoxy|polymer"],
+    "Kota stone 2-3 wk lead time": [r"kota", r"2-3\s*w|week|lead\s*time|rajasthan|quarry"],
+}
+
+def check_criterion(criterion: str, content: str) -> bool:
+    patterns = CRITERION_PATTERNS.get(criterion)
+    if patterns:
+        return all(re.search(pat, content, re.IGNORECASE) for pat in patterns)
+    return criterion.lower().replace(" ", "") in content.lower().replace(" ", "")
+
 def evaluate_rubric(
     content: str,
     expected_criteria: list = None,
@@ -130,8 +168,7 @@ def evaluate_rubric(
     criteria_hits = []
     if expected_criteria:
         for criterion in expected_criteria:
-            # Case-insensitive substring match for each expected term
-            if criterion.lower().replace(" ", "") in content.lower().replace(" ", ""):
+            if check_criterion(criterion, content):
                 criteria_hits.append(criterion)
         stat_criteria = min(13, len(criteria_hits) * (13 // max(1, len(expected_criteria)) + 1))
     else:
