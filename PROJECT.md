@@ -42,12 +42,12 @@ Every feature from the Survey phase appears here with its assigned milestone.
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| E2E | E2E Test Infrastructure & Suites | Setup test runner script `run-unit-tests.mjs`, create test harness, publish TEST_READY.md | none | PLANNED |
-| M1 | Live 2D Egress Vector & Wet Core Shaft Overlay | Implement egress vector, distance readout pill, 300x300mm cross-hatched shaft, toolbar toggle, action triggers | none | PLANNED |
-| M2 | Real-Time BOQ SOR Delta Chips & 1-Click Approvals | Implement VE registry, delta badges (`-₹8,55,000 / -30%`, `-14 WKS`), 1-click approval button, live recalculation, event dispatch | none | PLANNED |
-| M3 | Automated NBC 2016 Canvas Geometry Linter | Implement pinch-point checker (<0.9m/<1.2m), dead-end checker (>6.0m), canvas warning halos, interactive tooltips, toolbar toggle | M1 | PLANNED |
-| M4 | Environmental & Acoustic Material Metadata Badges | Enrich `materials-db.ts`, add badges to catalog cards, specification drawer, and 3D model viewer inspect popovers | none | PLANNED |
-| M5 | Final Integration, Simulation & Production Verification | Execute full E2E test suite, run `mirofish_studio_simulation.py`, verify `npx tsc --noEmit`, and verify deployment | E2E, M1, M2, M3, M4 | PLANNED |
+| E2E | E2E Test Infrastructure & Suites | Setup test runner script `run-unit-tests.mjs`, create test harness, publish TEST_READY.md | none | DONE |
+| M1 | Live 2D Egress Vector & Wet Core Shaft Overlay | Implement egress vector, distance readout pill, 300x300mm cross-hatched shaft, toolbar toggle, action triggers | none | DONE |
+| M2 | Real-Time BOQ SOR Delta Chips & 1-Click Approvals | Implement VE registry, delta badges (`-₹8,55,000 / -30%`, `-14 WKS`), 1-click approval button, live recalculation, event dispatch | none | DONE |
+| M3 | Automated NBC 2016 Canvas Geometry Linter | Implement pinch-point checker (<0.9m/<1.2m), dead-end checker (>6.0m), canvas warning halos, interactive tooltips, toolbar toggle | M1 | DONE |
+| M4 | Environmental & Acoustic Material Metadata Badges | Enrich `materials-db.ts`, add badges to catalog cards, specification drawer, and 3D model viewer inspect popovers | none | DONE |
+| M5 | Final Integration, Simulation & Production Verification | Execute full E2E test suite, run `mirofish_studio_simulation.py`, verify `npx tsc --noEmit`, and verify deployment | E2E, M1, M2, M3, M4 | DONE |
 
 ---
 
