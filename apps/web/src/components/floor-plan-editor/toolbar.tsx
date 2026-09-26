@@ -9,6 +9,7 @@ import { exportFloorPlanToIfc } from "@/lib/ifc-export";
 import { parseDxfContent } from "@/lib/dxf-import";
 import { FFE_CATALOG } from "@/lib/ffe-catalog";
 import { Button } from "@/components/ui/button";
+import { lintFloorPlanGeometry } from "@/lib/calculators/geometry-linter";
 
 export function EditorToolbar({
   onSaveToProject,
@@ -22,6 +23,9 @@ export function EditorToolbar({
   const [selectedPreset, setSelectedPreset] = useState<string>("");
   const [presetRegion, setPresetRegion] = useState<"india" | "us">("india");
   const [selectedFurniture, setSelectedFurniture] = useState<string>("");
+
+  const linterIssues = lintFloorPlanGeometry(state.floorPlan);
+  const lintIssueCount = linterIssues.length;
 
   const hasSelected = state.selectedIds.length > 0;
   const selectedFurnitureItem = (state.floorPlan.furniture || []).find(
@@ -204,6 +208,58 @@ export function EditorToolbar({
             title="Redo"
           >
             ↷ Redo
+          </button>
+
+          <div className="mx-1 h-5 w-px bg-border" />
+
+          {/* Statutory Egress & Wet Core Shaft Overlay Toggle */}
+          <button
+            type="button"
+            onClick={() => floorPlanStore.toggleEgressOverlay()}
+            className={`flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-semibold transition-all ${
+              state.showEgressOverlay
+                ? "bg-emerald-600 text-white shadow-xs hover:bg-emerald-700"
+                : "border border-border text-foreground hover:border-emerald-600/50 hover:text-emerald-700 dark:hover:text-emerald-400"
+            }`}
+            title="Toggle NBC 2016 Egress Vector Path & Wet Core Shaft Overlay"
+          >
+            <span>🛡️</span>
+            <span>Egress & Shaft</span>
+            {state.showEgressOverlay && (
+              <span className="ml-0.5 rounded-full bg-emerald-400/30 px-1.5 py-0.2 text-[9px] font-mono text-emerald-100">
+                ON
+              </span>
+            )}
+          </button>
+
+          {/* Statutory NBC 2016 Geometry Linter Toggle */}
+          <button
+            type="button"
+            onClick={() => floorPlanStore.toggleLinter()}
+            className={`flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-semibold transition-all ${
+              state.showLinter
+                ? "bg-amber-600 text-white shadow-xs hover:bg-amber-700"
+                : "border border-border text-foreground hover:border-amber-600/50 hover:text-amber-700 dark:hover:text-amber-400"
+            }`}
+            title="Toggle NBC 2016 Canvas Geometry Linter (Doorway & Corridor Pinch-Points, Dead-Ends)"
+          >
+            <span>⚠️</span>
+            <span>NBC Linter</span>
+            {lintIssueCount > 0 ? (
+              <span
+                className={`ml-0.5 rounded-full px-1.5 py-0.2 text-[9px] font-mono font-bold ${
+                  state.showLinter
+                    ? "bg-amber-800 text-amber-100"
+                    : "bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200"
+                }`}
+              >
+                {lintIssueCount}
+              </span>
+            ) : state.showLinter ? (
+              <span className="ml-0.5 rounded-full bg-emerald-400/30 px-1.5 py-0.2 text-[9px] font-mono text-emerald-100">
+                0
+              </span>
+            ) : null}
           </button>
 
           {selectedFurnitureItem && (

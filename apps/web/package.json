@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
+    "test": "node scripts/run-unit-tests.mjs",
     "deploy": "bash scripts/deploy.sh",
     "deploy:prod": "bash scripts/deploy.sh --prod",
     "verify:rls": "node --env-file=.env.local scripts/verify-rls.mjs"

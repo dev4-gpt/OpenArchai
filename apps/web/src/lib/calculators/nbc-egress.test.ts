@@ -197,6 +197,26 @@ describe("generateEgressProof — full compliance proof", () => {
     expect(proof.travelDistanceCheck.pass).toBe(false);
   });
 
+  it("enforces 1.20m statutory minimum for common corridors (1.05m fails)", () => {
+    const proof = generateEgressProof({ ...STANDARD_INPUTS, isCommonCorridor: true });
+    expect(proof.allPass).toBe(false);
+    expect(proof.corridorCheck.pass).toBe(false);
+    expect(proof.corridorCheck.limit).toBe(1.2);
+    expect(proof.proofText).toContain("Common Corridor");
+    expect(proof.proofText).toContain("1.2 m");
+  });
+
+  it("passes common corridor when width >= 1.20m", () => {
+    const proof = generateEgressProof({
+      ...STANDARD_INPUTS,
+      corridorClearWidthM: 1.25,
+      isCommonCorridor: true,
+    });
+    expect(proof.allPass).toBe(true);
+    expect(proof.corridorCheck.pass).toBe(true);
+    expect(proof.corridorCheck.limit).toBe(1.2);
+  });
+
   it("omits dead-end check when deadEndM not supplied", () => {
     const { deadEndM: _, ...inputsWithoutDeadEnd } = STANDARD_INPUTS;
     const proof = generateEgressProof(inputsWithoutDeadEnd);

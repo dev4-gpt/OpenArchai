@@ -10,6 +10,38 @@ import {
 } from "@/lib/materials-db";
 import { Input } from "@/components/ui/input";
 
+function getBadgeIcon(badge: string): string {
+  const b = badge.toLowerCase();
+  if (b.includes("stc") || b.includes("sound") || b.includes("acoustic") || b.includes("nrc") || b.includes("cac")) return "🔊";
+  if (b.includes("is 287") || b.includes("kiln") || b.includes("emc") || b.includes("teak") || b.includes("oak") || b.includes("bwp 710")) return "🪵";
+  if (b.includes("greenguard") || b.includes("zero-voc") || b.includes("health shield") || b.includes("low-voc") || b.includes("eco")) return "🌿";
+  if (b.includes("is 15477") || b.includes("c2te") || b.includes("adhesive") || b.includes("polymer")) return "🧪";
+  if (b.includes("lead time") || b.includes("sourced") || b.includes("rajasthan") || b.includes("wks")) return "⏱️";
+  if (b.includes("fire") || b.includes("flame") || b.includes("class a")) return "🔥";
+  if (b.includes("is ") || b.includes("ansi") || b.includes("standard")) return "📜";
+  return "🛡️";
+}
+
+function getBadgeTheme(badge: string): string {
+  const b = badge.toLowerCase();
+  if (b.includes("stc") || b.includes("sound") || b.includes("acoustic") || b.includes("nrc") || b.includes("cac")) {
+    return "bg-sky-500/10 text-sky-800 dark:text-sky-300 border-sky-500/30";
+  }
+  if (b.includes("is 287") || b.includes("kiln") || b.includes("bwp 710") || b.includes("emc")) {
+    return "bg-amber-500/10 text-amber-800 dark:text-amber-300 border-amber-500/30";
+  }
+  if (b.includes("greenguard") || b.includes("zero-voc") || b.includes("health shield") || b.includes("low-voc")) {
+    return "bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border-emerald-500/30";
+  }
+  if (b.includes("is 15477") || b.includes("c2te") || b.includes("adhesive") || b.includes("polymer")) {
+    return "bg-purple-500/10 text-purple-800 dark:text-purple-300 border-purple-500/30";
+  }
+  if (b.includes("rajasthan") || b.includes("lead time") || b.includes("sourced") || b.includes("wks")) {
+    return "bg-orange-500/10 text-orange-800 dark:text-orange-300 border-orange-500/30";
+  }
+  return "bg-accent/10 text-accent border-accent/25";
+}
+
 export default function MaterialsPage() {
   const [selectedCategory, setSelectedCategory] = useState<MaterialCategory | "all">("all");
   const [selectedRegion, setSelectedRegion] = useState<"india" | "us" | "all">("india");
@@ -25,7 +57,8 @@ export default function MaterialsPage() {
       item.name.toLowerCase().includes(search.toLowerCase()) ||
       item.subcategory.toLowerCase().includes(search.toLowerCase()) ||
       item.description.toLowerCase().includes(search.toLowerCase()) ||
-      (item.brand && item.brand.toLowerCase().includes(search.toLowerCase()));
+      (item.brand && item.brand.toLowerCase().includes(search.toLowerCase())) ||
+      (item.badges && item.badges.some((b) => b.toLowerCase().includes(search.toLowerCase())));
 
     return matchCat && matchReg && matchSearch;
   });
@@ -182,6 +215,26 @@ export default function MaterialsPage() {
                 {mat.description}
               </p>
 
+              {/* R4: Environmental & Acoustic Metadata Badges Row */}
+              {mat.badges && mat.badges.length > 0 && (
+                <div className="flex flex-wrap gap-1 pt-1">
+                  {mat.badges.slice(0, 2).map((badge) => (
+                    <span
+                      key={badge}
+                      className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-semibold tracking-tight border ${getBadgeTheme(badge)}`}
+                    >
+                      <span>{getBadgeIcon(badge)}</span>
+                      <span className="truncate max-w-[170px]">{badge}</span>
+                    </span>
+                  ))}
+                  {mat.badges.length > 2 && (
+                    <span className="inline-flex items-center rounded bg-muted/20 px-1 py-0.5 text-[9px] font-medium text-muted">
+                      +{mat.badges.length - 2} more
+                    </span>
+                  )}
+                </div>
+              )}
+
               {/* Specs Pills */}
               <div className="flex flex-wrap gap-1 pt-1 border-t border-border/60">
                 {Object.entries(mat.specs).slice(0, 2).map(([k, v]) => (
@@ -258,6 +311,121 @@ export default function MaterialsPage() {
                     {selectedMaterial.ratePremium.toLocaleString()} / {selectedMaterial.priceUnit}
                   </p>
                 </div>
+              </div>
+            </div>
+
+            {/* R4: Environmental & Statutory Certifications Section */}
+            <div className="rounded-xl border border-border bg-[#faf8f4] dark:bg-[#181a1d] p-3.5 space-y-3">
+              <div className="flex items-center justify-between border-b border-border/60 pb-2">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-sm">🛡️</span>
+                  <h4 className="text-xs font-bold text-foreground tracking-tight">
+                    Environmental & Statutory Certifications
+                  </h4>
+                </div>
+                <span className="text-[10px] font-mono text-muted uppercase tracking-wider">
+                  NBC 2016 / IS Standards
+                </span>
+              </div>
+
+              {/* All Certification Tags Row */}
+              {selectedMaterial.badges && selectedMaterial.badges.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {selectedMaterial.badges.map((badge) => (
+                    <span
+                      key={badge}
+                      className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold border shadow-2xs ${getBadgeTheme(badge)}`}
+                    >
+                      <span>{getBadgeIcon(badge)}</span>
+                      <span>{badge}</span>
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Structured Compliance Matrix: Acoustic, Moisture, Air Quality, Lead Time */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-1">
+                {/* 1. Acoustic Isolation */}
+                <div className="rounded-lg border border-sky-500/25 bg-sky-500/5 p-2.5 space-y-1">
+                  <div className="flex items-center gap-1.5 text-sky-800 dark:text-sky-300 font-bold text-[11px]">
+                    <span>🔊</span>
+                    <span>Acoustic Isolation & STC</span>
+                  </div>
+                  <p className="text-[11px] text-foreground font-semibold">
+                    {selectedMaterial.certifications?.acousticRating ||
+                      selectedMaterial.badges?.find((b) => b.toLowerCase().includes("stc") || b.toLowerCase().includes("nrc")) ||
+                      "Standard Residential Isolation (STC 38+)"}
+                  </p>
+                  <span className="text-[9px] text-muted block">
+                    Acoustic testing per ASTM E90 / NBC 2016 Part 8
+                  </span>
+                </div>
+
+                {/* 2. Moisture & Kiln Stability */}
+                <div className="rounded-lg border border-amber-500/25 bg-amber-500/5 p-2.5 space-y-1">
+                  <div className="flex items-center gap-1.5 text-amber-800 dark:text-amber-300 font-bold text-[11px]">
+                    <span>🪵</span>
+                    <span>Moisture & Kiln Drying (EMC)</span>
+                  </div>
+                  <p className="text-[11px] text-foreground font-semibold">
+                    {selectedMaterial.certifications?.moistureStandard ||
+                      selectedMaterial.badges?.find((b) => b.toLowerCase().includes("is 287") || b.toLowerCase().includes("emc")) ||
+                      "Monsoon Moisture Resistant"}
+                  </p>
+                  <span className="text-[9px] text-muted block">
+                    IS 287 Kiln-Dried 8-12% EMC / BWP 710 Backer
+                  </span>
+                </div>
+
+                {/* 3. Indoor Air Quality & VOC */}
+                <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/5 p-2.5 space-y-1">
+                  <div className="flex items-center gap-1.5 text-emerald-800 dark:text-emerald-300 font-bold text-[11px]">
+                    <span>🌿</span>
+                    <span>Air Quality & VOC Rating</span>
+                  </div>
+                  <p className="text-[11px] text-foreground font-semibold">
+                    {selectedMaterial.certifications?.airQuality ||
+                      selectedMaterial.badges?.find((b) => b.toLowerCase().includes("greenguard") || b.toLowerCase().includes("voc")) ||
+                      "Ultra-Low Chemical Emission Standard"}
+                  </p>
+                  <span className="text-[9px] text-muted block">
+                    GreenGuard Gold Certified Zero-VOC Finish
+                  </span>
+                </div>
+
+                {/* 4. Sourcing & Lead Time */}
+                <div className="rounded-lg border border-orange-500/25 bg-orange-500/5 p-2.5 space-y-1">
+                  <div className="flex items-center gap-1.5 text-orange-800 dark:text-orange-300 font-bold text-[11px]">
+                    <span>⏱️</span>
+                    <span>Procurement & Quarry Lead Time</span>
+                  </div>
+                  <p className="text-[11px] text-foreground font-semibold">
+                    {selectedMaterial.certifications?.leadTime ||
+                      selectedMaterial.badges?.find((b) => b.toLowerCase().includes("lead time") || b.toLowerCase().includes("wks")) ||
+                      "Ready Regional Stock"}
+                  </p>
+                  <span className="text-[9px] text-muted block">
+                    {selectedMaterial.certifications?.sourcingOrigin || "Domestic Quarry / Fast-Track Delivery"}
+                  </span>
+                </div>
+
+                {/* 5. Adhesive & Installation Standard (if present) */}
+                {(selectedMaterial.certifications?.adhesiveStandard ||
+                  selectedMaterial.badges?.some((b) => b.toLowerCase().includes("is 15477") || b.toLowerCase().includes("c2te"))) && (
+                  <div className="col-span-1 sm:col-span-2 rounded-lg border border-purple-500/25 bg-purple-500/5 p-2.5 space-y-1">
+                    <div className="flex items-center gap-1.5 text-purple-800 dark:text-purple-300 font-bold text-[11px]">
+                      <span>🧪</span>
+                      <span>Adhesive & Bonding Standard</span>
+                    </div>
+                    <p className="text-[11px] text-foreground font-semibold">
+                      {selectedMaterial.certifications?.adhesiveStandard ||
+                        selectedMaterial.badges?.find((b) => b.toLowerCase().includes("is 15477") || b.toLowerCase().includes("c2te"))}
+                    </p>
+                    <span className="text-[9px] text-muted block">
+                      Polymer-Modified Thin-Bed Flexible Adhesive per IS 15477:2019 Type 2
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
 

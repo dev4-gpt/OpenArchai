@@ -58,6 +58,7 @@ export interface EgressProofInputs {
   travelDistanceM: number;
   deadEndM?: number;
   sprinklered?: boolean;
+  isCommonCorridor?: boolean;
 }
 
 export interface EgressProof {
@@ -191,12 +192,13 @@ export function generateEgressProof(inputs: EgressProofInputs): EgressProof {
     travelDistanceM,
     deadEndM,
     sprinklered = false,
+    isCommonCorridor = false,
   } = inputs;
 
   const occupantLoad = calcOccupantLoad(carpetAreaSqM);
   const requiredEgressWidthMm = calcRequiredEgressWidthMm(occupantLoad);
 
-  const corridorCheck = verifyEgressClearWidth(corridorClearWidthM);
+  const corridorCheck = verifyEgressClearWidth(corridorClearWidthM, isCommonCorridor);
   const travelDistanceCheck = verifyTravelDistance(travelDistanceM, sprinklered);
   const deadEndCheck = deadEndM !== undefined ? verifyDeadEnd(deadEndM) : undefined;
 
@@ -210,6 +212,11 @@ export function generateEgressProof(inputs: EgressProofInputs): EgressProof {
       ? `  Dead-End:       ${deadEndCheck.value.toFixed(1)} m  ≤  ${deadEndCheck.limit} m  →  ${deadEndCheck.pass ? "PASS" : "FAIL"}\n`
       : "";
 
+  const minCorridorWidth = isCommonCorridor
+    ? NBC.MIN_CORRIDOR_CLEAR_WIDTH_M
+    : NBC.MIN_INTERNAL_PASSAGE_WIDTH_M;
+  const corridorLabel = isCommonCorridor ? "Common Corridor:" : "Corridor Width: ";
+
   const proofText = `NBC 2016 Part 4 — Egress Compliance Proof
 ==========================================
 Carpet Area:        ${carpetAreaSqM.toFixed(1)} m²
@@ -217,7 +224,7 @@ Occupant Load:      ${carpetAreaSqM.toFixed(1)} m² ÷ ${NBC.OCCUPANT_LOAD_FACTO
 Required Width:     ${occupantLoad} persons × ${NBC.EGRESS_WIDTH_FACTOR_MM_PER_OCCUPANT} mm/person = ${(occupantLoad * NBC.EGRESS_WIDTH_FACTOR_MM_PER_OCCUPANT).toFixed(0)} mm  (floor: 900 mm)  [Part 4 Table 2]
 
 Checks:
-  Corridor Width:   ${corridorClearWidthM.toFixed(2)} m  ≥  ${NBC.MIN_INTERNAL_PASSAGE_WIDTH_M} m  →  ${corridorCheck.pass ? "PASS" : "FAIL"}  [Part 4 Table 2]
+  ${corridorLabel}  ${corridorClearWidthM.toFixed(2)} m  ≥  ${minCorridorWidth.toFixed(1)} m  →  ${corridorCheck.pass ? "PASS" : "FAIL"}  [Part 4 Table 2]
   Travel Distance:  ${travelDistanceM.toFixed(1)} m  ≤  ${travelDistanceCheck.limit} m  →  ${travelDistanceCheck.pass ? "PASS" : "FAIL"}  [Part 4 Cl. 4.5.1]
 ${deadEndLine}
 Overall:            ${allPass ? "✅ COMPLIANT" : "❌ NON-COMPLIANT — see failures above"}`;

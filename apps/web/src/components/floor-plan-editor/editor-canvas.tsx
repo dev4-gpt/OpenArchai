@@ -5,6 +5,8 @@ import { floorPlanStore, useFloorPlanStore } from "./state/floor-plan-store";
 import type { Point, Wall, Door, Window, Room, FurnitureItem, FloorPlan, PendingFurniture } from "./types";
 import { metersToUnit, unitLabel, type UnitSystem } from "@/lib/units";
 import { parseDxfContent } from "@/lib/dxf-import";
+import { calculateEgressOverlay } from "@/lib/calculators/egress-overlay-geometry";
+import { lintFloorPlanGeometry, type LinterIssue } from "@/lib/calculators/geometry-linter";
 
 export function EditorCanvas({ unitSystem = "metric" }: { unitSystem?: UnitSystem }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -15,12 +17,22 @@ export function EditorCanvas({ unitSystem = "metric" }: { unitSystem?: UnitSyste
   const [panStart, setPanStart] = useState<Point>({ x: 0, y: 0 });
   const [hoveredDeleteId, setHoveredDeleteId] = useState<string | null>(null);
   const [hoveredElementId, setHoveredElementId] = useState<string | null>(null);
+  const [hoveredLintIssue, setHoveredLintIssue] = useState<LinterIssue | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const dragOffsetRef = useRef<Point>({ x: 0, y: 0 });
   const dragStartPlanRef = useRef<FloorPlan | null>(null);
   const hasDraggedRef = useRef<boolean>(false);
 
-  const { floorPlan, tool, drawingPoints, snapPoint, selectedIds, pendingFurniture } = state;
+  const {
+    floorPlan,
+    tool,
+    drawingPoints,
+    snapPoint,
+    selectedIds,
+    pendingFurniture,
+    showEgressOverlay,
+    showLinter,
+  } = state;
   const { zoom, panOffset, walls, doors, windows, rooms, furniture = [] } = floorPlan;
 
   // Auto-focus container when pending furniture is armed for instant R / Esc / arrow key controls
@@ -29,6 +41,16 @@ export function EditorCanvas({ unitSystem = "metric" }: { unitSystem?: UnitSyste
       containerRef.current?.focus();
     }
   }, [pendingFurniture]);
+
+  // Listen for statutory audit / egress toggle events across dashboard components
+  useEffect(() => {
+    const handleComplianceAudit = () => {
+      floorPlanStore.setEgressOverlay(true);
+      floorPlanStore.setLinter(true);
+    };
+    window.addEventListener("atelier-compliance-audit", handleComplianceAudit);
+    return () => window.removeEventListener("atelier-compliance-audit", handleComplianceAudit);
+  }, []);
 
   // Convert screen coordinates to world coordinates (meters)
   const screenToWorld = useCallback(
@@ -290,6 +312,433 @@ export function EditorCanvas({ unitSystem = "metric" }: { unitSystem?: UnitSyste
       ctx.restore();
     }
 
+    // 6.6. Render Statutory NBC 2016 Egress Vector Path & Wet Core Shaft Overlay
+    if (showEgressOverlay) {
+      const egress = calculateEgressOverlay(floorPlan, true);
+      const { waypoints, travelDistanceM, maxAllowedM, clause, isCompliant, shaft } = egress;
+
+      // A. Render 300x300mm Vertical MEP Wet Core Riser Shaft
+      if (shaft) {
+        const shaftScreen = worldToScreen(shaft.x, shaft.y);
+        const shaftW = shaft.width * zoom;
+        const shaftH = (shaft.height || 0.3) * zoom;
+
+        ctx.save();
+
+        // 1. Shaft Solid Opaque Background & Inset Fill
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(shaftScreen.x, shaftScreen.y, shaftW, shaftH);
+
+        // 2. Architectural 45-degree Cross-Hatching (Clipped inside shaft boundary)
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(shaftScreen.x, shaftScreen.y, shaftW, shaftH);
+        ctx.clip();
+
+        // Diagonal hatch lines
+        ctx.strokeStyle = "#64748b";
+        ctx.lineWidth = 1;
+        const hatchSpacing = Math.max(4, 5 * (zoom / 35));
+        const totalSpan = shaftW + shaftH;
+        for (let offset = -shaftH; offset <= totalSpan; offset += hatchSpacing) {
+          ctx.beginPath();
+          ctx.moveTo(shaftScreen.x + offset, shaftScreen.y + shaftH);
+          ctx.lineTo(shaftScreen.x + offset + shaftH, shaftScreen.y);
+          ctx.stroke();
+        }
+
+        // Corner-to-Corner Cross 'X'
+        ctx.strokeStyle = "#1e293b";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(shaftScreen.x, shaftScreen.y);
+        ctx.lineTo(shaftScreen.x + shaftW, shaftScreen.y + shaftH);
+        ctx.moveTo(shaftScreen.x, shaftScreen.y + shaftH);
+        ctx.lineTo(shaftScreen.x + shaftW, shaftScreen.y);
+        ctx.stroke();
+
+        ctx.restore(); // end clip
+
+        // 3. Shaft Perimeter Structural Border
+        ctx.strokeStyle = "#0f172a";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(shaftScreen.x, shaftScreen.y, shaftW, shaftH);
+
+        // 4. Clear Architectural Label: "MEP RISER 300×300mm"
+        const labelX = shaftScreen.x + shaftW / 2;
+        const labelY = shaftScreen.y + shaftH + 13;
+
+        const labelText = "MEP RISER 300×300mm";
+        ctx.font = "bold 9px monospace";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        const textMetrics = ctx.measureText(labelText);
+        const pillPadX = 5;
+        const pillPadY = 2;
+        const pillW = textMetrics.width + pillPadX * 2;
+        const pillH = 15;
+
+        // Label pill background
+        ctx.fillStyle = "rgba(15, 23, 42, 0.92)";
+        ctx.beginPath();
+        ctx.roundRect(labelX - pillW / 2, labelY - pillH / 2, pillW, pillH, 3);
+        ctx.fill();
+
+        ctx.strokeStyle = "#38bdf8";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // Label text
+        ctx.fillStyle = "#f8fafc";
+        ctx.fillText(labelText, labelX, labelY);
+
+        ctx.restore();
+      }
+
+      // B. Render Egress Travel Distance Vector Path
+      if (waypoints && waypoints.length >= 2) {
+        ctx.save();
+
+        const screenWaypoints = waypoints.map((pt) => worldToScreen(pt.x, pt.y));
+
+        // 1. Outer Glow for High Visibility
+        ctx.strokeStyle = "rgba(16, 185, 129, 0.25)";
+        ctx.lineWidth = 8;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.beginPath();
+        ctx.moveTo(screenWaypoints[0].x, screenWaypoints[0].y);
+        for (let i = 1; i < screenWaypoints.length; i++) {
+          ctx.lineTo(screenWaypoints[i].x, screenWaypoints[i].y);
+        }
+        ctx.stroke();
+
+        // 2. High-Visibility Green Vector Path Line (#10b981, lineWidth 3)
+        ctx.strokeStyle = "#10b981";
+        ctx.lineWidth = 3;
+        ctx.setLineDash([8, 5]);
+        ctx.beginPath();
+        ctx.moveTo(screenWaypoints[0].x, screenWaypoints[0].y);
+        for (let i = 1; i < screenWaypoints.length; i++) {
+          ctx.lineTo(screenWaypoints[i].x, screenWaypoints[i].y);
+        }
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // 3. Direction Markers (Chevrons / Arrows pointing along vector towards exit)
+        for (let i = 0; i < screenWaypoints.length - 1; i++) {
+          const pStart = screenWaypoints[i];
+          const pEnd = screenWaypoints[i + 1];
+          const segDist = Math.hypot(pEnd.x - pStart.x, pEnd.y - pStart.y);
+          if (segDist > 18) {
+            const midX = (pStart.x + pEnd.x) / 2;
+            const midY = (pStart.y + pEnd.y) / 2;
+            const angle = Math.atan2(pEnd.y - pStart.y, pEnd.x - pStart.x);
+            const arrowLen = 7;
+
+            ctx.save();
+            ctx.translate(midX, midY);
+            ctx.rotate(angle);
+            ctx.fillStyle = "#10b981";
+            ctx.beginPath();
+            ctx.moveTo(arrowLen, 0);
+            ctx.lineTo(-arrowLen * 0.7, -arrowLen * 0.7);
+            ctx.lineTo(-arrowLen * 0.3, 0);
+            ctx.lineTo(-arrowLen * 0.7, arrowLen * 0.7);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+          }
+        }
+
+        // 4. Start Node: Furthest Retreat Point
+        const startScreen = screenWaypoints[0];
+        ctx.fillStyle = "rgba(16, 185, 129, 0.25)";
+        ctx.beginPath();
+        ctx.arc(startScreen.x, startScreen.y, 11, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = "#10b981";
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(startScreen.x, startScreen.y, 6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.font = "bold 9px sans-serif";
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle";
+        ctx.fillStyle = "#065f46";
+        ctx.fillText("🟢 Furthest Retreat (11.2, 7.8)", startScreen.x + 13, startScreen.y);
+
+        // 5. End Node: Primary Exit Door
+        const endScreen = screenWaypoints[screenWaypoints.length - 1];
+        ctx.strokeStyle = "#10b981";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(endScreen.x, endScreen.y, 9, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = "#10b981";
+        ctx.beginPath();
+        ctx.arc(endScreen.x, endScreen.y, 5, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.font = "bold 9px sans-serif";
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle";
+        ctx.fillStyle = "#065f46";
+        ctx.fillText("🚪 Primary Exit (1.2, 0.0)", endScreen.x + 13, endScreen.y);
+
+        // 6. Travel Distance Readout Pill Badge along the vector line
+        // Select the longest corridor segment to place the pill badge
+        let maxSegIdx = 0;
+        let maxSegLen = 0;
+        for (let i = 0; i < screenWaypoints.length - 1; i++) {
+          const l = Math.hypot(
+            screenWaypoints[i + 1].x - screenWaypoints[i].x,
+            screenWaypoints[i + 1].y - screenWaypoints[i].y,
+          );
+          if (l > maxSegLen) {
+            maxSegLen = l;
+            maxSegIdx = i;
+          }
+        }
+
+        const badgeMidX = (screenWaypoints[maxSegIdx].x + screenWaypoints[maxSegIdx + 1].x) / 2;
+        const badgeMidY = (screenWaypoints[maxSegIdx].y + screenWaypoints[maxSegIdx + 1].y) / 2;
+
+        const badgeText = `${travelDistanceM.toFixed(1)}m ≤ ${maxAllowedM.toFixed(1)}m [${clause}]`;
+        ctx.font = "bold 10px monospace";
+        const bMetrics = ctx.measureText(badgeText);
+        const bPadX = 8;
+        const bWidth = bMetrics.width + bPadX * 2 + 18;
+        const bHeight = 22;
+
+        // Shadow
+        ctx.fillStyle = "rgba(0, 0, 0, 0.25)";
+        ctx.beginPath();
+        ctx.roundRect(badgeMidX - bWidth / 2 + 1, badgeMidY - bHeight / 2 + 1.5, bWidth, bHeight, 11);
+        ctx.fill();
+
+        // Pill background
+        ctx.fillStyle = isCompliant ? "#064e3b" : "#7f1d1d";
+        ctx.beginPath();
+        ctx.roundRect(badgeMidX - bWidth / 2, badgeMidY - bHeight / 2, bWidth, bHeight, 11);
+        ctx.fill();
+
+        // Pill border
+        ctx.strokeStyle = isCompliant ? "#10b981" : "#ef4444";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        // Pill text
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillStyle = "#ffffff";
+        ctx.fillText(
+          `${isCompliant ? "✓ " : "✗ "}${badgeText}`,
+          badgeMidX,
+          badgeMidY,
+        );
+
+        ctx.restore();
+      }
+    }
+
+    // 6.7. Render Statutory NBC 2016 Canvas Geometry Linter Overlays
+    if (showLinter) {
+      const lintIssues = lintFloorPlanGeometry(floorPlan);
+
+      for (const issue of lintIssues) {
+        const isError = issue.severity === "error";
+        const strokeColor = isError ? "#ef4444" : "#f59e0b";
+        const glowColor = isError ? "rgba(239, 68, 68, 0.3)" : "rgba(245, 158, 11, 0.3)";
+        const fillColor = isError ? "rgba(254, 226, 226, 0.95)" : "rgba(254, 243, 199, 0.95)";
+
+        // A. Warning Outline / Halo for Doors & Corridors
+        if (issue.type === "door_pinch") {
+          const door = doors.find((d) => d.id === issue.elementId);
+          if (door) {
+            const doorPos = worldToScreen(door.position.x, door.position.y);
+            const doorRadius = door.width * zoom;
+
+            ctx.save();
+            // Translucent glowing halo
+            ctx.strokeStyle = glowColor;
+            ctx.lineWidth = 12;
+            ctx.lineCap = "round";
+            ctx.beginPath();
+            ctx.moveTo(doorPos.x, doorPos.y);
+            ctx.lineTo(doorPos.x, doorPos.y - doorRadius);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(doorPos.x, doorPos.y, doorRadius, -Math.PI / 2, 0);
+            ctx.stroke();
+
+            // High-visibility dashed statutory warning outline
+            ctx.strokeStyle = strokeColor;
+            ctx.lineWidth = 3;
+            ctx.setLineDash([5, 4]);
+            ctx.beginPath();
+            ctx.moveTo(doorPos.x, doorPos.y);
+            ctx.lineTo(doorPos.x, doorPos.y - doorRadius);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(doorPos.x, doorPos.y, doorRadius, -Math.PI / 2, 0);
+            ctx.stroke();
+            ctx.restore();
+          }
+        } else if (issue.type === "corridor_pinch") {
+          const cPos = worldToScreen(issue.location.x, issue.location.y);
+          const pinchSpan = (issue.actualWidthM || 0.8) * zoom;
+
+          ctx.save();
+          ctx.strokeStyle = glowColor;
+          ctx.lineWidth = 10;
+          ctx.strokeRect(cPos.x - pinchSpan / 2, cPos.y - 12, pinchSpan, 24);
+
+          ctx.strokeStyle = strokeColor;
+          ctx.lineWidth = 2.5;
+          ctx.setLineDash([4, 4]);
+          ctx.strokeRect(cPos.x - pinchSpan / 2, cPos.y - 12, pinchSpan, 24);
+          ctx.restore();
+        } else if (issue.type === "dead_end") {
+          const dePos = worldToScreen(issue.location.x, issue.location.y);
+
+          ctx.save();
+          ctx.strokeStyle = glowColor;
+          ctx.lineWidth = 10;
+          ctx.beginPath();
+          ctx.arc(dePos.x, dePos.y, 16, 0, Math.PI * 2);
+          ctx.stroke();
+
+          ctx.strokeStyle = strokeColor;
+          ctx.lineWidth = 2.5;
+          ctx.setLineDash([5, 4]);
+          ctx.beginPath();
+          ctx.arc(dePos.x, dePos.y, 16, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        // B. Warning Flag / Icon (⚠️) Marker & Dimension Tag
+        const issueScreen = worldToScreen(issue.location.x, issue.location.y);
+        const flagX = issueScreen.x + 16;
+        const flagY = issueScreen.y - 16;
+
+        ctx.save();
+        // Drop shadow for flag circle
+        ctx.fillStyle = "rgba(0, 0, 0, 0.22)";
+        ctx.beginPath();
+        ctx.arc(flagX + 1, flagY + 1.5, 12, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Flag circle background
+        ctx.fillStyle = fillColor;
+        ctx.strokeStyle = strokeColor;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(flagX, flagY, 12, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        // Warning Icon '⚠️'
+        ctx.font = "12px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("⚠️", flagX, flagY);
+
+        // Compact dimension tag adjacent to flag
+        const dimTag =
+          issue.actualWidthM !== undefined
+            ? `${issue.actualWidthM.toFixed(2)}m < ${issue.requiredWidthM?.toFixed(1) || "0.9"}m`
+            : `${issue.deadEndLengthM?.toFixed(1)}m > 6.0m`;
+        ctx.font = "bold 9px monospace";
+        const tagMetrics = ctx.measureText(dimTag);
+        const tagPadX = 5;
+        const tagW = tagMetrics.width + tagPadX * 2;
+        const tagH = 16;
+        const tagX = flagX + 16;
+        const tagY = flagY - 8;
+
+        ctx.fillStyle = "rgba(15, 23, 42, 0.92)";
+        ctx.beginPath();
+        ctx.roundRect(tagX, tagY, tagW, tagH, 3);
+        ctx.fill();
+
+        ctx.strokeStyle = strokeColor;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        ctx.fillStyle = "#fef3c7";
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle";
+        ctx.fillText(dimTag, tagX + tagPadX, tagY + tagH / 2);
+
+        // C. Interactive Compliance Tooltip (On Hover or Near Cursor)
+        const isHovered =
+          (mousePos && Math.hypot(mousePos.x - issue.location.x, mousePos.y - issue.location.y) < 0.8) ||
+          hoveredLintIssue?.id === issue.id;
+
+        if (isHovered) {
+          const ttPad = 8;
+          const ttTitle = `${issue.title} [${issue.clause}]`;
+          const ttMessage = issue.message;
+          const ttRemediation = issue.remediation;
+
+          ctx.font = "bold 10px sans-serif";
+          const titleWidth = ctx.measureText(ttTitle).width;
+          ctx.font = "10px monospace";
+          const msgWidth = ctx.measureText(ttMessage).width;
+          ctx.font = "9px sans-serif";
+          const remWidth = ctx.measureText(ttRemediation).width;
+
+          const ttBoxW = Math.max(titleWidth, msgWidth, remWidth) + ttPad * 2 + 10;
+          const ttBoxH = 58;
+          const ttBoxX = flagX + 10;
+          const ttBoxY = flagY + 16;
+
+          // Tooltip card shadow
+          ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
+          ctx.beginPath();
+          ctx.roundRect(ttBoxX + 2, ttBoxY + 3, ttBoxW, ttBoxH, 6);
+          ctx.fill();
+
+          // Tooltip card background
+          ctx.fillStyle = "rgba(15, 23, 42, 0.97)";
+          ctx.beginPath();
+          ctx.roundRect(ttBoxX, ttBoxY, ttBoxW, ttBoxH, 6);
+          ctx.fill();
+
+          ctx.strokeStyle = strokeColor;
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+
+          // Tooltip header
+          ctx.font = "bold 10px sans-serif";
+          ctx.fillStyle = isError ? "#f87171" : "#fbbf24";
+          ctx.textAlign = "left";
+          ctx.textBaseline = "top";
+          ctx.fillText(`⚠️ ${ttTitle}`, ttBoxX + ttPad, ttBoxY + ttPad);
+
+          // Tooltip citation message
+          ctx.font = "10px monospace";
+          ctx.fillStyle = "#ffffff";
+          ctx.fillText(ttMessage, ttBoxX + ttPad, ttBoxY + ttPad + 16);
+
+          // Tooltip remediation
+          ctx.font = "9px sans-serif";
+          ctx.fillStyle = "#94a3b8";
+          ctx.fillText(ttRemediation, ttBoxX + ttPad, ttBoxY + ttPad + 32);
+        }
+
+        ctx.restore();
+      }
+    }
+
     // 6.75. Render Pending Furniture Ghost Placement Preview
     if (tool === "furniture" && pendingFurniture && mousePos) {
       const previewPos = snapPoint || mousePos;
@@ -421,6 +870,9 @@ export function EditorCanvas({ unitSystem = "metric" }: { unitSystem?: UnitSyste
     worldToScreen,
     tool,
     hoveredDeleteId,
+    showEgressOverlay,
+    showLinter,
+    hoveredLintIssue,
   ]);
 
   // Mouse event handlers
@@ -524,6 +976,16 @@ export function EditorCanvas({ unitSystem = "metric" }: { unitSystem?: UnitSyste
       setHoveredElementId(hitId);
     } else if (hoveredElementId) {
       setHoveredElementId(null);
+    }
+
+    if (showLinter) {
+      const issues = lintFloorPlanGeometry(floorPlan);
+      const hitIssue = issues.find(
+        (iss) => Math.hypot(iss.location.x - rawWorld.x, iss.location.y - rawWorld.y) < 0.8,
+      );
+      setHoveredLintIssue(hitIssue || null);
+    } else if (hoveredLintIssue) {
+      setHoveredLintIssue(null);
     }
   }
 
@@ -672,6 +1134,25 @@ export function EditorCanvas({ unitSystem = "metric" }: { unitSystem?: UnitSyste
         <span className="text-accent">💡</span>
         <span>{tooltipText}</span>
       </div>
+
+      {/* Interactive NBC 2016 Statutory Compliance Popover */}
+      {showLinter && hoveredLintIssue && (
+        <div className="pointer-events-none absolute top-3 right-3 max-w-sm rounded-lg border border-amber-500/80 bg-slate-900/95 p-3 text-xs text-slate-100 shadow-xl backdrop-blur-md transition-all animate-in fade-in duration-150">
+          <div className="flex items-center gap-2 font-bold text-amber-400">
+            <span className="text-sm">⚠️</span>
+            <span>{hoveredLintIssue.title}</span>
+            <span className="ml-auto rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-mono text-amber-300 border border-amber-500/30">
+              {hoveredLintIssue.clause}
+            </span>
+          </div>
+          <div className="mt-1.5 font-mono text-[11px] text-amber-200 font-semibold bg-amber-950/40 rounded px-2 py-1 border border-amber-800/40">
+            {hoveredLintIssue.message}
+          </div>
+          <div className="mt-1.5 text-[10px] leading-relaxed text-slate-300">
+            {hoveredLintIssue.remediation}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

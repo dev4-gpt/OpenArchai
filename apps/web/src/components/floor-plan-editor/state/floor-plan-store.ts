@@ -10,6 +10,8 @@ export interface EditorState {
   pendingFurniture: PendingFurniture | null;
   undoStack: FloorPlan[];
   redoStack: FloorPlan[];
+  showEgressOverlay: boolean;
+  showLinter: boolean;
 }
 
 const initialFloorPlan: FloorPlan = {
@@ -32,6 +34,8 @@ let currentState: EditorState = {
   pendingFurniture: null,
   undoStack: [],
   redoStack: [],
+  showEgressOverlay: false,
+  showLinter: false,
 };
 
 const listeners = new Set<() => void>();
@@ -109,6 +113,26 @@ export const floorPlanStore = {
       ...currentState,
       floorPlan: { ...currentState.floorPlan, zoom: clamped },
     };
+    emitChange();
+  },
+
+  setEgressOverlay: (show: boolean) => {
+    currentState = { ...currentState, showEgressOverlay: show };
+    emitChange();
+  },
+
+  toggleEgressOverlay: () => {
+    currentState = { ...currentState, showEgressOverlay: !currentState.showEgressOverlay };
+    emitChange();
+  },
+
+  setLinter: (show: boolean) => {
+    currentState = { ...currentState, showLinter: show };
+    emitChange();
+  },
+
+  toggleLinter: () => {
+    currentState = { ...currentState, showLinter: !currentState.showLinter };
     emitChange();
   },
 

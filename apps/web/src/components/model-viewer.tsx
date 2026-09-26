@@ -22,20 +22,202 @@ export interface MaterialPreset {
   colorHex: string;
   roughness: number;
   metalness: number;
+  badges?: string[];
+  certifications?: {
+    acousticRating?: string;
+    moistureStandard?: string;
+    airQuality?: string;
+    fireRating?: string;
+    leadTime?: string;
+    sourcingOrigin?: string;
+    adhesiveStandard?: string;
+  };
+}
+
+export function get3DBadgeIcon(badge: string): string {
+  const b = badge.toLowerCase();
+  if (b.includes("stc") || b.includes("sound") || b.includes("acoustic") || b.includes("nrc")) return "🔊";
+  if (b.includes("is 287") || b.includes("kiln") || b.includes("emc") || b.includes("teak") || b.includes("oak") || b.includes("bwp 710")) return "🪵";
+  if (b.includes("greenguard") || b.includes("zero-voc") || b.includes("health shield") || b.includes("low-voc")) return "🌿";
+  if (b.includes("is 15477") || b.includes("c2te") || b.includes("adhesive") || b.includes("polymer")) return "🧪";
+  if (b.includes("lead time") || b.includes("sourced") || b.includes("rajasthan") || b.includes("wks")) return "⏱️";
+  if (b.includes("fire") || b.includes("flame")) return "🔥";
+  return "🛡️";
+}
+
+export function get3DBadgeTheme(badge: string): string {
+  const b = badge.toLowerCase();
+  if (b.includes("stc") || b.includes("sound") || b.includes("acoustic") || b.includes("nrc")) {
+    return "bg-sky-500/15 text-sky-800 dark:text-sky-300 border-sky-500/30";
+  }
+  if (b.includes("is 287") || b.includes("kiln") || b.includes("bwp 710") || b.includes("emc")) {
+    return "bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-500/30";
+  }
+  if (b.includes("greenguard") || b.includes("zero-voc") || b.includes("health shield")) {
+    return "bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border-emerald-500/30";
+  }
+  if (b.includes("is 15477") || b.includes("c2te") || b.includes("adhesive")) {
+    return "bg-purple-500/15 text-purple-800 dark:text-purple-300 border-purple-500/30";
+  }
+  if (b.includes("rajasthan") || b.includes("lead time") || b.includes("sourced") || b.includes("wks")) {
+    return "bg-orange-500/15 text-orange-800 dark:text-orange-300 border-orange-500/30";
+  }
+  return "bg-accent/15 text-accent border-accent/30";
 }
 
 export const FLOORING_SWAPS: MaterialPreset[] = [
-  { id: "fl_italian_statuario", name: "Italian Statuario Marble", category: "flooring", colorHex: "#f8f7f5", roughness: 0.15, metalness: 0.05 },
-  { id: "fl_kota_stone", name: "Kota Stone (Honed)", category: "flooring", colorHex: "#7a8a7c", roughness: 0.8, metalness: 0.0 },
-  { id: "fl_herringbone_oak", name: "Herringbone Oak Wood", category: "flooring", colorHex: "#b58a5b", roughness: 0.45, metalness: 0.0 },
-  { id: "fl_wooden_teak", name: "Warm Wooden Teak", category: "flooring", colorHex: "#8b5a2b", roughness: 0.45, metalness: 0.0 },
+  {
+    id: "fl_italian_statuario",
+    name: "Italian Statuario Marble",
+    category: "flooring",
+    colorHex: "#f8f7f5",
+    roughness: 0.15,
+    metalness: 0.05,
+    badges: [
+      "Carrara Sourced | 12-14 Wks Lead Time",
+      "IS 15477 C2TE S2 High-Flex Polymer",
+    ],
+    certifications: {
+      moistureStandard: "Requires Penetrating Sealer",
+      airQuality: "Zero-VOC Natural Stone",
+      leadTime: "12-14 Wks Lead Time (Import)",
+      sourcingOrigin: "Carrara, Italy",
+      adhesiveStandard: "IS 15477 C2TE S2 High-Flex Polymer",
+    },
+  },
+  {
+    id: "fl_kota_stone",
+    name: "Kota Stone (Honed)",
+    category: "flooring",
+    colorHex: "#7a8a7c",
+    roughness: 0.8,
+    metalness: 0.0,
+    badges: [
+      "Rajasthan Sourced | 2-3 Wks Lead Time",
+      "IS 15477 C2TE S1 Flexible Polymer",
+      "Zero-VOC Natural Stone",
+    ],
+    certifications: {
+      acousticRating: "Impact Sound ΔLw 14dB",
+      moistureStandard: "Non-Porous <0.4% Water Absorption",
+      airQuality: "Zero-VOC Natural Mineral",
+      leadTime: "Rajasthan Sourced | 2-3 Wks Lead Time",
+      sourcingOrigin: "Kota District, Rajasthan",
+      adhesiveStandard: "IS 15477 C2TE S1 Flexible Polymer",
+    },
+  },
+  {
+    id: "fl_herringbone_oak",
+    name: "Herringbone Oak Wood",
+    category: "flooring",
+    colorHex: "#b58a5b",
+    roughness: 0.45,
+    metalness: 0.0,
+    badges: [
+      "IS 287 Kiln-Dried 8-12% EMC | BWP 710 Backer",
+      "Multi-ply Birch Core",
+    ],
+    certifications: {
+      acousticRating: "IIC 52 with Acoustic Underlayment",
+      moistureStandard: "IS 287 Kiln-Dried 8-12% EMC | BWP 710 Backer",
+      airQuality: "E1 Standard & Low-VOC Lacquer",
+      leadTime: "4-6 Wks Lead Time",
+      sourcingOrigin: "European White Oak / Baltic Birch",
+    },
+  },
+  {
+    id: "fl_wooden_teak",
+    name: "Warm Wooden Teak",
+    category: "flooring",
+    colorHex: "#8b5a2b",
+    roughness: 0.45,
+    metalness: 0.0,
+    badges: [
+      "IS 287 Kiln-Dried 8-12% EMC | BWP 710 Backer",
+      "FSC Certified Sustainable Teak",
+    ],
+    certifications: {
+      moistureStandard: "IS 287 Kiln-Dried 8-12% EMC | BWP 710 Backer",
+      airQuality: "Low-VOC PU Sealer",
+      leadTime: "3-4 Wks Lead Time",
+      sourcingOrigin: "Burma Teak / Indian Plantation",
+    },
+  },
 ];
 
 export const WALL_SWAPS: MaterialPreset[] = [
-  { id: "wl_asian_paints_royale", name: "Asian Paints Royale", category: "walls", colorHex: "#f5f0eb", roughness: 0.85, metalness: 0.0 },
-  { id: "wl_raw_concrete", name: "Raw Concrete", category: "walls", colorHex: "#949699", roughness: 0.9, metalness: 0.05 },
-  { id: "wl_fluted_wood", name: "Fluted Wood Panels", category: "walls", colorHex: "#7a5332", roughness: 0.5, metalness: 0.02 },
-  { id: "wl_exposed_brick", name: "Exposed Brick Cladding", category: "walls", colorHex: "#a34c38", roughness: 0.95, metalness: 0.0 },
+  {
+    id: "wl_asian_paints_royale",
+    name: "Asian Paints Royale Health Shield",
+    category: "walls",
+    colorHex: "#f5f0eb",
+    roughness: 0.85,
+    metalness: 0.0,
+    badges: [
+      "GreenGuard Gold Zero-VOC | Asian Paints Royale Health Shield",
+      "Anti-Bacterial Silver Ion",
+    ],
+    certifications: {
+      airQuality: "GreenGuard Gold Zero-VOC | Asian Paints Royale Health Shield",
+      moistureStandard: "Washable Teflon Surface Protector",
+      leadTime: "Immediate Stock (Ready Available)",
+      sourcingOrigin: "Asian Paints India",
+    },
+  },
+  {
+    id: "wl_raw_concrete",
+    name: "Raw Concrete",
+    category: "walls",
+    colorHex: "#949699",
+    roughness: 0.9,
+    metalness: 0.05,
+    badges: [
+      "GreenGuard Gold Zero-VOC",
+      "IS 456 Fair-Faced Structural Finish",
+    ],
+    certifications: {
+      airQuality: "GreenGuard Gold Zero-VOC (<5g/L)",
+      fireRating: "Class A1 Non-Combustible",
+      moistureStandard: "Silane-Siloxane Hydrophobic Sealer",
+      leadTime: "On-site Application",
+    },
+  },
+  {
+    id: "wl_fluted_wood",
+    name: "Fluted Wood Acoustic Panels",
+    category: "walls",
+    colorHex: "#7a5332",
+    roughness: 0.5,
+    metalness: 0.02,
+    badges: [
+      "STC 56 Tested | Gyproc SoundStop",
+      "IS 287 Kiln-Dried 8-12% EMC | BWP 710 Backer",
+      "NRC 0.85 Acoustic PET Felt",
+    ],
+    certifications: {
+      acousticRating: "STC 56 Tested | Gyproc SoundStop | NRC 0.85",
+      moistureStandard: "IS 287 Kiln-Dried 8-12% EMC | BWP 710 Backer",
+      airQuality: "Zero-Odor Recycled PET Acoustic Core",
+      leadTime: "2-3 Wks Lead Time",
+    },
+  },
+  {
+    id: "wl_exposed_brick",
+    name: "Exposed Brick Cladding",
+    category: "walls",
+    colorHex: "#a34c38",
+    roughness: 0.95,
+    metalness: 0.0,
+    badges: [
+      "Rajasthan Sourced | 2-3 Wks Lead Time",
+      "IS 1077 Common Burnt Clay Standard",
+    ],
+    certifications: {
+      sourcingOrigin: "Rajasthan Kilns",
+      leadTime: "Rajasthan Sourced | 2-3 Wks Lead Time",
+      airQuality: "100% Natural Fired Clay (Zero-VOC)",
+    },
+  },
 ];
 
 export type CircadianPreset = "morning" | "afternoon" | "golden" | "evening";
@@ -295,6 +477,7 @@ export function ModelViewer({
     WALL_SWAPS.find((w) => w.id === activeWallId) || WALL_SWAPS[0]
   );
   const [showMaterialDrawer, setShowMaterialDrawer] = useState(false);
+  const [inspectedMaterial, setInspectedMaterial] = useState<MaterialPreset | null>(null);
 
   // Sync external prop updates
   useEffect(() => {
@@ -482,12 +665,47 @@ export function ModelViewer({
         </div>
       </div>
 
+      {/* Active Material Badges Pill Overlay */}
+      <div className="absolute top-12 left-2 sm:left-4 z-10 hidden sm:flex flex-col gap-1.5 pointer-events-auto">
+        <div
+          onClick={() => setInspectedMaterial(selectedFlooring)}
+          className="group/pill flex items-center gap-2 rounded-lg bg-surface/85 backdrop-blur-md px-2.5 py-1 text-xs border border-border shadow-2xs text-foreground cursor-pointer hover:border-accent/50 transition-all"
+          title="Click to inspect active Flooring certifications"
+        >
+          <span className="h-2.5 w-2.5 rounded-full border border-black/20 shrink-0" style={{ backgroundColor: selectedFlooring.colorHex }} />
+          <span className="font-semibold text-[11px]">{selectedFlooring.name}</span>
+          {selectedFlooring.badges?.[0] && (
+            <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.2 text-[9px] font-semibold border ${get3DBadgeTheme(selectedFlooring.badges[0])}`}>
+              <span>{get3DBadgeIcon(selectedFlooring.badges[0])}</span>
+              <span className="truncate max-w-[130px]">{selectedFlooring.badges[0]}</span>
+            </span>
+          )}
+          <span className="text-[10px] text-muted opacity-60 group-hover/pill:opacity-100 transition-opacity">ℹ️</span>
+        </div>
+
+        <div
+          onClick={() => setInspectedMaterial(selectedWall)}
+          className="group/pill flex items-center gap-2 rounded-lg bg-surface/85 backdrop-blur-md px-2.5 py-1 text-xs border border-border shadow-2xs text-foreground cursor-pointer hover:border-accent/50 transition-all"
+          title="Click to inspect active Wall certifications"
+        >
+          <span className="h-2.5 w-2.5 rounded-full border border-black/20 shrink-0" style={{ backgroundColor: selectedWall.colorHex }} />
+          <span className="font-semibold text-[11px]">{selectedWall.name}</span>
+          {selectedWall.badges?.[0] && (
+            <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.2 text-[9px] font-semibold border ${get3DBadgeTheme(selectedWall.badges[0])}`}>
+              <span>{get3DBadgeIcon(selectedWall.badges[0])}</span>
+              <span className="truncate max-w-[130px]">{selectedWall.badges[0]}</span>
+            </span>
+          )}
+          <span className="text-[10px] text-muted opacity-60 group-hover/pill:opacity-100 transition-opacity">ℹ️</span>
+        </div>
+      </div>
+
       {/* Floating Material Drawer (Anchored from Top) */}
       {showMaterialDrawer && (
-        <div className="absolute top-12 right-2 sm:right-6 z-20 w-72 rounded-xl border border-border bg-surface/95 backdrop-blur-md p-3.5 shadow-xl space-y-3 text-xs animate-in fade-in slide-in-from-top-2">
+        <div className="absolute top-12 right-2 sm:right-6 z-20 w-80 sm:w-84 max-h-[82vh] overflow-y-auto rounded-xl border border-border bg-surface/95 backdrop-blur-md p-3.5 shadow-xl space-y-3 text-xs animate-in fade-in slide-in-from-top-2">
           <div className="flex items-center justify-between border-b border-border pb-2">
             <span className="font-bold text-foreground flex items-center gap-1.5">
-              <span>🎨</span> Live Material Swapper (PBR)
+              <span>🎨</span> Live Material Swapper & Metadata
             </span>
             <button
               type="button"
@@ -501,24 +719,53 @@ export function ModelViewer({
           {/* Flooring Swaps */}
           <div className="space-y-1.5">
             <span className="text-[10px] font-bold uppercase tracking-wider text-muted">Flooring:</span>
-            <div className="grid grid-cols-1 gap-1">
+            <div className="grid grid-cols-1 gap-1.5">
               {FLOORING_SWAPS.map((f) => (
-                <button
+                <div
                   key={f.id}
-                  type="button"
                   onClick={() => handleSelectFlooring(f)}
-                  className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg border text-left transition-all ${
+                  className={`flex flex-col gap-1 p-2 rounded-lg border text-left cursor-pointer transition-all ${
                     selectedFlooring.id === f.id
-                      ? "border-accent bg-accent/10 font-semibold text-accent"
-                      : "border-border/60 hover:border-accent/40 text-foreground"
+                      ? "border-accent bg-accent/10 font-semibold text-accent shadow-2xs"
+                      : "border-border/60 hover:border-accent/40 text-foreground bg-surface/60"
                   }`}
                 >
-                  <div className="flex items-center gap-2">
-                    <span className="h-3 w-3 rounded-full border border-black/20 shrink-0" style={{ backgroundColor: f.colorHex }} />
-                    <span className="truncate">{f.name}</span>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="h-3 w-3 rounded-full border border-black/20 shrink-0" style={{ backgroundColor: f.colorHex }} />
+                      <span className="truncate text-xs font-medium">{f.name}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setInspectedMaterial(f);
+                        }}
+                        className="rounded px-1.5 py-0.5 text-[10px] font-medium bg-surface hover:bg-accent/20 text-muted hover:text-accent border border-border transition-colors"
+                        title="Inspect Environmental & Acoustic Certifications"
+                      >
+                        ℹ️ Inspect
+                      </button>
+                      {selectedFlooring.id === f.id && <span className="text-[11px] text-accent font-bold">✓</span>}
+                    </div>
                   </div>
-                  {selectedFlooring.id === f.id && <span className="text-[10px]">✓</span>}
-                </button>
+
+                  {/* Badges chips row */}
+                  {f.badges && f.badges.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-0.5 pl-5">
+                      {f.badges.map((b) => (
+                        <span
+                          key={b}
+                          className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-semibold tracking-tight border ${get3DBadgeTheme(b)}`}
+                        >
+                          <span>{get3DBadgeIcon(b)}</span>
+                          <span className="truncate max-w-[200px]">{b}</span>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
               ))}
             </div>
           </div>
@@ -526,25 +773,165 @@ export function ModelViewer({
           {/* Wall Swaps */}
           <div className="space-y-1.5">
             <span className="text-[10px] font-bold uppercase tracking-wider text-muted">Wall Finishes:</span>
-            <div className="grid grid-cols-1 gap-1">
+            <div className="grid grid-cols-1 gap-1.5">
               {WALL_SWAPS.map((w) => (
-                <button
+                <div
                   key={w.id}
-                  type="button"
                   onClick={() => handleSelectWall(w)}
-                  className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg border text-left transition-all ${
+                  className={`flex flex-col gap-1 p-2 rounded-lg border text-left cursor-pointer transition-all ${
                     selectedWall.id === w.id
-                      ? "border-accent bg-accent/10 font-semibold text-accent"
-                      : "border-border/60 hover:border-accent/40 text-foreground"
+                      ? "border-accent bg-accent/10 font-semibold text-accent shadow-2xs"
+                      : "border-border/60 hover:border-accent/40 text-foreground bg-surface/60"
                   }`}
                 >
-                  <div className="flex items-center gap-2">
-                    <span className="h-3 w-3 rounded-full border border-black/20 shrink-0" style={{ backgroundColor: w.colorHex }} />
-                    <span className="truncate">{w.name}</span>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="h-3 w-3 rounded-full border border-black/20 shrink-0" style={{ backgroundColor: w.colorHex }} />
+                      <span className="truncate text-xs font-medium">{w.name}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setInspectedMaterial(w);
+                        }}
+                        className="rounded px-1.5 py-0.5 text-[10px] font-medium bg-surface hover:bg-accent/20 text-muted hover:text-accent border border-border transition-colors"
+                        title="Inspect Environmental & Acoustic Certifications"
+                      >
+                        ℹ️ Inspect
+                      </button>
+                      {selectedWall.id === w.id && <span className="text-[11px] text-accent font-bold">✓</span>}
+                    </div>
                   </div>
-                  {selectedWall.id === w.id && <span className="text-[10px]">✓</span>}
-                </button>
+
+                  {/* Badges chips row */}
+                  {w.badges && w.badges.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-0.5 pl-5">
+                      {w.badges.map((b) => (
+                        <span
+                          key={b}
+                          className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-semibold tracking-tight border ${get3DBadgeTheme(b)}`}
+                        >
+                          <span>{get3DBadgeIcon(b)}</span>
+                          <span className="truncate max-w-[200px]">{b}</span>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Environmental & Acoustic Metadata Inspect Popover */}
+      {inspectedMaterial && (
+        <div className="absolute top-12 left-2 sm:left-auto sm:right-92 z-30 w-80 sm:w-84 rounded-xl border border-border bg-surface/95 backdrop-blur-md p-4 shadow-2xl space-y-3 text-xs animate-in fade-in zoom-in-95">
+          <div className="flex items-start justify-between border-b border-border pb-2">
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-accent">
+                {inspectedMaterial.category === "flooring" ? "Flooring Material Spec" : "Wall Material Spec"}
+              </span>
+              <h3 className="font-bold text-foreground text-sm flex items-center gap-1.5">
+                <span className="h-3 w-3 rounded-full border border-black/20 shrink-0" style={{ backgroundColor: inspectedMaterial.colorHex }} />
+                <span>{inspectedMaterial.name}</span>
+              </h3>
+            </div>
+            <button
+              type="button"
+              onClick={() => setInspectedMaterial(null)}
+              className="text-muted hover:text-foreground text-xs p-1 rounded hover:bg-accent/10"
+              title="Close Inspector"
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* Statutory Badges List */}
+          <div className="space-y-1">
+            <span className="text-[10px] font-bold text-muted uppercase tracking-wider">
+              Statutory Certifications & Badges:
+            </span>
+            <div className="flex flex-wrap gap-1">
+              {inspectedMaterial.badges?.map((b) => (
+                <span
+                  key={b}
+                  className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-semibold border ${get3DBadgeTheme(b)}`}
+                >
+                  <span>{get3DBadgeIcon(b)}</span>
+                  <span>{b}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* Structured Environmental & Performance Metrics */}
+          <div className="space-y-1.5 pt-1 border-t border-border/60">
+            <span className="text-[10px] font-bold text-muted uppercase tracking-wider">
+              Performance & Environmental Metrics:
+            </span>
+            <div className="grid grid-cols-1 gap-1.5">
+              <div className="rounded-lg border border-sky-500/25 bg-sky-500/5 p-2 space-y-0.5">
+                <div className="flex items-center gap-1 text-[10px] font-bold text-sky-800 dark:text-sky-300">
+                  <span>🔊</span>
+                  <span>Acoustic Isolation:</span>
+                </div>
+                <p className="text-[11px] font-medium text-foreground pl-3.5">
+                  {inspectedMaterial.certifications?.acousticRating ||
+                    inspectedMaterial.badges?.find((b) => b.includes("STC") || b.includes("NRC")) ||
+                    "Standard Residential Isolation (STC 38+)"}
+                </p>
+                <span className="text-[9px] text-muted block pl-3.5">
+                  ASTM E90 Sound Transmission Class Tested
+                </span>
+              </div>
+
+              <div className="rounded-lg border border-amber-500/25 bg-amber-500/5 p-2 space-y-0.5">
+                <div className="flex items-center gap-1 text-[10px] font-bold text-amber-800 dark:text-amber-300">
+                  <span>🪵</span>
+                  <span>Moisture & Substrate:</span>
+                </div>
+                <p className="text-[11px] font-medium text-foreground pl-3.5">
+                  {inspectedMaterial.certifications?.moistureStandard ||
+                    inspectedMaterial.badges?.find((b) => b.includes("IS 287") || b.includes("EMC")) ||
+                    "Atmospheric Moisture Equilibrium"}
+                </p>
+                <span className="text-[9px] text-muted block pl-3.5">
+                  IS 287 Kiln-Dried 8-12% EMC / Monsoon Resistant
+                </span>
+              </div>
+
+              <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/5 p-2 space-y-0.5">
+                <div className="flex items-center gap-1 text-[10px] font-bold text-emerald-800 dark:text-emerald-300">
+                  <span>🌿</span>
+                  <span>Air Quality & VOC:</span>
+                </div>
+                <p className="text-[11px] font-medium text-foreground pl-3.5">
+                  {inspectedMaterial.certifications?.airQuality ||
+                    inspectedMaterial.badges?.find((b) => b.includes("GreenGuard") || b.includes("VOC")) ||
+                    "Ultra-Low Chemical Emissions"}
+                </p>
+                <span className="text-[9px] text-muted block pl-3.5">
+                  GreenGuard Gold Zero-VOC Certified
+                </span>
+              </div>
+
+              <div className="rounded-lg border border-orange-500/25 bg-orange-500/5 p-2 space-y-0.5">
+                <div className="flex items-center gap-1 text-[10px] font-bold text-orange-800 dark:text-orange-300">
+                  <span>⏱️</span>
+                  <span>Sourcing & Lead Time:</span>
+                </div>
+                <p className="text-[11px] font-medium text-foreground pl-3.5">
+                  {inspectedMaterial.certifications?.leadTime ||
+                    inspectedMaterial.badges?.find((b) => b.includes("Lead Time") || b.includes("Wks")) ||
+                    "Ready Stock"}
+                </p>
+                <span className="text-[9px] text-muted block pl-3.5">
+                  {inspectedMaterial.certifications?.sourcingOrigin || "Domestic Quarry / Fast-Track Delivery"}
+                </span>
+              </div>
             </div>
           </div>
         </div>

@@ -582,6 +582,7 @@ export function AgentTeamPanel({
 
     if (actId.includes("layout") || payload.includes("spine") || payload.includes("83ntg") || actId.includes("spine")) {
       floorPlanStore.loadPlan(SINGLE_LOADED_SPINE_LAYOUT);
+      floorPlanStore.setEgressOverlay(true);
       setActionFeedback("✨ Applied 83% NTG Single-Loaded Spine Layout with Ensuite Bath directly to 2D Plan & 3D Model!");
       if (onApplyLayout) onApplyLayout(action.payload);
     } else if (actId.includes("material") || actId.includes("palette") || payload.includes("fl_") || payload.includes("wl_")) {
@@ -596,11 +597,13 @@ export function AgentTeamPanel({
       setActionFeedback("📊 BOQ Recalculated: Added 35 sqft Ensuite Bath (+₹1,38,000) & Deducted 119 sqft Corridor (-₹1,96,000) = Net Project Saving ₹58,000!");
       if (onRecalculateBoq) onRecalculateBoq(action.payload);
     } else if (actId.includes("compliance") || actId.includes("audit") || actId.includes("egress") || actId.includes("nbc") || actId.includes("ibc") || actId.includes("vastu")) {
+      floorPlanStore.setEgressOverlay(true);
       window.dispatchEvent(new CustomEvent("atelier-compliance-audit", { detail: action.payload }));
       setActionFeedback("📜 NBC 2016 Part 4 Statutory Audit Passed: 0.9m internal private egress verified. Wet core drainage aligned with Agni & Ishanya axis.");
       if (onAuditCompliance) onAuditCompliance(action.payload);
     } else {
       floorPlanStore.loadPlan(SINGLE_LOADED_SPINE_LAYOUT);
+      floorPlanStore.setEgressOverlay(true);
       setActionFeedback(`⚡ Executed: ${action.label}`);
     }
   }

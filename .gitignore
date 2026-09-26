@@ -21,6 +21,7 @@ __pycache__/
 
 # tool-generated state (not project source)
 .claude-flow/
+.agents/
 
 # misc
 .DS_Store
