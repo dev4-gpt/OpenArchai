@@ -16,6 +16,7 @@ export type Door = {
   position: Point; // center of door along the wall
   width: number; // meters
   wallId: string | null; // which wall it belongs to
+  isFireExit?: boolean; // statutory fire exit door rating (FD 120 per NBC 2016 Part 4)
 };
 
 export type Window = {
@@ -48,12 +49,29 @@ export type FurnitureItem = {
   tag?: string; // e.g. "FF-01"
 };
 
+export type StaircaseItem = {
+  id: string;
+  position: Point;     // insertion point in meters
+  flightWidth: number; // default 1.50m (NBC 2016 Part 4 Table 8)
+  riserHeight: number; // default 0.15m (150mm)
+  treadDepth: number;  // default 0.30m (300mm)
+  riserCount: number;  // default 10 risers
+  rotation: number;    // degrees: 0, 90, 180, 270
+  direction: "up" | "down";
+  label?: string;
+  width?: number;      // alias for flightWidth in meters
+  length?: number;     // total flight run in meters
+  riserMm?: number;    // riser height in mm (e.g. 150)
+  treadMm?: number;    // tread depth in mm (e.g. 300)
+};
+
 export type FloorPlan = {
   walls: Wall[];
   doors: Door[];
   windows: Window[];
   rooms: Room[];
   furniture?: FurnitureItem[];
+  staircases?: StaircaseItem[];
   // Grid settings
   gridSize: number; // meters per grid cell (default 0.5m = ~1.6ft)
   // Canvas transform
@@ -79,7 +97,8 @@ export type EditorTool =
   | "room"
   | "furniture"
   | "dimension"
-  | "eraser";
+  | "eraser"
+  | "staircase";
 
 export type EditorState = {
   tool: EditorTool;
@@ -92,10 +111,29 @@ export type EditorState = {
   snapPoint: Point | null;
   // Active pending furniture item ready to place on canvas
   pendingFurniture: PendingFurniture | null;
+  // Active pending staircase flight preview ready to place on canvas
+  pendingStaircase: Omit<StaircaseItem, "id"> | null;
   // Undo/redo
   undoStack: FloorPlan[];
   redoStack: FloorPlan[];
+  showEgressOverlay?: boolean;
+  showLinter?: boolean;
+  showFarOverlay?: boolean;
+  showFarEnvelope?: boolean;
+  showStructuralGrid?: boolean;
+  selectedGridBay?: "6.0x6.0" | "6.0x7.2" | "7.2x7.2";
+  structuralGridModule?: "6x6" | "6x7.2" | "7.2x7.2";
+  showDaylightVastu?: boolean;
+  showDaylightingOverlay?: boolean;
+  showVastuOverlay?: boolean;
+  showPhasing4D?: boolean;
+  phasingDay?: number;
+  showConstructionStaging?: boolean;
+  constructionStage?: ConstructionStage;
 };
+
+export type ConstructionStage = "all" | "structure" | "mep" | "finishes";
+export type StructuralGridBay = "6.0x6.0" | "6.0x7.2" | "7.2x7.2";
 
 // Standard presets for Indian residential architecture
 export const ROOM_PRESETS = {

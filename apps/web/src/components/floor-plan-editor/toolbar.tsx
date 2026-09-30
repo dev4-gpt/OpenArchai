@@ -2,7 +2,7 @@
 
 import { useState, useRef } from "react";
 import { floorPlanStore, useFloorPlanStore } from "./state/floor-plan-store";
-import { ROOM_PRESETS, DOOR_WIDTHS, WINDOW_WIDTHS, type EditorTool } from "./types";
+import { ROOM_PRESETS, DOOR_WIDTHS, WINDOW_WIDTHS, type EditorTool, type ConstructionStage } from "./types";
 import { floorPlanToDxf } from "./export/to-dxf";
 import { floorPlanToElements } from "./export/to-elements";
 import { exportFloorPlanToIfc } from "@/lib/ifc-export";
@@ -10,6 +10,8 @@ import { parseDxfContent } from "@/lib/dxf-import";
 import { FFE_CATALOG } from "@/lib/ffe-catalog";
 import { Button } from "@/components/ui/button";
 import { lintFloorPlanGeometry } from "@/lib/calculators/geometry-linter";
+import { exportCOBieScheduleCSV, generateIFC4LOD300Records } from "@/lib/calculators/construction-gantt-engine";
+import { generateEvacuationDossier, generateFireEvacuationDossier } from "@/lib/calculators/staircase-egress-calculator";
 
 export function EditorToolbar({
   onSaveToProject,
@@ -37,6 +39,7 @@ export function EditorToolbar({
     { id: "wall", label: "Wall", icon: "🧱" },
     { id: "door", label: "Door", icon: "🚪" },
     { id: "window", label: "Window", icon: "🪟" },
+    { id: "staircase", label: "Staircase", icon: "🪜" },
     { id: "eraser", label: hasSelected ? `Delete (${state.selectedIds.length})` : "Delete", icon: "✕" },
   ];
 
@@ -147,6 +150,44 @@ export function EditorToolbar({
     URL.revokeObjectURL(url);
   }
 
+  function handleExportEvacuationPlan() {
+    const totalAreaM2 = (state.floorPlan.rooms || []).reduce((acc, r) => acc + (r.area || 0), 0) || 250;
+    const dossierResult = generateFireEvacuationDossier(
+      {
+        projectName: "AtelierOS Luxury Sanctuary",
+        occupantLoad: Math.ceil(totalAreaM2 / 9.3),
+        furthestTravelDistanceM: 18.4,
+        flightWidthM: 1.50,
+        riserHeightM: 0.15,
+        treadDepthM: 0.30,
+        buildingHeightM: 24.0,
+        fireDoorRating: "FD 120 (IS 3614 2-Hour Rated)",
+        hasPressurizationFan: true,
+        hoseReelCount: 2,
+      },
+      state.floorPlan,
+    );
+    const blob = new Blob([dossierResult.dossierMarkdown], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `municipal-fire-evacuation-dossier-${Date.now()}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function handleExportCOBie() {
+    const records = generateIFC4LOD300Records(state.floorPlan.rooms?.length || 4);
+    const csv = exportCOBieScheduleCSV(records);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `cobie-schedule-lod300-${Date.now()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div className="flex flex-col border-b border-border">
       {/* Main Toolbar Strip */}
@@ -172,6 +213,17 @@ export function EditorToolbar({
                     floorPlanStore.deleteSelected();
                   }
                   floorPlanStore.setTool("eraser");
+                } else if (t.id === "staircase") {
+                  floorPlanStore.setPendingStaircase({
+                    position: { x: 0, y: 0 },
+                    flightWidth: 1.50,
+                    riserHeight: 0.15,
+                    treadDepth: 0.30,
+                    riserCount: 10,
+                    rotation: 0,
+                    direction: "up",
+                    label: "Stair Flight (UP)",
+                  });
                 } else {
                   floorPlanStore.setTool(t.id);
                 }
@@ -261,6 +313,178 @@ export function EditorToolbar({
               </span>
             ) : null}
           </button>
+
+          {/* Statutory FAR & Ground Coverage Envelope Toggle */}
+          <button
+            type="button"
+            onClick={() => floorPlanStore.toggleFarOverlay()}
+            className={`flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-semibold transition-all ${
+              state.showFarOverlay
+                ? "bg-sky-600 text-white shadow-xs hover:bg-sky-700"
+                : "border border-border text-foreground hover:border-sky-600/50 hover:text-sky-700 dark:hover:text-sky-400"
+            }`}
+            title="Toggle Haryana DTCP / NBC Statutory FAR Boundary Envelope & Ground Coverage Overlay"
+          >
+            <span>📈</span>
+            <span>FAR & Envelope</span>
+            {state.showFarOverlay && (
+              <span className="ml-0.5 rounded-full bg-sky-400/30 px-1.5 py-0.2 text-[9px] font-mono text-sky-100">
+                ON
+              </span>
+            )}
+          </button>
+
+          {/* Pillar 2: Structural Bay Grid Overlay & Module Toggle */}
+          <div className="flex items-center">
+            <button
+              type="button"
+              onClick={() => floorPlanStore.toggleStructuralGrid()}
+              className={`flex items-center gap-1.5 ${state.showStructuralGrid ? "rounded-l" : "rounded"} px-2.5 py-1 text-xs font-semibold transition-all ${
+                state.showStructuralGrid
+                  ? "bg-indigo-600 text-white shadow-xs hover:bg-indigo-700"
+                  : "border border-border text-foreground hover:border-indigo-600/50 hover:text-indigo-700 dark:hover:text-indigo-400"
+              }`}
+              title="Toggle Modular Structural Bay Grid (IS 456 / IS 1893 Zone IV RC Columns & Deflection Check)"
+            >
+              <span>📐</span>
+              <span>Structural Grid</span>
+              {state.showStructuralGrid && (
+                <span className="ml-0.5 rounded-full bg-indigo-400/30 px-1.5 py-0.2 text-[9px] font-mono text-indigo-100">
+                  ON
+                </span>
+              )}
+            </button>
+            {state.showStructuralGrid && (
+              <select
+                value={state.selectedGridBay || (state.structuralGridModule === "6x6" ? "6.0x6.0" : state.structuralGridModule === "6x7.2" ? "6.0x7.2" : state.structuralGridModule) || "6.0x6.0"}
+                onChange={(e) =>
+                  floorPlanStore.setStructuralBaySpacing(e.target.value as "6.0x6.0" | "6.0x7.2" | "7.2x7.2")
+                }
+                className="rounded-r border-y border-r border-indigo-500 bg-indigo-700 px-1 py-1 text-[11px] font-mono font-bold text-white outline-none cursor-pointer"
+                title="Select Structural Grid Bay Spacing"
+              >
+                <option value="6.0x6.0">6.0×6.0m</option>
+                <option value="6.0x7.2">6.0×7.2m</option>
+                <option value="7.2x7.2">7.2×7.2m</option>
+              </select>
+            )}
+          </div>
+
+          {/* Pillar 4: Natural Daylighting Factor (DF %) Heatmap Toggle */}
+          <button
+            type="button"
+            onClick={() => floorPlanStore.toggleDaylightingOverlay()}
+            className={`flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-semibold transition-all ${
+              state.showDaylightingOverlay
+                ? "bg-amber-600 text-white shadow-xs hover:bg-amber-700"
+                : "border border-border text-foreground hover:border-amber-600/50 hover:text-amber-700 dark:hover:text-amber-400"
+            }`}
+            title="Toggle Natural Daylight Factor (DF %) Contour Heatmap [BS EN 17037 / NBC Part 8]"
+          >
+            <span>☀️</span>
+            <span>Daylighting</span>
+            {state.showDaylightingOverlay && (
+              <span className="ml-0.5 rounded-full bg-amber-400/30 px-1.5 py-0.2 text-[9px] font-mono text-amber-100">
+                ON
+              </span>
+            )}
+          </button>
+
+          {/* Pillar 4: 9-Zone Vastu Shastra Peetha / Paramasayika Mandala Grid Toggle */}
+          <button
+            type="button"
+            onClick={() => floorPlanStore.toggleVastuOverlay()}
+            className={`flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-semibold transition-all ${
+              state.showVastuOverlay
+                ? "bg-orange-600 text-white shadow-xs hover:bg-orange-700"
+                : "border border-border text-foreground hover:border-orange-600/50 hover:text-orange-700 dark:hover:text-orange-400"
+            }`}
+            title="Toggle 9-Zone Vastu Shastra Peetha / Paramasayika Mandala Grid Overlay & Alignment Scoring"
+          >
+            <span>☸️</span>
+            <span>Vastu Mandala</span>
+            {state.showVastuOverlay && (
+              <span className="ml-0.5 rounded-full bg-orange-400/30 px-1.5 py-0.2 text-[9px] font-mono text-orange-100">
+                ON
+              </span>
+            )}
+          </button>
+
+          {/* Pillar 5: 4D EPC Construction Phasing Toggle */}
+          <div className="flex items-center">
+            <button
+              type="button"
+              onClick={() => floorPlanStore.togglePhasing4D()}
+              className={`flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-semibold transition-all ${
+                state.showPhasing4D
+                  ? "bg-purple-600 text-white shadow-xs hover:bg-purple-700"
+                  : "border border-border text-foreground hover:border-purple-600/50 hover:text-purple-700 dark:hover:text-purple-400"
+              }`}
+              title="Toggle 4D EPC Construction Staging & CPM Phasing (Day 0 to 90)"
+            >
+              <span>⏱️</span>
+              <span>4D Phasing</span>
+              {state.showPhasing4D && (
+                <span className="ml-0.5 rounded-full bg-purple-400/30 px-1.5 py-0.2 text-[9px] font-mono text-purple-100">
+                  D{state.phasingDay ?? 90}
+                </span>
+              )}
+            </button>
+            {state.showPhasing4D && (
+              <div className="ml-1.5 flex items-center gap-1 bg-surface px-2 py-0.5 rounded border border-border">
+                <input
+                  type="range"
+                  min="0"
+                  max="90"
+                  step="5"
+                  value={state.phasingDay ?? 90}
+                  onChange={(e) => floorPlanStore.setPhasingDay(Number(e.target.value))}
+                  className="w-16 accent-purple-600 cursor-pointer h-1.5"
+                  title="Scrub construction timeline"
+                />
+                <span className="font-mono text-[10px] text-muted w-7">
+                  D{state.phasingDay ?? 90}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Pillar 5: Construction Staging Toggle & Phase Selector */}
+          <div className="flex items-center">
+            <button
+              type="button"
+              onClick={() => floorPlanStore.toggleConstructionStaging()}
+              className={`flex items-center gap-1.5 ${state.showConstructionStaging ? "rounded-l" : "rounded"} px-2.5 py-1 text-xs font-semibold transition-all ${
+                state.showConstructionStaging
+                  ? "bg-amber-600 text-white shadow-xs hover:bg-amber-700"
+                  : "border border-border text-foreground hover:border-amber-600/50 hover:text-amber-700 dark:hover:text-amber-400"
+              }`}
+              title="Toggle Construction Staging: Drop-Zones, Crane Radius, Hazards & Phase Elements"
+            >
+              <span>🏗️</span>
+              <span>Staging</span>
+              {state.showConstructionStaging && (
+                <span className="ml-0.5 rounded-full bg-amber-400/30 px-1.5 py-0.2 text-[9px] font-mono text-amber-100">
+                  ON
+                </span>
+              )}
+            </button>
+            {state.showConstructionStaging && (
+              <select
+                value={state.constructionStage || "all"}
+                onChange={(e) =>
+                  floorPlanStore.setConstructionStage(e.target.value as ConstructionStage)
+                }
+                className="rounded-r border-y border-r border-amber-500 bg-amber-700 px-1 py-1 text-[11px] font-mono font-bold text-white outline-none cursor-pointer"
+                title="Select Construction Staging Phase"
+              >
+                <option value="all">All Phases</option>
+                <option value="structure">Structure (Phase 1)</option>
+                <option value="mep">MEP (Phase 2)</option>
+                <option value="finishes">Finishes (Phase 3)</option>
+              </select>
+            )}
+          </div>
 
           {selectedFurnitureItem && (
             <button
@@ -400,6 +624,26 @@ export function EditorToolbar({
             title="Export Industry Foundation Classes (IFC4) BIM model for Revit/ArchiCAD"
           >
             🏗️ Export IFC
+          </button>
+
+          <button
+            type="button"
+            onClick={handleExportEvacuationPlan}
+            disabled={state.floorPlan.walls.length === 0}
+            className="rounded border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20 disabled:opacity-40 transition-colors"
+            title="Export Municipal Fire Evacuation & Staircase Compliance Dossier (NBC Part 4)"
+          >
+            🚒 Evac Dossier
+          </button>
+
+          <button
+            type="button"
+            onClick={handleExportCOBie}
+            disabled={state.floorPlan.walls.length === 0}
+            className="rounded border border-purple-500/40 bg-purple-500/10 px-2 py-1 text-xs font-medium text-purple-700 dark:text-purple-300 hover:bg-purple-500/20 disabled:opacity-40 transition-colors"
+            title="Export Construction Operations Building Information Exchange (COBie) LOD 300 CSV"
+          >
+            📊 COBie CSV
           </button>
 
           {onSaveToProject && (

@@ -1,0 +1,4 @@
+{"id": "78361fdc-316d-4f55-a38b-0cba4055cde7", "session_id": "test_session_tracer", "event": "session_start", "ts": 1790659823.508576}
+{"id": "03048d41-024f-41c1-a58e-493eeedf668f", "session_id": "test_session_tracer", "event": "tool_call_start", "ts": 1790659823.5090492, "tool_name": "check_nbc_egress_compliance"}
+{"id": "5afd9e77-933e-4730-a295-c53c2e29da65", "session_id": "test_session_tracer", "event": "tool_call_end", "ts": 1790659823.509154, "tool_name": "check_nbc_egress_compliance", "latency_ms": 110}
+{"id": "3ef8c7f0-5f8c-46a0-a58d-ed66ea536715", "session_id": "test_session_tracer", "event": "session_end", "ts": 1790659823.5091999, "total_latency_ms": 1500}

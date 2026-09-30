@@ -6,6 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { floorPlanStore } from "@/components/floor-plan-editor/state/floor-plan-store";
 import type { FloorPlan } from "@/components/floor-plan-editor/types";
+import {
+  TraceDashboard,
+  type EvalResult,
+  type BudgetReport,
+  type TraceEvent,
+} from "@/components/observability/trace-dashboard";
 
 export interface ParsedAction {
   label: string;
@@ -498,6 +504,13 @@ export function AgentTeamPanel({
     "cost_estimator",
   ]);
 
+  // Observability, tracing & eval pipeline state
+  const [sessionId] = useState(() => `session_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`);
+  const [evalResult, setEvalResult] = useState<EvalResult | null>(null);
+  const [budget, setBudget] = useState<BudgetReport | null>(null);
+  const [streamingTraces, setStreamingTraces] = useState<TraceEvent[]>([]);
+  const [isStreaming, setIsStreaming] = useState(false);
+
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   // Load chat history from localStorage on client mount
@@ -657,10 +670,146 @@ export function AgentTeamPanel({
           prompt: q,
           context,
           roles: rolesToUse,
+          sessionId,
         }),
       });
 
-      if (res.ok) {
+      const contentType = res.headers.get("content-type") || "";
+
+      // ── Handle SSE Streaming from AGY SDK ──────────────────────────────────
+      if (res.ok && contentType.includes("text/event-stream") && res.body) {
+        setIsStreaming(true);
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let accumulatedText = "";
+
+        const streamMsgId = `stream_${Date.now()}`;
+        const initialStreamMsg: AgentMessage = {
+          id: streamMsgId,
+          role: "chief_architect",
+          name: "Vikram Mehta",
+          title: "Principal Architect",
+          avatar: "🏛️",
+          content: "⚡ Initializing autonomous AGY multi-agent team & checking statutory tools…",
+          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          source: "model",
+          modelUsed: "gemini-2.5-flash via AGY SDK",
+        };
+
+        setMessages((prev) => [...prev, initialStreamMsg]);
+
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() || "";
+
+            for (const line of lines) {
+              const trimmed = line.trim();
+              if (!trimmed.startsWith("data:")) continue;
+              const dataStr = trimmed.replace(/^data:\s*/, "");
+              if (dataStr === "[DONE]") break;
+
+              try {
+                const event = JSON.parse(dataStr);
+                if (event.type === "chunk" && event.content) {
+                  accumulatedText += event.content;
+                  setMessages((prev) =>
+                    prev.map((m) =>
+                      m.id === streamMsgId ? { ...m, content: accumulatedText } : m
+                    )
+                  );
+                } else if (event.type === "eval" && event.eval) {
+                  setEvalResult(event.eval);
+                } else if (event.type === "budget" && event.budget) {
+                  setBudget(event.budget);
+                } else if (event.type === "traces" && Array.isArray(event.traces)) {
+                  setStreamingTraces(event.traces);
+                }
+              } catch {
+                // Ignore partial JSON parsing during streaming
+              }
+            }
+          }
+        } finally {
+          setIsStreaming(false);
+        }
+
+        // Try extracting structured 4-agent JSON from final accumulated output
+        try {
+          const jsonMatch = accumulatedText.match(/\{[\s\S]*"chief_architect"[\s\S]*\}/);
+          if (jsonMatch) {
+            const parsedObj = JSON.parse(jsonMatch[0]);
+            const structuredMessages: AgentMessage[] = [];
+
+            if (parsedObj.chief_architect) {
+              structuredMessages.push({
+                id: `agy_chief_${Date.now()}`,
+                role: "chief_architect",
+                name: "Vikram Mehta",
+                title: "Principal Architect",
+                avatar: "🏛️",
+                content: parsedObj.chief_architect,
+                timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                source: "model",
+                modelUsed: "gemini-2.5-flash via AGY SDK",
+              });
+            }
+            if (parsedObj.code_specialist) {
+              structuredMessages.push({
+                id: `agy_code_${Date.now()}`,
+                role: "code_specialist",
+                name: "Ananya Sharma",
+                title: "Senior Statutory Compliance Architect",
+                avatar: "📜",
+                content: parsedObj.code_specialist,
+                timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                source: "model",
+                modelUsed: "gemini-2.5-flash via AGY SDK",
+              });
+            }
+            if (parsedObj.interior_designer) {
+              structuredMessages.push({
+                id: `agy_interior_${Date.now()}`,
+                role: "interior_designer",
+                name: "Rohan Varma",
+                title: "Principal Interior Design Director",
+                avatar: "🎨",
+                content: parsedObj.interior_designer,
+                timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                source: "model",
+                modelUsed: "gemini-2.5-flash via AGY SDK",
+              });
+            }
+            if (parsedObj.cost_estimator) {
+              structuredMessages.push({
+                id: `agy_cost_${Date.now()}`,
+                role: "cost_estimator",
+                name: "Sunil Bajaj",
+                title: "Chief Quantity Surveyor",
+                avatar: "📊",
+                content: parsedObj.cost_estimator,
+                timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                source: "model",
+                modelUsed: "gemini-2.5-flash via AGY SDK",
+              });
+            }
+
+            if (structuredMessages.length > 0) {
+              setMessages((prev) => [
+                ...prev.filter((m) => m.id !== streamMsgId),
+                ...structuredMessages,
+              ]);
+            }
+          }
+        } catch {
+          // If not structured JSON, accumulatedText stays as Vikram's output
+        }
+      } else if (res.ok) {
+        // ── Handle Legacy JSON Orchestration ─────────────────────────────────
         const data = await res.json();
         if (data.messages && Array.isArray(data.messages)) {
           setMessages((prev) => [...prev, ...data.messages]);
@@ -698,6 +847,7 @@ export function AgentTeamPanel({
       ]);
     } finally {
       setLoading(false);
+      setIsStreaming(false);
     }
   }
 
@@ -1316,6 +1466,15 @@ export function AgentTeamPanel({
                 </button>
               </div>
             </div>
+
+            {/* AI Pipeline Observability, Evals & Tracing Panel */}
+            <TraceDashboard
+              sessionId={sessionId}
+              evalResult={evalResult}
+              budget={budget}
+              streamingTraces={streamingTraces}
+              isStreaming={isStreaming}
+            />
 
             {/* Input Footer */}
             <div className="border-t border-border bg-surface p-3 flex gap-2">

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import {
   buildHiggsfieldArchitecturalPrompt,
   type HiggsfieldGenerationParams,
@@ -6,10 +7,47 @@ import {
 } from "@/lib/higgsfield-api";
 import { generateCameraPath } from "@/lib/video-walkthrough";
 
+// ── Input validation ──────────────────────────────────────────────────────────
+const VideoRequestSchema = z.object({
+  projectName: z.string().min(1).max(200).default("Sample Studio Apartment"),
+  prompt: z.string().max(2000).optional(),
+  roomType: z.string().max(100).optional(),
+  dimensions: z
+    .object({
+      width: z.number().positive().max(200),
+      depth: z.number().positive().max(200),
+      height: z.number().positive().max(20),
+    })
+    .optional(),
+  stylePreset: z.string().max(200).optional(),
+  materialPalette: z
+    .object({
+      flooring: z.string().max(200),
+      walls: z.string().max(200),
+      lightingTemp: z.string().max(100),
+    })
+    .optional(),
+  cameraMode: z.enum(["interior_glide", "orbit_360", "hero_dolly"]).optional(),
+  motionIntensity: z.number().min(1).max(10).optional(),
+  resolution: z.enum(["720p", "1080p", "4k"]).optional(),
+  sourceImageUrl: z.string().url().optional().or(z.literal("")),
+  engine: z
+    .enum(["higgsfield_cloud", "open_higgsfield", "wan_2_1", "skyreels_v2", "direct_cad"])
+    .optional(),
+});
+
 export async function POST(req: Request) {
   try {
-    const body: HiggsfieldGenerationParams = await req.json();
+    const rawBody = await req.json();
+    const parsed = VideoRequestSchema.safeParse(rawBody);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Invalid request", details: parsed.error.flatten() },
+        { status: 400 },
+      );
+    }
 
+    const body = parsed.data as HiggsfieldGenerationParams;
     const projectName = body.projectName || "Sample Studio Apartment";
     const prompt = body.prompt || buildHiggsfieldArchitecturalPrompt(body);
     const cameraMode = body.cameraMode || "interior_glide";
@@ -46,14 +84,14 @@ export async function POST(req: Request) {
               target: w.target,
               fov: w.fov,
             })),
-            source_image: body.sourceImageUrl,
+            source_image: body.sourceImageUrl || undefined,
           }),
         });
 
         if (hgRes.ok) {
           const hgData = await hgRes.json();
-          // If Higgsfield returns a real video URL, serve it directly.
-          // If not (no video_url), fall through to client-capture — never serve a stock MP4.
+          // Only serve real AI video if Higgsfield returns a video_url.
+          // Never serve a stock/placeholder video — use client-capture fallback instead.
           if (hgData.video_url) {
             const response: HiggsfieldJobResponse = {
               jobId: hgData.id || `hg_${Date.now()}`,
@@ -82,11 +120,9 @@ export async function POST(req: Request) {
       }
     }
 
-    // 3. Transparent High-Fidelity Synthesis matching CAD dimensions
-    // When external cloud GPU key is absent, seamlessly hand off to browser-native
-    // 60fps Steadicam recording of the user's actual 3D model geometry.
-    const engine = body.engine || "direct_cad";
-
+    // 3. Client-capture fallback (no API key or upstream failed)
+    // The browser records the user's own 3D WebGL scene at 60fps — 100% accurate geometry,
+    // zero AI hallucinations. Transparently communicated to the user in the UI.
     const response: HiggsfieldJobResponse = {
       jobId: `cad_${Date.now().toString(36)}`,
       status: "completed",
@@ -108,11 +144,9 @@ export async function POST(req: Request) {
     };
 
     return NextResponse.json(response);
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : "Internal server error generating video";
     console.error("Higgsfield video route error:", error);
-    return NextResponse.json(
-      { error: error?.message || "Internal server error generating video" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

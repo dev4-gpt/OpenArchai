@@ -12,8 +12,14 @@ import {
   createHerringboneTexture,
   createTeakWoodTexture,
 } from "@/components/3d/procedural-architectural-scene";
-import { useFloorPlanStore } from "@/components/floor-plan-editor/state/floor-plan-store";
+import { floorPlanStore, useFloorPlanStore } from "@/components/floor-plan-editor/state/floor-plan-store";
 import { floorPlanToElements, type ConstructionElements } from "@/components/floor-plan-editor/export/to-elements";
+import { ZoningEnvelope } from "@/components/3d/zoning-envelope";
+import { StructuralElements } from "@/components/3d/structural-elements";
+import { FireStairTower } from "@/components/3d/fire-stair-tower";
+import { DaylightVastu3D } from "@/components/3d/daylight-vastu-3d";
+import { SunPathAndAcoustics } from "@/components/3d/sun-path-and-acoustics";
+import { ConstructionPhasing4D, ConstructionPhasingSlider } from "@/components/3d/construction-phasing";
 
 export interface MaterialPreset {
   id: string;
@@ -519,6 +525,51 @@ export function ModelViewer({
   );
 
   const currentLighting = CIRCADIAN_CONFIGS[circadian];
+  const [showZoningEnvelope, setShowZoningEnvelope] = useState(false);
+  const isZoningActive = showZoningEnvelope || Boolean(editorState?.showFarOverlay || (editorState as any)?.showFarEnvelope);
+  const [showStructuralElements, setShowStructuralElements] = useState(false);
+  const isStructuralActive = showStructuralElements || Boolean(editorState?.showStructuralGrid);
+  const [showFireEgress, setShowFireEgress] = useState(false);
+  const isFireEgressActive = showFireEgress || Boolean(editorState?.showEgressOverlay);
+  const [showDaylightVastu3D, setShowDaylightVastu3D] = useState(false);
+  const isDaylightVastuActive =
+    showDaylightVastu3D ||
+    Boolean(
+      editorState?.showDaylightVastu ||
+      editorState?.showDaylightingOverlay ||
+      editorState?.showVastuOverlay
+    );
+  const [showPhasing4D3D, setShowPhasing4D3D] = useState(false);
+  const isPhasing4DActive = showPhasing4D3D || Boolean(editorState?.showPhasing4D);
+  const [timelineDay, setTimelineDay] = useState(90);
+  const activeTimelineDay = editorState?.phasingDay ?? timelineDay;
+  const [isPlayingPhasing, setIsPlayingPhasing] = useState(false);
+
+  useEffect(() => {
+    if (!isPlayingPhasing || !isPhasing4DActive) return;
+    const interval = setInterval(() => {
+      setTimelineDay((prev) => {
+        const next = prev >= 90 ? 0 : prev + 1;
+        if (editorState?.phasingDay !== undefined) {
+          floorPlanStore.setPhasingDay(next);
+        }
+        return next;
+      });
+    }, 150);
+    return () => clearInterval(interval);
+  }, [isPlayingPhasing, isPhasing4DActive, editorState?.phasingDay]);
+
+  const sceneBounds = useMemo(() => {
+    if (activeElements?.floor_bounds) {
+      return {
+        minX: activeElements.floor_bounds.min_x,
+        maxX: activeElements.floor_bounds.max_x,
+        minZ: activeElements.floor_bounds.min_y,
+        maxZ: activeElements.floor_bounds.max_y,
+      };
+    }
+    return undefined;
+  }, [activeElements?.floor_bounds]);
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -647,6 +698,128 @@ export function ModelViewer({
           </button>
 
           <div className="mx-1 h-4 w-px bg-border" />
+
+          {/* Statutory Zoning Envelope Toggle Button in Top Toolbar */}
+          <button
+            type="button"
+            onClick={() => setShowZoningEnvelope((prev) => !prev)}
+            className={`flex items-center gap-1.5 px-2 py-1 text-xs font-semibold rounded transition-colors ${
+              isZoningActive
+                ? "bg-sky-600 text-white shadow-xs hover:bg-sky-700"
+                : "text-foreground hover:bg-accent/10 hover:text-accent"
+            }`}
+            title="Toggle Volumetric Statutory Zoning Envelope & Sky-Exposure Plane (Haryana DTCP / NBC Cl. 4.3)"
+          >
+            <span>🏛️</span>
+            <span className="hidden sm:inline">Zoning Envelope</span>
+            {isZoningActive && (
+              <span className="ml-0.5 rounded-full bg-sky-400/30 px-1.5 py-0.2 text-[9px] font-mono text-sky-100">
+                ON
+              </span>
+            )}
+          </button>
+
+          {/* Pillar 2: Structural Bay Grid & 3D MEP Toggle Button */}
+          <button
+            type="button"
+            onClick={() => setShowStructuralElements((prev) => !prev)}
+            className={`flex items-center gap-1.5 px-2 py-1 text-xs font-semibold rounded transition-colors ${
+              isStructuralActive
+                ? "bg-indigo-600 text-white shadow-xs hover:bg-indigo-700"
+                : "text-foreground hover:bg-accent/10 hover:text-accent"
+            }`}
+            title="Toggle Structural Bay Grid, RC Columns, Beam Drops & 3D MEP Wet Core Shaft (IS 456 / IS 1893)"
+          >
+            <span>📐</span>
+            <span className="hidden sm:inline">Structural Grid</span>
+            {isStructuralActive && (
+              <span className="ml-0.5 rounded-full bg-indigo-400/30 px-1.5 py-0.2 text-[9px] font-mono text-indigo-100">
+                ON
+              </span>
+            )}
+          </button>
+
+          {/* Pillar 3: Multi-Floor Egress & Fire Engineering 3D Toggle */}
+          <button
+            type="button"
+            onClick={() => setShowFireEgress((prev) => !prev)}
+            className={`flex items-center gap-1.5 px-2 py-1 text-xs font-semibold rounded transition-colors ${
+              isFireEgressActive
+                ? "bg-emerald-600 text-white shadow-xs hover:bg-emerald-700"
+                : "text-foreground hover:bg-accent/10 hover:text-accent"
+            }`}
+            title="Toggle Pressurized Fire Stair Tower Enclosure & Emergency Exit Signs (NBC Part 4)"
+          >
+            <span>🚪</span>
+            <span className="hidden sm:inline">Fire Egress</span>
+            {isFireEgressActive && (
+              <span className="ml-0.5 rounded-full bg-emerald-400/30 px-1.5 py-0.2 text-[9px] font-mono text-emerald-100">
+                ON
+              </span>
+            )}
+          </button>
+
+          {/* Pillar 4: Daylight & Vastu 3D Toggle */}
+          <button
+            type="button"
+            onClick={() => setShowDaylightVastu3D((prev) => !prev)}
+            className={`flex items-center gap-1.5 px-2 py-1 text-xs font-semibold rounded transition-colors ${
+              isDaylightVastuActive
+                ? "bg-violet-600 text-white shadow-xs hover:bg-violet-700"
+                : "text-foreground hover:bg-accent/10 hover:text-accent"
+            }`}
+            title="Toggle Delhi-NCR Solar Lighting, STC 56 Acoustic Partition Cutaway & 9-Zone Vastu Mandala"
+          >
+            <span>🧭</span>
+            <span className="hidden sm:inline">Vastu & Light</span>
+            {isDaylightVastuActive && (
+              <span className="ml-0.5 rounded-full bg-violet-400/30 px-1.5 py-0.2 text-[9px] font-mono text-violet-100">
+                ON
+              </span>
+            )}
+          </button>
+
+          {/* Pillar 5: 4D EPC Construction Phasing Toggle & Timeline Slider */}
+          <div className="flex items-center">
+            <button
+              type="button"
+              onClick={() => setShowPhasing4D3D((prev) => !prev)}
+              className={`flex items-center gap-1.5 px-2 py-1 text-xs font-semibold rounded transition-colors ${
+                isPhasing4DActive
+                  ? "bg-purple-600 text-white shadow-xs hover:bg-purple-700"
+                  : "text-foreground hover:bg-accent/10 hover:text-accent"
+              }`}
+              title="Toggle 4D EPC Construction Phasing Timeline (Day 0 to 90)"
+            >
+              <span>⏱️</span>
+              <span className="hidden sm:inline">4D Phasing</span>
+              {isPhasing4DActive && (
+                <span className="ml-0.5 rounded-full bg-purple-400/30 px-1.5 py-0.2 text-[9px] font-mono text-purple-100">
+                  D{activeTimelineDay}
+                </span>
+              )}
+            </button>
+            {isPhasing4DActive && (
+              <div className="ml-1 flex items-center gap-1 bg-surface px-1.5 py-0.5 rounded border border-border">
+                <input
+                  type="range"
+                  min="0"
+                  max="90"
+                  step="5"
+                  value={activeTimelineDay}
+                  onChange={(e) => {
+                    const d = Number(e.target.value);
+                    setTimelineDay(d);
+                    if (editorState?.phasingDay !== undefined) {
+                      floorPlanStore.setPhasingDay(d);
+                    }
+                  }}
+                  className="w-14 accent-purple-600 cursor-pointer h-1.5"
+                  title="Scrub 4D construction day"
+                />
+              </div>
+            )}
+          </div>
 
           {/* Material Swapper Button in Top Toolbar */}
           <button
@@ -1024,6 +1197,41 @@ export function ModelViewer({
                 </Html>
               </>
             )}
+            {isZoningActive && (
+              <ZoningEnvelope
+                visible={isZoningActive}
+                bounds={sceneBounds}
+              />
+            )}
+            {isStructuralActive && (
+              <StructuralElements
+                visible={isStructuralActive}
+                plan={editorState?.floorPlan}
+                spacing={editorState?.selectedGridBay || "6.0x6.0"}
+              />
+            )}
+            {isFireEgressActive && (
+              <FireStairTower
+                visible={isFireEgressActive}
+                floorPlan={editorState?.floorPlan}
+              />
+            )}
+            {isDaylightVastuActive && (
+              <SunPathAndAcoustics
+                visible={isDaylightVastuActive}
+                floorPlan={editorState?.floorPlan}
+                showAcousticCutaway={true}
+                showVastuGrid={true}
+                showSunTrajectory={true}
+              />
+            )}
+            {isPhasing4DActive && (
+              <ConstructionPhasing4D
+                visible={isPhasing4DActive}
+                floorPlan={editorState?.floorPlan}
+                currentDay={activeTimelineDay}
+              />
+            )}
             <Environment preset={currentLighting.env} />
             <ContactShadows
               position={[0, -0.01, 0]}
@@ -1036,6 +1244,27 @@ export function ModelViewer({
         </ViewerErrorBoundary>
         <OrbitControls ref={controlsRef} makeDefault enableDamping dampingFactor={0.08} minDistance={2} maxDistance={40} />
       </Canvas>
+
+      {/* Pillar 5: 4D Construction Phasing Interactive Scrubber & Timeline Bar */}
+      {isPhasing4DActive && (
+        <ConstructionPhasingSlider
+          currentDay={activeTimelineDay}
+          onDayChange={(day) => {
+            setTimelineDay(day);
+            if (editorState?.phasingDay !== undefined) {
+              floorPlanStore.setPhasingDay(day);
+            }
+          }}
+          isPlaying={isPlayingPhasing}
+          onTogglePlay={() => setIsPlayingPhasing((prev) => !prev)}
+          onClose={() => {
+            setShowPhasing4D3D(false);
+            if (editorState?.showPhasing4D) {
+              floorPlanStore.togglePhasing4D();
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

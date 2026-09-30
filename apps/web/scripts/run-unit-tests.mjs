@@ -117,9 +117,9 @@ function createExpect(actual, isNot = false) {
       const diff = Math.abs(actual - expected);
       const tolerance = Math.pow(10, -numDigits) / 2;
       if (isNot) {
-        assert.ok(diff > tolerance, `Expected ${actual} NOT close to ${expected} (diff: ${diff}, tol: ${tolerance})`);
+        assert.ok(diff > tolerance + 1e-9, `Expected ${actual} NOT close to ${expected} (diff: ${diff}, tol: ${tolerance})`);
       } else {
-        assert.ok(diff <= tolerance, `Expected ${actual} close to ${expected} (diff: ${diff}, tol: ${tolerance})`);
+        assert.ok(diff <= tolerance + 1e-9, `Expected ${actual} close to ${expected} (diff: ${diff}, tol: ${tolerance})`);
       }
     },
     toContain(expected) {

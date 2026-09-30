@@ -15,6 +15,10 @@ import {
   getAllSubstitutions,
   type ValueEngineeringSubstitution,
 } from "@/lib/value-engineering-registry";
+import {
+  calculatePEUnderwriting,
+  generateCPWDTenderCsv,
+} from "@/lib/calculators/pe-underwriting";
 
 export function CostPanel({
   elements,
@@ -120,6 +124,28 @@ export function CostPanel({
       .filter((s) => approvedVEIds.has(s.id))
       .reduce((acc, s) => acc + s.leadTimeSavingsWeeks, 0);
   }, [availableSubstitutions, approvedVEIds]);
+
+  // Pillar 1: Institutional Private Equity Underwriting & CPWD Tender Model
+  const peUnderwriting = useMemo(() => {
+    const carpet = Math.max(1, estimate.floorAreaSqFt);
+    const gfa = Math.round(carpet / 0.85);
+    return calculatePEUnderwriting({
+      carpetAreaSqFt: carpet,
+      grossFloorAreaSqFt: gfa,
+      totalCapexINR: liveGrandTotal,
+    });
+  }, [estimate.floorAreaSqFt, liveGrandTotal]);
+
+  const handleExportCPWDTender = useCallback(() => {
+    const csvData = generateCPWDTenderCsv(peUnderwriting.cpwdTenderSchedule);
+    const blob = new Blob([csvData], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `CPWD-DSR-2024-Tender-Schedule-${projectName || "Project"}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }, [peUnderwriting.cpwdTenderSchedule, projectName]);
 
   // Toggle single substitution approval
   const toggleApproval = useCallback((subId: string) => {
@@ -373,19 +399,37 @@ export function CostPanel({
             ))}
           </div>
 
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            onClick={exportCsv}
-            className="text-xs cursor-pointer"
-          >
-            Export CSV
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={exportCsv}
+              className="text-xs cursor-pointer"
+            >
+              Export CSV
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={async () => {
+                const { exportBOQPDF } = await import("@/lib/export-pdf");
+                await exportBOQPDF(estimate, projectName || "Architectural Project", tier);
+              }}
+              className="text-xs cursor-pointer flex items-center gap-1"
+            >
+              <svg viewBox="0 0 16 16" fill="none" className="h-3 w-3" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 12.5h10M8 2v8m0 0L5.5 7.5M8 10l2.5-2.5" />
+              </svg>
+              Export PDF
+            </Button>
+          </div>
         </div>
       </div>
 
       {/* Value Engineering Summary Banner */}
+
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-accent/30 bg-accent/5 px-3.5 py-2.5">
         <div className="flex items-center gap-2.5">
           <div className="flex h-7 w-7 items-center justify-center rounded-full bg-accent/20 text-accent text-sm">
@@ -520,6 +564,147 @@ export function CostPanel({
               "incl. 10% contingency"
             )}
           </span>
+        </div>
+      </div>
+
+      {/* Pillar 1: Institutional PE Financial Underwriting & Statutory FAR Monetization */}
+      <div className="rounded-lg border border-sky-500/30 bg-sky-950/20 p-4 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-sky-500/20 pb-2.5">
+          <div className="flex items-center gap-2">
+            <span className="text-base">🏛️</span>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-sky-400">
+                  Institutional PE Real Estate Underwriting & Pro-Forma
+                </h3>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-[9px] font-bold border ${
+                    peUnderwriting.isInstitutionalGrade
+                      ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
+                      : "bg-amber-500/20 text-amber-300 border-amber-500/40"
+                  }`}
+                >
+                  {peUnderwriting.isInstitutionalGrade
+                    ? "INSTITUTIONAL GRADE ✓"
+                    : "SUB-OPTIMAL YIELD ⚠️"}
+                </span>
+              </div>
+              <p className="text-[11px] text-muted">
+                Gurugram DLF Phase 5 Grade A Micro-Market | ₹125/sqft/mo | 15% OPEX | Exit Cap 8.0%
+              </p>
+            </div>
+          </div>
+
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={handleExportCPWDTender}
+            className="text-xs font-semibold bg-sky-900/60 border border-sky-500/40 text-sky-200 hover:bg-sky-800/80 cursor-pointer shadow-xs flex items-center gap-1.5"
+          >
+            <span>📋</span>
+            <span>Download CPWD DSR 2024 Tender Schedule (CSV)</span>
+          </Button>
+        </div>
+
+        {/* 4 Core Financial KPI Cards */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {/* Yield-on-Cost (YoC) */}
+          <div className="rounded-lg border border-sky-500/30 bg-surface/80 p-3 text-center">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-sky-400">
+              Yield-on-Cost (YoC)
+            </span>
+            <p className="text-lg font-bold text-foreground my-1">
+              {peUnderwriting.yieldOnCostFormatted}
+            </p>
+            <span className="text-[10px] text-muted block">
+              {peUnderwriting.yieldOnCostPercent >= 8.5
+                ? "≥ 8.5% Hurdle [PASS]"
+                : "< 8.5% Hurdle [WARN]"}
+            </span>
+          </div>
+
+          {/* Net Operating Income (NOI) */}
+          <div className="rounded-lg border border-sky-500/30 bg-surface/80 p-3 text-center">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-sky-400">
+              Net Operating Income (NOI)
+            </span>
+            <p className="text-lg font-bold text-foreground my-1">
+              ₹{(peUnderwriting.netOperatingIncomeINR / 100000).toFixed(2)}L
+              <span className="text-xs font-normal text-muted"> / yr</span>
+            </p>
+            <span className="text-[10px] text-muted block">
+              ₹{peUnderwriting.netOperatingIncomeINR.toLocaleString()} annualized
+            </span>
+          </div>
+
+          {/* 10-Yr Unlevered IRR */}
+          <div className="rounded-lg border border-sky-500/30 bg-surface/80 p-3 text-center">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-sky-400">
+              10-Yr Pro-Forma IRR
+            </span>
+            <p className="text-lg font-bold text-foreground my-1">
+              {peUnderwriting.estimated10YrIRRPercent.toFixed(1)}%
+            </p>
+            <span className="text-[10px] text-muted block">
+              5% rent growth · 8% exit cap
+            </span>
+          </div>
+
+          {/* Capital Payback Period */}
+          <div className="rounded-lg border border-sky-500/30 bg-surface/80 p-3 text-center">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-sky-400">
+              Capital Payback
+            </span>
+            <p className="text-lg font-bold text-foreground my-1">
+              {peUnderwriting.paybackPeriodYears.toFixed(1)}
+              <span className="text-xs font-normal text-muted"> yrs</span>
+            </p>
+            <span className="text-[10px] text-muted block">
+              Total Capex recovery cycle
+            </span>
+          </div>
+        </div>
+
+        {/* Haryana DTCP Statutory FAR & NTG Summary Pill Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-sky-500/20 text-[11px] font-mono text-muted">
+          <div className="flex items-center gap-3">
+            <span>
+              🏛️ Base FAR:{" "}
+              <strong className="text-foreground">
+                {peUnderwriting.baseAllowableGFA.toLocaleString()} sqft
+              </strong>{" "}
+              (1.75)
+            </span>
+            <span>+</span>
+            <span>
+              Purchasable FAR:{" "}
+              <strong className="text-foreground">
+                {peUnderwriting.purchasableGFA.toLocaleString()} sqft
+              </strong>{" "}
+              (0.89)
+            </span>
+            <span>=</span>
+            <span>
+              Max Permissible:{" "}
+              <strong className="text-sky-300">
+                {peUnderwriting.totalPermissibleGFA.toLocaleString()} sqft
+              </strong>{" "}
+              (2.64)
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span>Carpet Efficiency (NTG):</span>
+            <strong
+              className={
+                peUnderwriting.meetsNTGThreshold
+                  ? "text-emerald-400 font-bold"
+                  : "text-amber-400 font-bold"
+              }
+            >
+              {peUnderwriting.carpetToSaleablePercentFormatted} (≥ 84% Hurdle)
+            </strong>
+          </div>
         </div>
       </div>
 

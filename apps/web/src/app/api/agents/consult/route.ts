@@ -25,6 +25,9 @@ const ConsultRequestSchema = z.object({
       z.enum(["chief_architect", "code_specialist", "interior_designer", "cost_estimator"]),
     )
     .optional(),
+  // AGY SDK optional fields — ignored when USE_AGY_SDK is off
+  sessionId: z.string().optional(),
+  useAgy: z.boolean().optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -45,22 +48,66 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { prompt, context, roles } = parsed.data;
+    const { prompt, context, roles, sessionId, useAgy } = parsed.data;
 
     const projectContext: ProjectContext = context
       ? (context as ProjectContext)
       : { projectName: "Project", region: "india" };
 
-    const messages = await consultAgentTeam(
-      prompt,
-      projectContext,
-      roles as AgentRole[] | undefined,
-    );
+    // ── AGY SDK path ──────────────────────────────────────────────────────────
+    // Activated when USE_AGY_SDK env var is "true" OR caller sends useAgy: true.
+    // If the sidecar is unreachable, falls back to the legacy REST orchestrator.
+    const agySdkEnabled = useAgy === true || process.env.USE_AGY_SDK === "true";
 
-    return NextResponse.json({ messages });
+    if (agySdkEnabled) {
+      const agySvcUrl = process.env.AGY_SERVICE_URL ?? "http://localhost:8765";
+      let upstream: Response;
+      try {
+        upstream = await fetch(`${agySvcUrl}/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            session_id: sessionId ?? `s_${Date.now()}`,
+            prompt,
+            project_context: projectContext,
+          }),
+        });
+      } catch {
+        // AGY sidecar unreachable — degrade gracefully to legacy path
+        console.warn("[AGY] Sidecar unreachable — falling back to legacy orchestrator");
+        return _legacyPath(prompt, projectContext, roles as AgentRole[] | undefined);
+      }
+
+      if (!upstream.ok) {
+        console.warn(`[AGY] Sidecar returned HTTP ${upstream.status} — falling back`);
+        return _legacyPath(prompt, projectContext, roles as AgentRole[] | undefined);
+      }
+
+      // Pass the SSE stream directly through to the browser
+      return new Response(upstream.body, {
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          Connection: "keep-alive",
+          "X-AGY-SDK": "1",
+        },
+      });
+    }
+
+    // ── Legacy path (default when USE_AGY_SDK is unset) ───────────────────────
+    return _legacyPath(prompt, projectContext, roles as AgentRole[] | undefined);
   } catch (err) {
     console.error("Agent team consultation failed:", err);
     // Do not leak internal error messages to the client
     return NextResponse.json({ error: "Consultation failed" }, { status: 500 });
   }
+}
+
+async function _legacyPath(
+  prompt: string,
+  projectContext: ProjectContext,
+  roles?: AgentRole[],
+): Promise<NextResponse> {
+  const messages = await consultAgentTeam(prompt, projectContext, roles);
+  return NextResponse.json({ messages });
 }

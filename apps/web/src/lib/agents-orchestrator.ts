@@ -81,6 +81,7 @@ const LOW_TEMPERATURE_ROLES: Set<AgentRole> = new Set(["cost_estimator", "code_s
 
 const AGENT_MODEL_ROUTES: Record<AgentRole, Array<{ provider: string; model: string }>> = {
   chief_architect: [
+    { provider: "nvidia", model: process.env.NVIDIA_MODEL || "z-ai/glm-5.3" },
     { provider: "openrouter", model: "google/gemini-2.5-flash" },
     { provider: "groq", model: "llama-3.3-70b-versatile" },
     { provider: "gemini", model: "gemini-2.5-flash" },
@@ -89,6 +90,7 @@ const AGENT_MODEL_ROUTES: Record<AgentRole, Array<{ provider: string; model: str
     { provider: "cerebras", model: "llama-3.3-70b" },
   ],
   code_specialist: [
+    { provider: "nvidia", model: process.env.NVIDIA_MODEL || "z-ai/glm-5.3" },
     { provider: "openrouter", model: "google/gemini-2.5-flash" },
     { provider: "groq", model: "llama-3.3-70b-versatile" },
     { provider: "gemini", model: "gemini-2.5-flash" },
@@ -97,6 +99,7 @@ const AGENT_MODEL_ROUTES: Record<AgentRole, Array<{ provider: string; model: str
     { provider: "cerebras", model: "llama-3.3-70b" },
   ],
   interior_designer: [
+    { provider: "nvidia", model: process.env.NVIDIA_MODEL || "z-ai/glm-5.3" },
     { provider: "openrouter", model: "meta-llama/llama-3.3-70b-instruct" },
     { provider: "groq", model: "llama-3.3-70b-versatile" },
     { provider: "gemini", model: "gemini-2.5-flash" },
@@ -105,6 +108,7 @@ const AGENT_MODEL_ROUTES: Record<AgentRole, Array<{ provider: string; model: str
     { provider: "github", model: "gpt-4o" },
   ],
   cost_estimator: [
+    { provider: "nvidia", model: process.env.NVIDIA_MODEL || "z-ai/glm-5.3" },
     { provider: "openrouter", model: "google/gemini-2.5-flash" },
     { provider: "groq", model: "llama-3.3-70b-versatile" },
     { provider: "gemini", model: "gemini-2.5-flash" },
@@ -141,6 +145,7 @@ async function callOpenAICompatible(
         model,
         messages,
         temperature,
+        top_p: 1,
         max_tokens: maxTokens,
       }),
       signal: controller.signal,
@@ -155,7 +160,7 @@ async function callOpenAICompatible(
     }
 
     const json = await res.json();
-    let content = json.choices?.[0]?.message?.content || "";
+    let content = json.choices?.[0]?.message?.content || json.choices?.[0]?.message?.reasoning_content || "";
     // Clean any DeepSeek-R1 thinking tokens
     content = content.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
     return content;
@@ -482,8 +487,10 @@ Format cleanly with readable paragraphs and avoid raw markdown asterisks (**) fo
         }
 
         if (route.provider === "nvidia" && nvidiaKey) {
+          const nvidiaBase = process.env.NVIDIA_BASE_URL || "https://integrate.api.nvidia.com/v1";
+          const endpoint = nvidiaBase.endsWith("/chat/completions") ? nvidiaBase : `${nvidiaBase}/chat/completions`;
           responseText = await callOpenAICompatible(
-            "https://integrate.api.nvidia.com/v1/chat/completions",
+            endpoint,
             nvidiaKey,
             route.model,
             [

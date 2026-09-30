@@ -1,5 +1,5 @@
 import { useState, useCallback, useSyncExternalStore } from "react";
-import type { FloorPlan, EditorTool, Point, Wall, Door, Window, Room, FurnitureItem, PendingFurniture } from "../types";
+import type { FloorPlan, EditorTool, Point, Wall, Door, Window, Room, FurnitureItem, PendingFurniture, StaircaseItem, ConstructionStage } from "../types";
 
 export interface EditorState {
   tool: EditorTool;
@@ -8,10 +8,23 @@ export interface EditorState {
   drawingPoints: Point[];
   snapPoint: Point | null;
   pendingFurniture: PendingFurniture | null;
+  pendingStaircase: Omit<StaircaseItem, "id"> | null;
   undoStack: FloorPlan[];
   redoStack: FloorPlan[];
   showEgressOverlay: boolean;
   showLinter: boolean;
+  showFarOverlay: boolean;
+  showFarEnvelope: boolean;
+  showStructuralGrid: boolean;
+  selectedGridBay: "6.0x6.0" | "6.0x7.2" | "7.2x7.2";
+  structuralGridModule: "6x6" | "6x7.2" | "7.2x7.2";
+  showDaylightVastu: boolean;
+  showDaylightingOverlay: boolean;
+  showVastuOverlay: boolean;
+  showPhasing4D: boolean;
+  phasingDay: number;
+  showConstructionStaging: boolean;
+  constructionStage: ConstructionStage;
 }
 
 const initialFloorPlan: FloorPlan = {
@@ -20,6 +33,7 @@ const initialFloorPlan: FloorPlan = {
   windows: [],
   rooms: [],
   furniture: [],
+  staircases: [],
   gridSize: 0.5, // meters
   panOffset: { x: 300, y: 250 },
   zoom: 35, // pixels per meter
@@ -32,10 +46,23 @@ let currentState: EditorState = {
   drawingPoints: [],
   snapPoint: null,
   pendingFurniture: null,
+  pendingStaircase: null,
   undoStack: [],
   redoStack: [],
   showEgressOverlay: false,
   showLinter: false,
+  showFarOverlay: false,
+  showFarEnvelope: false,
+  showStructuralGrid: false,
+  selectedGridBay: "6.0x6.0",
+  structuralGridModule: "6x6",
+  showDaylightVastu: false,
+  showDaylightingOverlay: false,
+  showVastuOverlay: false,
+  showPhasing4D: false,
+  phasingDay: 90,
+  showConstructionStaging: false,
+  constructionStage: "all",
 };
 
 const listeners = new Set<() => void>();
@@ -68,6 +95,7 @@ export const floorPlanStore = {
       drawingPoints: [],
       selectedIds: tool === "select" ? currentState.selectedIds : [],
       pendingFurniture: tool === "furniture" ? currentState.pendingFurniture : null,
+      pendingStaircase: tool === "staircase" ? currentState.pendingStaircase : null,
     };
     emitChange();
   },
@@ -76,8 +104,50 @@ export const floorPlanStore = {
     currentState = {
       ...currentState,
       pendingFurniture: item,
+      pendingStaircase: null,
       tool: item ? "furniture" : currentState.tool === "furniture" ? "select" : currentState.tool,
       drawingPoints: [],
+    };
+    emitChange();
+  },
+
+  setPendingStaircase: (stair: Omit<StaircaseItem, "id"> | null) => {
+    currentState = {
+      ...currentState,
+      pendingStaircase: stair,
+      pendingFurniture: null,
+      tool: stair ? "staircase" : currentState.tool === "staircase" ? "select" : currentState.tool,
+      drawingPoints: [],
+    };
+    emitChange();
+  },
+
+  addStaircase: (item: Omit<StaircaseItem, "id">) => {
+    const newId = `stair_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
+    const newItem: StaircaseItem = { ...item, id: newId };
+    const updated = pushUndo(currentState);
+    currentState = {
+      ...updated,
+      selectedIds: [newId],
+      tool: "select",
+      pendingStaircase: null,
+      floorPlan: {
+        ...updated.floorPlan,
+        staircases: [...(updated.floorPlan.staircases || []), newItem],
+      },
+    };
+    emitChange();
+    return newItem;
+  },
+
+  rotatePendingStaircase: () => {
+    if (!currentState.pendingStaircase) return;
+    currentState = {
+      ...currentState,
+      pendingStaircase: {
+        ...currentState.pendingStaircase,
+        rotation: ((currentState.pendingStaircase.rotation || 0) + 90) % 360,
+      },
     };
     emitChange();
   },
@@ -133,6 +203,144 @@ export const floorPlanStore = {
 
   toggleLinter: () => {
     currentState = { ...currentState, showLinter: !currentState.showLinter };
+    emitChange();
+  },
+
+  setFarOverlay: (show: boolean) => {
+    currentState = { ...currentState, showFarOverlay: show, showFarEnvelope: show };
+    emitChange();
+  },
+
+  toggleFarOverlay: () => {
+    const nextVal = !currentState.showFarOverlay;
+    currentState = { ...currentState, showFarOverlay: nextVal, showFarEnvelope: nextVal };
+    emitChange();
+  },
+
+  setFarEnvelope: (show: boolean) => {
+    currentState = { ...currentState, showFarOverlay: show, showFarEnvelope: show };
+    emitChange();
+  },
+
+  toggleFarEnvelope: () => {
+    const nextVal = !currentState.showFarOverlay;
+    currentState = { ...currentState, showFarOverlay: nextVal, showFarEnvelope: nextVal };
+    emitChange();
+  },
+
+  setStructuralGrid: (show: boolean) => {
+    currentState = { ...currentState, showStructuralGrid: show };
+    emitChange();
+  },
+
+  toggleStructuralGrid: () => {
+    currentState = { ...currentState, showStructuralGrid: !currentState.showStructuralGrid };
+    emitChange();
+  },
+
+  setStructuralBaySpacing: (bay: "6.0x6.0" | "6.0x7.2" | "7.2x7.2") => {
+    const modMap: Record<string, "6x6" | "6x7.2" | "7.2x7.2"> = {
+      "6.0x6.0": "6x6",
+      "6.0x7.2": "6x7.2",
+      "7.2x7.2": "7.2x7.2",
+    };
+    currentState = {
+      ...currentState,
+      selectedGridBay: bay,
+      structuralGridModule: modMap[bay] || "6x6",
+    };
+    emitChange();
+  },
+
+  setStructuralGridSpacing: (bay: "6.0x6.0" | "6.0x7.2" | "7.2x7.2") => {
+    floorPlanStore.setStructuralBaySpacing(bay);
+  },
+
+  setStructuralGridModule: (module: "6x6" | "6x7.2" | "7.2x7.2") => {
+    const bayMap: Record<string, "6.0x6.0" | "6.0x7.2" | "7.2x7.2"> = {
+      "6x6": "6.0x6.0",
+      "6x7.2": "6.0x7.2",
+      "7.2x7.2": "7.2x7.2",
+    };
+    currentState = {
+      ...currentState,
+      structuralGridModule: module,
+      selectedGridBay: bayMap[module] || "6.0x6.0",
+    };
+    emitChange();
+  },
+
+  setDaylightVastu: (show: boolean) => {
+    currentState = {
+      ...currentState,
+      showDaylightVastu: show,
+      showDaylightingOverlay: show,
+      showVastuOverlay: show,
+    };
+    emitChange();
+  },
+
+  toggleDaylightVastu: () => {
+    const next = !currentState.showDaylightVastu;
+    currentState = {
+      ...currentState,
+      showDaylightVastu: next,
+      showDaylightingOverlay: next,
+      showVastuOverlay: next,
+    };
+    emitChange();
+  },
+
+  setDaylightingOverlay: (show: boolean) => {
+    currentState = { ...currentState, showDaylightingOverlay: show };
+    emitChange();
+  },
+
+  toggleDaylightingOverlay: () => {
+    currentState = { ...currentState, showDaylightingOverlay: !currentState.showDaylightingOverlay };
+    emitChange();
+  },
+
+  setVastuOverlay: (show: boolean) => {
+    currentState = { ...currentState, showVastuOverlay: show };
+    emitChange();
+  },
+
+  toggleVastuOverlay: () => {
+    currentState = { ...currentState, showVastuOverlay: !currentState.showVastuOverlay };
+    emitChange();
+  },
+
+  setPhasing4D: (show: boolean) => {
+    currentState = { ...currentState, showPhasing4D: show };
+    emitChange();
+  },
+
+  togglePhasing4D: () => {
+    currentState = { ...currentState, showPhasing4D: !currentState.showPhasing4D };
+    emitChange();
+  },
+
+  setPhasingDay: (day: number) => {
+    currentState = { ...currentState, phasingDay: Math.max(0, Math.min(90, Math.round(day))) };
+    emitChange();
+  },
+
+  toggleConstructionStaging: () => {
+    currentState = {
+      ...currentState,
+      showConstructionStaging: !currentState.showConstructionStaging,
+    };
+    emitChange();
+  },
+
+  setConstructionStaging: (show: boolean) => {
+    currentState = { ...currentState, showConstructionStaging: show };
+    emitChange();
+  },
+
+  setConstructionStage: (stage: ConstructionStage) => {
+    currentState = { ...currentState, constructionStage: stage };
     emitChange();
   },
 
@@ -348,6 +556,18 @@ export const floorPlanStore = {
         return;
       }
     }
+    // 5. Staircases
+    const stairIndex = (plan.staircases || []).findIndex((s) => s.id === id);
+    if (stairIndex !== -1) {
+      const newStairs = [...(plan.staircases || [])];
+      newStairs[stairIndex] = { ...newStairs[stairIndex], position: newPos };
+      currentState = {
+        ...currentState,
+        floorPlan: { ...plan, staircases: newStairs },
+      };
+      emitChange();
+      return;
+    }
   },
 
   nudgeFurniture: (id: string, delta: Point) => {
@@ -409,6 +629,7 @@ export const floorPlanStore = {
         windows: updated.floorPlan.windows.filter((win) => win.id !== id),
         rooms: updated.floorPlan.rooms.filter((r) => r.id !== id),
         furniture: (updated.floorPlan.furniture || []).filter((f) => f.id !== id),
+        staircases: (updated.floorPlan.staircases || []).filter((s) => s.id !== id),
       },
     };
     emitChange();
@@ -428,14 +649,15 @@ export const floorPlanStore = {
         windows: updated.floorPlan.windows.filter((win) => !ids.has(win.id)),
         rooms: updated.floorPlan.rooms.filter((r) => !ids.has(r.id)),
         furniture: (updated.floorPlan.furniture || []).filter((f) => !ids.has(f.id)),
+        staircases: (updated.floorPlan.staircases || []).filter((s) => !ids.has(s.id)),
       },
     };
     emitChange();
   },
 
   clearPlan: () => {
-    const { walls, doors, windows, rooms, furniture = [] } = currentState.floorPlan;
-    if (walls.length === 0 && doors.length === 0 && windows.length === 0 && rooms.length === 0 && furniture.length === 0) {
+    const { walls, doors, windows, rooms, furniture = [], staircases = [] } = currentState.floorPlan;
+    if (walls.length === 0 && doors.length === 0 && windows.length === 0 && rooms.length === 0 && furniture.length === 0 && staircases.length === 0) {
       return;
     }
     const updated = pushUndo(currentState);
@@ -450,6 +672,7 @@ export const floorPlanStore = {
         windows: [],
         rooms: [],
         furniture: [],
+        staircases: [],
       },
     };
     emitChange();
@@ -503,6 +726,7 @@ export const floorPlanStore = {
       floorPlan: {
         ...plan,
         furniture: plan.furniture || [],
+        staircases: plan.staircases || [],
       },
       selectedIds: [],
       drawingPoints: [],
