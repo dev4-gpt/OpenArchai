@@ -174,7 +174,8 @@ export async function triggerRender(modelId: string, projectId: string, promptSt
     throw new Error(error.message);
   }
 
-  await postToModal(process.env.MODAL_RENDER_ENDPOINT_URL!, {
+  const renderUrl = process.env.MODAL_RENDER_V2_ENDPOINT_URL || process.env.MODAL_RENDER_ENDPOINT_URL!;
+  await postToModal(renderUrl, {
     render_id: render.id,
     project_id: projectId,
     model_id: modelId,
@@ -211,7 +212,8 @@ export async function retryRender(renderId: string) {
     .eq("id", renderId);
   if (updateError) throw new Error(updateError.message);
 
-  await postToModal(process.env.MODAL_RENDER_ENDPOINT_URL!, {
+  const renderUrl = process.env.MODAL_RENDER_V2_ENDPOINT_URL || process.env.MODAL_RENDER_ENDPOINT_URL!;
+  await postToModal(renderUrl, {
     render_id: renderId,
     project_id: render.project_id,
     model_id: render.model_id,

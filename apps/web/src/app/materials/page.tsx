@@ -42,6 +42,46 @@ function getBadgeTheme(badge: string): string {
   return "bg-accent/10 text-accent border-accent/25";
 }
 
+function MaterialThumbnail({
+  material,
+  className = "h-full w-full object-cover",
+}: {
+  material: MaterialItem;
+  className?: string;
+}) {
+  const [hasError, setHasError] = useState(false);
+
+  if (hasError || !material.thumbnailUrl) {
+    return (
+      <div
+        className="h-full w-full flex flex-col items-center justify-center p-3 text-center transition-all select-none"
+        style={{
+          backgroundColor: material.colorHex || "#e3ded8",
+          color: "#1c1c1e",
+        }}
+      >
+        <div className="rounded-full bg-white/80 backdrop-blur-xs px-2.5 py-1 text-[11px] font-bold shadow-xs border border-black/10 max-w-[90%] truncate">
+          {material.name}
+        </div>
+        <span className="text-[10px] opacity-75 mt-1 font-mono uppercase tracking-wider">
+          {material.subcategory}
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={material.thumbnailUrl}
+      alt={material.name}
+      onError={() => setHasError(true)}
+      className={className}
+      loading="lazy"
+    />
+  );
+}
+
 export default function MaterialsPage() {
   const [selectedCategory, setSelectedCategory] = useState<MaterialCategory | "all">("all");
   const [selectedRegion, setSelectedRegion] = useState<"india" | "us" | "all">("india");
@@ -185,10 +225,8 @@ export default function MaterialsPage() {
           >
             {/* Swatch Image / Photo */}
             <div className="relative h-40 w-full overflow-hidden bg-muted/10">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={mat.thumbnailUrl}
-                alt={mat.name}
+              <MaterialThumbnail
+                material={mat}
                 className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
               />
               <div className="absolute top-2 left-2 flex gap-1.5">
@@ -276,10 +314,8 @@ export default function MaterialsPage() {
 
             {/* Image */}
             <div className="h-48 w-full overflow-hidden rounded-lg border border-border">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={selectedMaterial.thumbnailUrl}
-                alt={selectedMaterial.name}
+              <MaterialThumbnail
+                material={selectedMaterial}
                 className="h-full w-full object-cover"
               />
             </div>

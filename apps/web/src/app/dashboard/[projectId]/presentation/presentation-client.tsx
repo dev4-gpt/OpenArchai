@@ -6,8 +6,8 @@ import { ModelViewer } from "@/components/model-viewer";
 import { calculateProjectCost } from "@/lib/cost-calculator";
 import { evaluateCompliance } from "@/lib/compliance-engine";
 import { Live3DWalkthroughPlayer } from "@/components/video/live-3d-walkthrough-player";
-import { VideoReelPlayer } from "@/components/video/video-reel-player";
 import { generateFFESchedule } from "@/lib/ffe-catalog";
+
 import type { ConstructionElements } from "@/components/floor-plan-editor/export/to-elements";
 import type { UnitSystem } from "@/lib/units";
 

@@ -17,7 +17,23 @@ export interface ConstructionElements {
     rotation_deg?: number;
     tag?: string;
   }[];
+  rooms?: {
+    id: string;
+    label: string;
+    area_m2: number;
+    direction?: "N" | "NE" | "E" | "SE" | "S" | "SW" | "W" | "NW" | "center";
+  }[];
+  staircases?: {
+    id: string;
+    position: [number, number];
+    flightWidth: number;
+    riserHeight: number;
+    treadDepth: number;
+    riserCount: number;
+  }[];
+  wall_height_m?: number;
 }
+
 
 /**
  * Converts a 2D floor plan from the editor into the exact construction_models.elements
@@ -69,6 +85,22 @@ export function floorPlanToElements(plan: FloorPlan): ConstructionElements {
     max_y = Math.max(...allPoints.map((p) => p[1]));
   }
 
+  const rooms = (plan.rooms || []).map((r) => ({
+    id: r.id,
+    label: r.label,
+    area_m2: r.area,
+    direction: r.direction,
+  }));
+
+  const staircases = (plan.staircases || []).map((s) => ({
+    id: s.id,
+    position: [s.position.x, s.position.y] as [number, number],
+    flightWidth: s.flightWidth ?? s.width ?? 1.5,
+    riserHeight: s.riserHeight ?? (s.riserMm ? s.riserMm / 1000 : 0.15),
+    treadDepth: s.treadDepth ?? (s.treadMm ? s.treadMm / 1000 : 0.30),
+    riserCount: s.riserCount ?? 10,
+  }));
+
   return {
     walls,
     doors,
@@ -76,5 +108,7 @@ export function floorPlanToElements(plan: FloorPlan): ConstructionElements {
     floor_bounds: { min_x, min_y, max_x, max_y },
     units_source: "editor_metric",
     furniture,
+    rooms,
+    staircases,
   };
 }

@@ -9,3 +9,5 @@ import build_ifc  # noqa: E402,F401
 import reconstruct  # noqa: E402,F401
 import reconstruct_cad  # noqa: E402,F401
 import render  # noqa: E402,F401
+import render_v2  # noqa: E402,F401
+

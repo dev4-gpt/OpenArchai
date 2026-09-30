@@ -5,6 +5,8 @@ import {
   SAMPLE_CINEMATIC_REELS,
   type VideoWalkthroughReel,
 } from "@/lib/video-walkthrough";
+import { createHiggsfieldWalkthroughJob } from "@/lib/higgsfield-api";
+
 
 interface VideoReelPlayerProps {
   projectName?: string;
@@ -241,14 +243,27 @@ export function VideoReelPlayer({
     return `${m}:${s < 10 ? "0" : ""}${s}`;
   }
 
-  function handleGenerateNew() {
+  async function handleGenerateNew() {
     setIsGenerating(true);
-    setTimeout(() => {
+    try {
+      const res = await createHiggsfieldWalkthroughJob({
+        projectName,
+        cameraMode: selectedReelIndex === 0 ? "orbit_360" : "interior_glide",
+        engine: "direct_cad",
+      });
+      if (res.videoUrl) {
+        alert(`Cinematic walkthrough generated: ${res.videoUrl}`);
+      } else {
+        alert(
+          `Direct CAD Steadicam active for ${projectName}. To record live 60fps video directly from your 3D model geometry without AI hallucinations, switch to the 3D Walkthrough tab and click "Record 60fps Steadicam"!`
+        );
+      }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Video generation service unavailable";
+      alert(msg);
+    } finally {
       setIsGenerating(false);
-      alert(
-        `Generated 12-second cinematic walkthrough for ${projectName} using the Higgsfield AI camera choreography pipeline. Added to project video reels!`,
-      );
-    }, 2000);
+    }
   }
 
   return (
@@ -261,7 +276,7 @@ export function VideoReelPlayer({
               <span>🎬</span> Cinematic Client Walkthrough Video Reel
             </h3>
             <span className="rounded bg-accent/10 px-2 py-0.5 text-[10px] font-bold text-accent border border-accent/20">
-              Higgsfield & OpenMontage 60fps
+              60fps Steadicam Flightpath
             </span>
           </div>
           <p className="text-xs text-muted mt-0.5">
