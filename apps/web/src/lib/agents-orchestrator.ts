@@ -84,6 +84,9 @@ const LOW_TEMPERATURE_ROLES: Set<AgentRole> = new Set(["cost_estimator", "code_s
 
 const DEFAULT_GROQ_MODEL = process.env.GROQ_MODEL || "openai/gpt-oss-120b";
 const DEFAULT_GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-flash-lite-latest";
+const DEFAULT_CEREBRAS_MODEL = process.env.CEREBRAS_MODEL || "gpt-oss-120b";
+const DEFAULT_MISTRAL_MODEL = process.env.MISTRAL_MODEL || "codestral-latest";
+const DEFAULT_SAMBANOVA_MODEL = process.env.SAMBANOVA_MODEL || "Meta-Llama-3.3-70B-Instruct";
 
 // Universal Studio Tools Schema (OpenAI-compatible, native to Groq, Gemini, NVIDIA, GitHub Models)
 export const ATELIER_STUDIO_TOOLS = [
@@ -384,45 +387,50 @@ Priority Fixes:          ${evalResult.priorityFixes.length ? evalResult.priority
   }
 }
 
-// Router priority: Groq (14ms-500ms) first for sub-second Vercel response, Gemini second, NVIDIA NIM third
+// Router priority: Groq (14ms-500ms), Cerebras (328ms), Mistral (403ms), Gemini (800ms), SambaNova, NVIDIA, OpenRouter, GitHub
 const AGENT_MODEL_ROUTES: Record<AgentRole, Array<{ provider: string; model: string }>> = {
   chief_architect: [
     { provider: "groq", model: DEFAULT_GROQ_MODEL },
+    { provider: "cerebras", model: DEFAULT_CEREBRAS_MODEL },
+    { provider: "mistral", model: DEFAULT_MISTRAL_MODEL },
     { provider: "gemini", model: DEFAULT_GEMINI_MODEL },
+    { provider: "sambanova", model: DEFAULT_SAMBANOVA_MODEL },
     { provider: "nvidia", model: process.env.NVIDIA_MODEL || "z-ai/glm-5.3" },
     { provider: "openrouter", model: "google/gemini-2.5-flash" },
-    { provider: "mistral", model: "mistral-large-latest" },
     { provider: "github", model: "gpt-4o" },
-    { provider: "cerebras", model: "llama-3.3-70b" },
   ],
   code_specialist: [
     { provider: "groq", model: DEFAULT_GROQ_MODEL },
+    { provider: "cerebras", model: DEFAULT_CEREBRAS_MODEL },
+    { provider: "mistral", model: DEFAULT_MISTRAL_MODEL },
     { provider: "gemini", model: DEFAULT_GEMINI_MODEL },
+    { provider: "sambanova", model: DEFAULT_SAMBANOVA_MODEL },
     { provider: "nvidia", model: process.env.NVIDIA_MODEL || "z-ai/glm-5.3" },
     { provider: "openrouter", model: "google/gemini-2.5-flash" },
-    { provider: "mistral", model: "mistral-large-latest" },
     { provider: "github", model: "gpt-4o" },
-    { provider: "cerebras", model: "llama-3.3-70b" },
   ],
   interior_designer: [
     { provider: "groq", model: DEFAULT_GROQ_MODEL },
+    { provider: "cerebras", model: DEFAULT_CEREBRAS_MODEL },
+    { provider: "mistral", model: DEFAULT_MISTRAL_MODEL },
     { provider: "gemini", model: DEFAULT_GEMINI_MODEL },
+    { provider: "sambanova", model: DEFAULT_SAMBANOVA_MODEL },
     { provider: "nvidia", model: process.env.NVIDIA_MODEL || "z-ai/glm-5.3" },
     { provider: "openrouter", model: "meta-llama/llama-3.3-70b-instruct" },
-    { provider: "openrouter", model: "google/gemini-2.5-flash" },
-    { provider: "mistral", model: "mistral-large-latest" },
     { provider: "github", model: "gpt-4o" },
   ],
   cost_estimator: [
     { provider: "groq", model: DEFAULT_GROQ_MODEL },
+    { provider: "cerebras", model: DEFAULT_CEREBRAS_MODEL },
+    { provider: "mistral", model: DEFAULT_MISTRAL_MODEL },
     { provider: "gemini", model: DEFAULT_GEMINI_MODEL },
+    { provider: "sambanova", model: DEFAULT_SAMBANOVA_MODEL },
     { provider: "nvidia", model: process.env.NVIDIA_MODEL || "z-ai/glm-5.3" },
     { provider: "openrouter", model: "google/gemini-2.5-flash" },
-    { provider: "mistral", model: "mistral-large-latest" },
     { provider: "github", model: "gpt-4o" },
-    { provider: "cerebras", model: "llama-3.3-70b" },
   ],
 };
+
 
 
 const DEFAULT_MAX_TOKENS = 2500;
@@ -745,8 +753,11 @@ export async function consultAgentTeam(
   const geminiKey = process.env.GEMINI_API_KEY;
   const nvidiaKey = process.env.NVIDIA_API_KEY;
   const cerebrasKey = process.env.CEREBRAS_API_KEY;
+  const sambanovaKey = process.env.SAMBANOVA_API_KEY;
   const githubKey = process.env.GITHUB_TOKEN || process.env.GITHUB_MODELS_KEY;
   const mistralKey = process.env.MISTRAL_API_KEY;
+  const cloudflareToken = process.env.CLOUDFLARE_API_TOKEN;
+  const cloudflareAccountId = process.env.CLOUDFLARE_ACCOUNT_ID;
   const customGatewayUrl = process.env.CUSTOM_LLM_GATEWAY_URL || process.env.OMNIROUTE_URL;
   const customGatewayKey = process.env.CUSTOM_LLM_API_KEY || process.env.OMNIROUTE_API_KEY || "free-tier";
 
@@ -821,6 +832,40 @@ Format cleanly with readable paragraphs and avoid raw markdown asterisks (**) fo
           if (responseText) { modelUsed = `${route.model} via groq`; break; }
         }
 
+        if (route.provider === "cerebras" && cerebrasKey) {
+          responseText = await callOpenAICompatible(
+            "https://api.cerebras.ai/v1/chat/completions",
+            cerebrasKey,
+            route.model,
+            [
+              { role: "system", content: systemPromptWithCalcs },
+              { role: "user", content: prompt },
+            ],
+            DEFAULT_MAX_TOKENS,
+            {},
+            temperature,
+            ATELIER_STUDIO_TOOLS,
+          );
+          if (responseText) { modelUsed = `${route.model} via cerebras`; break; }
+        }
+
+        if (route.provider === "mistral" && mistralKey) {
+          responseText = await callOpenAICompatible(
+            "https://api.mistral.ai/v1/chat/completions",
+            mistralKey,
+            route.model,
+            [
+              { role: "system", content: systemPromptWithCalcs },
+              { role: "user", content: prompt },
+            ],
+            DEFAULT_MAX_TOKENS,
+            {},
+            temperature,
+            ATELIER_STUDIO_TOOLS,
+          );
+          if (responseText) { modelUsed = `${route.model} via mistral`; break; }
+        }
+
         if (route.provider === "gemini" && geminiKey) {
           // 1. Try Gemini OpenAI-compatible endpoint with universal tools
           responseText = await callOpenAICompatible(
@@ -847,6 +892,23 @@ Format cleanly with readable paragraphs and avoid raw markdown asterisks (**) fo
             temperature,
           );
           if (responseText) { modelUsed = `${route.model} via gemini-direct`; break; }
+        }
+
+        if (route.provider === "sambanova" && sambanovaKey) {
+          responseText = await callOpenAICompatible(
+            "https://api.sambanova.ai/v1/chat/completions",
+            sambanovaKey,
+            route.model,
+            [
+              { role: "system", content: systemPromptWithCalcs },
+              { role: "user", content: prompt },
+            ],
+            DEFAULT_MAX_TOKENS,
+            {},
+            temperature,
+            ATELIER_STUDIO_TOOLS,
+          );
+          if (responseText) { modelUsed = `${route.model} via sambanova`; break; }
         }
 
         if (route.provider === "nvidia" && nvidiaKey) {
@@ -905,10 +967,10 @@ Format cleanly with readable paragraphs and avoid raw markdown asterisks (**) fo
           if (responseText) { modelUsed = `${route.model} via github`; break; }
         }
 
-        if (route.provider === "mistral" && mistralKey) {
+        if (route.provider === "cloudflare" && cloudflareToken && cloudflareAccountId) {
           responseText = await callOpenAICompatible(
-            "https://api.mistral.ai/v1/chat/completions",
-            mistralKey,
+            `https://api.cloudflare.com/client/v4/accounts/${cloudflareAccountId}/ai/v1/chat/completions`,
+            cloudflareToken,
             route.model,
             [
               { role: "system", content: systemPromptWithCalcs },
@@ -919,24 +981,7 @@ Format cleanly with readable paragraphs and avoid raw markdown asterisks (**) fo
             temperature,
             ATELIER_STUDIO_TOOLS,
           );
-          if (responseText) { modelUsed = `${route.model} via mistral`; break; }
-        }
-
-        if (route.provider === "cerebras" && cerebrasKey) {
-          responseText = await callOpenAICompatible(
-            "https://api.cerebras.ai/v1/chat/completions",
-            cerebrasKey,
-            route.model,
-            [
-              { role: "system", content: systemPromptWithCalcs },
-              { role: "user", content: prompt },
-            ],
-            DEFAULT_MAX_TOKENS,
-            {},
-            temperature,
-            ATELIER_STUDIO_TOOLS,
-          );
-          if (responseText) { modelUsed = `${route.model} via cerebras`; break; }
+          if (responseText) { modelUsed = `${route.model} via cloudflare-workers-ai`; break; }
         }
       }
 
