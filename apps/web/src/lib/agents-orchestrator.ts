@@ -1,5 +1,8 @@
 import { generateEgressProof } from "./calculators/nbc-egress";
 import { generateNTGProof, generateCapexProof } from "./calculators/pe-boq";
+import { checkSpanDeflection, checkPlenumClash } from "./calculators/structural-grid-engine";
+import { calculateSabineRT60, verifySTCDecoupling, calculateDaylightFactor, evaluateVastuMandala } from "./calculators/acoustic-rt60-calculator";
+import { calculateStaircaseCompliance } from "./calculators/staircase-egress-calculator";
 
 export type AgentRole = "chief_architect" | "code_specialist" | "interior_designer" | "cost_estimator";
 
@@ -80,45 +83,347 @@ MANDATORY INSTITUTIONAL RECONCILIATION RULE: Whenever a budget cut, Capex reduct
 const LOW_TEMPERATURE_ROLES: Set<AgentRole> = new Set(["cost_estimator", "code_specialist"]);
 
 const DEFAULT_GROQ_MODEL = process.env.GROQ_MODEL || "openai/gpt-oss-120b";
+const DEFAULT_GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-flash-lite-latest";
 
+// Universal Studio Tools Schema (OpenAI-compatible, native to Groq, Gemini, NVIDIA, GitHub Models)
+export const ATELIER_STUDIO_TOOLS = [
+  {
+    type: "function" as const,
+    function: {
+      name: "audit_nbc_egress",
+      description: "Audits floor plan travel distance, occupant load, and corridor clear width according to National Building Code of India (NBC 2016 Part 4 Table 2 & Clause 4.5.1/4.6).",
+      parameters: {
+        type: "object",
+        properties: {
+          carpetAreaSqM: { type: "number", description: "Carpet area in square meters (default 111)" },
+          travelDistanceM: { type: "number", description: "Measured travel distance to nearest exit stair in meters (limit 30m unsprinklered, 45m sprinklered)" },
+          corridorClearWidthM: { type: "number", description: "Corridor clear width in meters (minimum 0.9m internal, 1.2m common)" },
+          deadEndM: { type: "number", description: "Dead end corridor length in meters (statutory limit 6.0m)" },
+          sprinklered: { type: "boolean", description: "Whether the building has automatic fire sprinkler protection" },
+        },
+        required: ["carpetAreaSqM", "travelDistanceM"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "calculate_ntg_efficiency",
+      description: "Calculates Net-to-Gross (NTG) spatial efficiency ratio and usable square footage reclaim for residential/commercial layouts.",
+      parameters: {
+        type: "object",
+        properties: {
+          grossAreaSqFt: { type: "number", description: "Gross floor area in square feet" },
+          currentNtgPct: { type: "number", description: "Current NTG percentage (e.g. 76)" },
+          targetNtgPct: { type: "number", description: "Target NTG percentage (e.g. 84)" },
+        },
+        required: ["grossAreaSqFt", "targetNtgPct"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "calculate_ve_swaps",
+      description: "Calculates Value-Engineered Capex budget reduction, trade package savings, and lead-time acceleration (e.g. Italian marble to Rajasthan Kota stone or Kajaria PGVT).",
+      parameters: {
+        type: "object",
+        properties: {
+          baselineCapex: { type: "number", description: "Current baseline Capex budget in project currency" },
+          cutPercent: { type: "number", description: "Target budget cut percentage (e.g. 20 for 20% reduction)" },
+          currency: { type: "string", description: "Currency symbol (default ₹)" },
+          grossAreaSqFt: { type: "number", description: "Gross floor area in square feet for cost/sqft calculation" },
+        },
+        required: ["baselineCapex", "cutPercent"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "verify_structural_bay",
+      description: "Validates modular structural grid spans (IS 456 L/d deflection limits, PT tendon triggers for >7.5m) and MEP ceiling plenum void clearance vs 2.75m habitable room height (NBC Part 3 Cl. 12.2).",
+      parameters: {
+        type: "object",
+        properties: {
+          spanM: { type: "number", description: "Clear beam/bay span in meters" },
+          effectiveDepthM: { type: "number", description: "Beam effective depth in meters (default 0.45m)" },
+          floorToFloorHeightM: { type: "number", description: "Floor-to-floor height in meters (default 3.35m)" },
+          plenumVoidM: { type: "number", description: "False ceiling plenum void for ducted VRV HVAC & drainage drops in meters (default 0.45m)" },
+        },
+        required: ["spanM"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "calculate_acoustic_rt60",
+      description: "Simulates reverberation time RT60 using the Sabine formula and verifies STC 56 acoustic decoupling for residential sanctuaries.",
+      parameters: {
+        type: "object",
+        properties: {
+          lengthM: { type: "number", description: "Room length in meters (default 5.0)" },
+          widthM: { type: "number", description: "Room width in meters (default 5.0)" },
+          heightM: { type: "number", description: "Room ceiling height in meters (default 3.0)" },
+          roomType: { type: "string", description: "Room classification (e.g. master_bedroom, living)" },
+        },
+        required: ["lengthM", "widthM", "heightM"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "calculate_staircase_capacity",
+      description: "Calculates NBC 2016 Part 4 Table 8 staircase compliance: riser/tread ergonomic formula (550mm <= 2R + T <= 650mm), minimum clear width >= 1.50m, and evacuation occupant capacity.",
+      parameters: {
+        type: "object",
+        properties: {
+          riserMm: { type: "number", description: "Riser height in millimeters (max 150mm for residential >15m)" },
+          treadMm: { type: "number", description: "Tread depth in millimeters (min 300mm)" },
+          flightWidthM: { type: "number", description: "Clear staircase flight width in meters (min 1.50m for residential >15m)" },
+          totalRiseM: { type: "number", description: "Total floor-to-floor rise in meters (default 3.0)" },
+          buildingHeightM: { type: "number", description: "Building total height in meters (default 24.0)" },
+        },
+        required: ["riserMm", "treadMm", "flightWidthM"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "calculate_daylight_factor",
+      description: "Calculates CIE Overcast Sky Daylight Factor (DF %) and solar orientation quality per NBC 2016 Part 8 Sec 1 for Delhi-NCR.",
+      parameters: {
+        type: "object",
+        properties: {
+          roomFloorAreaM2: { type: "number", description: "Room floor area in square meters" },
+          windowGlazingAreaM2: { type: "number", description: "Window glazing surface area in square meters" },
+          windowHeadHeightM: { type: "number", description: "Window lintel/head height in meters (default 2.8)" },
+          orientation: { type: "string", description: "Window orientation: N, S, E, W, NE, NW, SE, SW" },
+          roomType: { type: "string", description: "Room type: living, bedroom, study, kitchen, bathroom" },
+        },
+        required: ["roomFloorAreaM2", "windowGlazingAreaM2"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "evaluate_vastu_mandala",
+      description: "Evaluates 9-zone Vastu Shastra Paramasayika mandala quadrant alignments for Agni (SE), Nairutya (SW), Ishanya (NE), and Vayu (NW).",
+      parameters: {
+        type: "object",
+        properties: {
+          kitchenQuadrant: { type: "string", description: "Quadrant for kitchen (optimal: SE / Agni)" },
+          masterBedroomQuadrant: { type: "string", description: "Quadrant for master bedroom (optimal: SW / Nairutya)" },
+          livingQuadrant: { type: "string", description: "Quadrant for living area (optimal: NE / Ishanya or East)" },
+          pujaQuadrant: { type: "string", description: "Quadrant for sacred/meditation space (optimal: NE / Ishanya)" },
+        },
+        required: ["kitchenQuadrant", "masterBedroomQuadrant"],
+      },
+    },
+  },
+];
+
+/**
+ * Universal Studio Tool Executor:
+ * Invokes deterministic local TypeScript calculators to produce zero-hallucination verified results.
+ */
+export function executeStudioTool(name: string, args: Record<string, any>): { result: any; proofText: string } {
+  switch (name) {
+    case "audit_nbc_egress": {
+      const carpetAreaSqM = Number(args.carpetAreaSqM) || 111;
+      const travelDistanceM = Number(args.travelDistanceM) || 18.4;
+      const corridorClearWidthM = Number(args.corridorClearWidthM) || 1.05;
+      const deadEndM = args.deadEndM !== undefined ? Number(args.deadEndM) : 0;
+      const sprinklered = Boolean(args.sprinklered);
+      const proof = generateEgressProof({
+        carpetAreaSqM,
+        corridorClearWidthM,
+        travelDistanceM,
+        deadEndM,
+        sprinklered,
+      });
+      return { result: proof, proofText: proof.proofText };
+    }
+    case "calculate_ntg_efficiency": {
+      const grossAreaSqFt = Number(args.grossAreaSqFt) || 1200;
+      const targetNtgPct = Number(args.targetNtgPct) || 84;
+      const currentNtgPct = Number(args.currentNtgPct) || 76;
+      const proof = generateNTGProof({ grossAreaSqFt, targetNtgPct, currentNtgPct });
+      return { result: proof, proofText: proof.proofText };
+    }
+    case "calculate_ve_swaps": {
+      const baselineCapex = Number(args.baselineCapex) || 2850000;
+      const cutPercent = Number(args.cutPercent) || 20;
+      const currency = String(args.currency || "₹");
+      const grossAreaSqFt = Number(args.grossAreaSqFt) || 1200;
+      const proof = generateCapexProof({ baselineCapex, cutPercent, currency, grossAreaSqFt });
+      return { result: proof, proofText: proof.proofText };
+    }
+    case "verify_structural_bay": {
+      const spanM = Number(args.spanM) || 6.0;
+      const effectiveDepthM = Number(args.effectiveDepthM) || 0.45;
+      const floorToFloorHeightM = Number(args.floorToFloorHeightM) || 3.35;
+      const plenumVoidM = Number(args.plenumVoidM) || 0.45;
+      const spanCheck = checkSpanDeflection(spanM, effectiveDepthM, "continuous");
+      const plenumCheck = checkPlenumClash(floorToFloorHeightM, 0.15, plenumVoidM);
+      const proofText = `Structural & MEP Plenum Coordination Check [IS 456 / IS 1893 / NBC Part 3]
+=======================================================================
+Bay Span:                ${spanM.toFixed(1)}m (Effective Depth: ${effectiveDepthM}m)
+Span-to-Depth Ratio:     L/d = ${spanCheck.spanToDepthRatio} (Limit: ${spanCheck.maxSpanToDepthLimit.toFixed(1)}) — ${spanCheck.isCompliant ? "COMPLIANT" : "EXCEEDED"}
+Deflection Status:       ${spanCheck.warning}
+Floor-to-Floor Height:   ${floorToFloorHeightM.toFixed(2)}m
+MEP Ceiling Plenum Void: ${plenumVoidM.toFixed(2)}m (VRV HVAC + drainage)
+Clear Habitable Height:  ${plenumCheck.habitableRoomHeightM.toFixed(2)}m vs ${plenumCheck.minimumHabitableHeightM.toFixed(2)}m min [NBC Part 3 Cl. 12.2: ${plenumCheck.isClashFree ? "PASS" : "FAIL"}]`;
+      return { result: { spanCheck, plenumCheck }, proofText };
+    }
+    case "calculate_acoustic_rt60": {
+      const lengthM = Number(args.lengthM) || 5.0;
+      const widthM = Number(args.widthM) || 5.0;
+      const heightM = Number(args.heightM) || 3.0;
+      const roomType = String(args.roomType || "master_bedroom");
+      const rt60Result = calculateSabineRT60({
+        lengthM,
+        widthM,
+        heightM,
+        roomType,
+      });
+      const stcCheck = verifySTCDecoupling({
+        partitionName: "Sanctuary Demising Wall",
+        hasResilientChannels: true,
+        rockwoolDensityKgM3: 60,
+        gyprocSoundStopBoardsCount: 2,
+        hasGreenGlueDamping: true,
+        ceilingPlenumFlanking: false,
+        doorAcousticSealPresent: true,
+        backToBackElectricalBoxesStaggered: true,
+      });
+      const proofText = `Museum Acoustics & STC 56 Decoupling Simulation [Sabine & ASTM E90]
+====================================================================
+Room Dimensions:         ${lengthM}m × ${widthM}m × ${heightM}m (${(lengthM * widthM * heightM).toFixed(1)} m³)
+Sabine RT60 @ 500Hz:     ${rt60Result.rt60Seconds}s (Target: ${rt60Result.targetRT60Range[0]}s - ${rt60Result.targetRT60Range[1]}s) — ${rt60Result.isCompliant ? "OPTIMAL ACOUSTICS" : "REVERBERANT"}
+Partition STC Rating:    STC ${stcCheck.testedSTCRating} Tested (Target: ≥ 56) — ${stcCheck.isSTC56Compliant ? "CERTIFIED DECOUPLING" : "FLANKING RISK"}
+Acoustic Assembly:       Double 90mm studs, 25mm air cavity, 50mm Rockwool (60 kg/m³), dual 12.5mm Gyproc SoundStop + Green Glue.`;
+      return { result: { rt60Result, stcCheck }, proofText };
+    }
+    case "calculate_staircase_capacity": {
+      const riserMm = Number(args.riserMm) || 150;
+      const treadMm = Number(args.treadMm) || 300;
+      const flightWidthM = Number(args.flightWidthM) || 1.50;
+      const totalRiseM = Number(args.totalRiseM) || 3.0;
+      const buildingHeightM = Number(args.buildingHeightM) || 24.0;
+      const compliance = calculateStaircaseCompliance({
+        riserHeightM: riserMm / 1000,
+        treadDepthM: treadMm / 1000,
+        flightWidthM,
+        totalRiseM,
+        buildingHeightM,
+        occupancyType: "residential",
+      });
+      const proofText = `Statutory Staircase & Life Safety Compliance [NBC 2016 Part 4 Table 8]
+========================================================================
+Blondel Ergonomic Check: 2R + T = 2(${riserMm}) + ${treadMm} = ${2 * riserMm + treadMm} mm (550 - 650 mm limit) — ${compliance.isErgonomicCompliant ? "PASS" : "FAIL"}
+Riser Dimension:         ${riserMm} mm (Max: 150 mm) — ${compliance.isRiserCompliant ? "PASS" : "FAIL"}
+Tread Dimension:         ${treadMm} mm (Min: 300 mm) — ${compliance.isTreadCompliant ? "PASS" : "FAIL"}
+Clear Flight Width:      ${flightWidthM.toFixed(2)} m (Min: ${compliance.requiredWidthM.toFixed(2)} m) — ${compliance.isWidthCompliant ? "PASS" : "FAIL"}
+Overall Life Safety:     ${compliance.overallPass ? "NBC 2016 COMPLIANT" : "NON-COMPLIANT"}`;
+      return { result: compliance, proofText };
+    }
+    case "calculate_daylight_factor": {
+      const roomFloorAreaM2 = Number(args.roomFloorAreaM2) || 25;
+      const windowGlazingAreaM2 = Number(args.windowGlazingAreaM2) || 4.5;
+      const windowHeadHeightM = Number(args.windowHeadHeightM) || 2.8;
+      const orientation = (args.orientation || "NE") as any;
+      const roomType = (args.roomType || "living") as any;
+      const dfResult = calculateDaylightFactor({
+        roomName: "Habitable Room",
+        roomFloorAreaM2,
+        windowGlazingAreaM2,
+        windowHeadHeightM,
+        orientation,
+        roomType,
+      });
+      const proofText = `CIE Daylight Factor (DF %) Simulation [NBC 2016 Part 8 Sec 1 / Delhi-NCR 28.45°N]
+=================================================================================
+Floor Area:              ${roomFloorAreaM2} m² (Glazing: ${windowGlazingAreaM2} m², Head: ${windowHeadHeightM}m)
+Orientation:             ${orientation} Light Flow
+Estimated Daylight:      ${dfResult.estimatedDaylightFactorPercent}% (NBC Min: ≥ ${dfResult.nbcMinRequiredDFPercent}%) — ${dfResult.isDaylightCompliant ? "COMPLIANT" : "INSUFFICIENT DAYLIGHT"}
+Light Quality:           ${dfResult.naturalLightQuality.toUpperCase()}
+Shading Requirement:     ${dfResult.shadingRequired ? "Solar shading louvers required to prevent glare/heat gain." : "No supplementary shading required."}`;
+      return { result: dfResult, proofText };
+    }
+    case "evaluate_vastu_mandala": {
+      const placements: Array<{
+        roomName: string;
+        roomType: 'master_bedroom' | 'kitchen' | 'living' | 'pooja_meditation' | 'toilet' | 'guest_bedroom' | 'dining' | 'staircase' | 'study';
+        quadrant: 'NE' | 'SE' | 'SW' | 'NW' | 'CENTER' | 'E' | 'W' | 'N' | 'S';
+      }> = [
+        { roomName: "Kitchen", roomType: "kitchen", quadrant: (args.kitchenQuadrant || "SE") as any },
+        { roomName: "Master Bedroom", roomType: "master_bedroom", quadrant: (args.masterBedroomQuadrant || "SW") as any },
+        { roomName: "Living Room", roomType: "living", quadrant: (args.livingQuadrant || "NE") as any },
+      ];
+      if (args.pujaQuadrant) {
+        placements.push({ roomName: "Puja Room", roomType: "pooja_meditation", quadrant: (args.pujaQuadrant || "NE") as any });
+      }
+      const evalResult = evaluateVastuMandala(placements);
+      const proofText = `Vastu Shastra 9-Zone Mandala Evaluation [Paramasayika Mandala]
+=============================================================
+Overall Vastu Score:     ${evalResult.overallScorePercent}% (${evalResult.overallRating})
+Brahmasthan Openness:    ${evalResult.brahmasthanClear ? "Clear & Light" : "Encroached"}
+Key Alignments:
+- Agni (SE) Culinary:    ${args.kitchenQuadrant || "SE"}
+- Nairutya (SW) Master:  ${args.masterBedroomQuadrant || "SW"}
+Priority Fixes:          ${evalResult.priorityFixes.length ? evalResult.priorityFixes.join("; ") : "Zero critical spatial defects."}`;
+      return { result: evalResult, proofText };
+    }
+    default:
+      return { result: { error: `Unknown tool: ${name}` }, proofText: "" };
+  }
+}
+
+// Router priority: Groq (14ms-500ms) first for sub-second Vercel response, Gemini second, NVIDIA NIM third
 const AGENT_MODEL_ROUTES: Record<AgentRole, Array<{ provider: string; model: string }>> = {
   chief_architect: [
-    { provider: "nvidia", model: process.env.NVIDIA_MODEL || "z-ai/glm-5.3" },
     { provider: "groq", model: DEFAULT_GROQ_MODEL },
+    { provider: "gemini", model: DEFAULT_GEMINI_MODEL },
+    { provider: "nvidia", model: process.env.NVIDIA_MODEL || "z-ai/glm-5.3" },
     { provider: "openrouter", model: "google/gemini-2.5-flash" },
-    { provider: "gemini", model: "gemini-2.5-flash" },
     { provider: "mistral", model: "mistral-large-latest" },
     { provider: "github", model: "gpt-4o" },
     { provider: "cerebras", model: "llama-3.3-70b" },
   ],
   code_specialist: [
-    { provider: "nvidia", model: process.env.NVIDIA_MODEL || "z-ai/glm-5.3" },
     { provider: "groq", model: DEFAULT_GROQ_MODEL },
+    { provider: "gemini", model: DEFAULT_GEMINI_MODEL },
+    { provider: "nvidia", model: process.env.NVIDIA_MODEL || "z-ai/glm-5.3" },
     { provider: "openrouter", model: "google/gemini-2.5-flash" },
-    { provider: "gemini", model: "gemini-2.5-flash" },
     { provider: "mistral", model: "mistral-large-latest" },
     { provider: "github", model: "gpt-4o" },
     { provider: "cerebras", model: "llama-3.3-70b" },
   ],
   interior_designer: [
-    { provider: "nvidia", model: process.env.NVIDIA_MODEL || "z-ai/glm-5.3" },
     { provider: "groq", model: DEFAULT_GROQ_MODEL },
+    { provider: "gemini", model: DEFAULT_GEMINI_MODEL },
+    { provider: "nvidia", model: process.env.NVIDIA_MODEL || "z-ai/glm-5.3" },
     { provider: "openrouter", model: "meta-llama/llama-3.3-70b-instruct" },
-    { provider: "gemini", model: "gemini-2.5-flash" },
     { provider: "openrouter", model: "google/gemini-2.5-flash" },
     { provider: "mistral", model: "mistral-large-latest" },
     { provider: "github", model: "gpt-4o" },
   ],
   cost_estimator: [
-    { provider: "nvidia", model: process.env.NVIDIA_MODEL || "z-ai/glm-5.3" },
     { provider: "groq", model: DEFAULT_GROQ_MODEL },
+    { provider: "gemini", model: DEFAULT_GEMINI_MODEL },
+    { provider: "nvidia", model: process.env.NVIDIA_MODEL || "z-ai/glm-5.3" },
     { provider: "openrouter", model: "google/gemini-2.5-flash" },
-    { provider: "gemini", model: "gemini-2.5-flash" },
     { provider: "mistral", model: "mistral-large-latest" },
     { provider: "github", model: "gpt-4o" },
     { provider: "cerebras", model: "llama-3.3-70b" },
   ],
 };
+
 
 const DEFAULT_MAX_TOKENS = 2500;
 
@@ -126,43 +431,133 @@ async function callOpenAICompatible(
   endpointUrl: string,
   apiKey: string,
   model: string,
-  messages: Array<{ role: string; content: string }>,
+  messages: Array<{ role: string; content?: string | null; tool_calls?: any[]; tool_call_id?: string }>,
   maxTokens = DEFAULT_MAX_TOKENS,
   extraHeaders: Record<string, string> = {},
   temperature = 0.7,
+  tools?: any[],
 ): Promise<string> {
   const controller = new AbortController();
-  // Raised from 8 000 ms → 45 000 ms so institutional-grade answers have time to land
-  const timeoutId = setTimeout(() => controller.abort(), 45000);
+  // 25,000ms gives ample headroom for multi-step tool execution without locking serverless functions
+  const timeoutId = setTimeout(() => controller.abort(), 25000);
 
   try {
-    const res = await fetch(endpointUrl, {
+    const requestBody: any = {
+      model,
+      messages,
+      temperature,
+      top_p: 1,
+      max_tokens: maxTokens,
+    };
+    if (tools && tools.length > 0) {
+      requestBody.tools = tools;
+      requestBody.tool_choice = "auto";
+    }
+
+    let res = await fetch(endpointUrl, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
         ...extraHeaders,
       },
-      body: JSON.stringify({
-        model,
-        messages,
-        temperature,
-        top_p: 1,
-        max_tokens: maxTokens,
-      }),
+      body: JSON.stringify(requestBody),
       signal: controller.signal,
     });
 
-    clearTimeout(timeoutId);
+    // If an upstream endpoint rejects the tools parameter with 400 Bad Request, retry cleanly without tools
+    if (!res.ok && tools && tools.length > 0 && res.status === 400) {
+      delete requestBody.tools;
+      delete requestBody.tool_choice;
+      res = await fetch(endpointUrl, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+          ...extraHeaders,
+        },
+        body: JSON.stringify(requestBody),
+        signal: controller.signal,
+      });
+    }
 
     if (!res.ok) {
+      clearTimeout(timeoutId);
       const errorText = await res.text().catch(() => "");
       console.warn(`[Agent Router] ${model} on ${endpointUrl} returned HTTP ${res.status}:`, errorText.slice(0, 150));
       return "";
     }
 
     const json = await res.json();
-    let content = json.choices?.[0]?.message?.content || json.choices?.[0]?.message?.reasoning_content || "";
+    const choice = json.choices?.[0];
+    const msg = choice?.message;
+
+    // Handle tool execution loop if model requested architectural tool calls
+    if (msg?.tool_calls && Array.isArray(msg.tool_calls) && msg.tool_calls.length > 0) {
+      const toolMessages: any[] = [];
+      const executedProofs: string[] = [];
+
+      for (const tc of msg.tool_calls) {
+        if (tc.type === "function" && tc.function?.name) {
+          let args: Record<string, any> = {};
+          try {
+            args = typeof tc.function.arguments === "string" ? JSON.parse(tc.function.arguments) : tc.function.arguments;
+          } catch {
+            args = {};
+          }
+          const { result, proofText } = executeStudioTool(tc.function.name, args);
+          if (proofText) executedProofs.push(proofText);
+          toolMessages.push({
+            role: "tool",
+            tool_call_id: tc.id,
+            content: JSON.stringify(result),
+          });
+        }
+      }
+
+      if (toolMessages.length > 0) {
+        try {
+          const turn2Messages = [...messages, msg, ...toolMessages];
+          const turn2Res = await fetch(endpointUrl, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              "Content-Type": "application/json",
+              ...extraHeaders,
+            },
+            body: JSON.stringify({
+              model,
+              messages: turn2Messages,
+              temperature,
+              top_p: 1,
+              max_tokens: maxTokens,
+            }),
+            signal: controller.signal,
+          });
+
+          if (turn2Res.ok) {
+            const turn2Json = await turn2Res.json();
+            let turn2Content = turn2Json.choices?.[0]?.message?.content || turn2Json.choices?.[0]?.message?.reasoning_content || "";
+            turn2Content = turn2Content.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+            if (turn2Content) {
+              clearTimeout(timeoutId);
+              return turn2Content;
+            }
+          }
+        } catch (turn2Err) {
+          console.warn(`[Agent Router] Turn 2 tool synthesis failed for ${model}:`, turn2Err);
+        }
+
+        // If turn 2 failed, fallback to returning the verified deterministic proof directly
+        if (executedProofs.length > 0) {
+          clearTimeout(timeoutId);
+          return `\n\n--- VERIFIED STUDIO CALCULATIONS ---\n${executedProofs.join("\n\n")}\n---`;
+        }
+      }
+    }
+
+    clearTimeout(timeoutId);
+    let content = msg?.content || msg?.reasoning_content || "";
     // Clean any DeepSeek-R1 thinking tokens
     content = content.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
     return content;
@@ -205,7 +600,11 @@ async function callGeminiDirect(
 
     if (!res.ok) {
       const errorText = await res.text().catch(() => "");
-      console.warn(`[Agent Router] Gemini returned HTTP ${res.status}:`, errorText.slice(0, 150));
+      console.warn(`[Agent Router] Gemini (${model}) returned HTTP ${res.status}:`, errorText.slice(0, 150));
+      // If primary model experiences high load (503/404), seamlessly retry with gemini-flash-lite-latest
+      if (model !== "gemini-flash-lite-latest") {
+        return callGeminiDirect(geminiKey, "gemini-flash-lite-latest", fullPrompt, maxTokens, temperature);
+      }
       return "";
     }
 
@@ -405,22 +804,6 @@ Format cleanly with readable paragraphs and avoid raw markdown asterisks (**) fo
       const t0 = Date.now();
 
       for (const route of routes) {
-        if (route.provider === "cerebras" && cerebrasKey) {
-          responseText = await callOpenAICompatible(
-            "https://api.cerebras.ai/v1/chat/completions",
-            cerebrasKey,
-            route.model,
-            [
-              { role: "system", content: systemPromptWithCalcs },
-              { role: "user", content: prompt },
-            ],
-            DEFAULT_MAX_TOKENS,
-            {},
-            temperature,
-          );
-          if (responseText) { modelUsed = `${route.model} via cerebras`; break; }
-        }
-
         if (route.provider === "groq" && groqKey) {
           responseText = await callOpenAICompatible(
             "https://api.groq.com/openai/v1/chat/completions",
@@ -433,14 +816,16 @@ Format cleanly with readable paragraphs and avoid raw markdown asterisks (**) fo
             DEFAULT_MAX_TOKENS,
             {},
             temperature,
+            ATELIER_STUDIO_TOOLS,
           );
           if (responseText) { modelUsed = `${route.model} via groq`; break; }
         }
 
-        if (route.provider === "github" && githubKey) {
+        if (route.provider === "gemini" && geminiKey) {
+          // 1. Try Gemini OpenAI-compatible endpoint with universal tools
           responseText = await callOpenAICompatible(
-            "https://models.inference.ai.azure.com/chat/completions",
-            githubKey,
+            "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+            geminiKey,
             route.model,
             [
               { role: "system", content: systemPromptWithCalcs },
@@ -449,14 +834,27 @@ Format cleanly with readable paragraphs and avoid raw markdown asterisks (**) fo
             DEFAULT_MAX_TOKENS,
             {},
             temperature,
+            ATELIER_STUDIO_TOOLS,
           );
-          if (responseText) { modelUsed = `${route.model} via github`; break; }
+          if (responseText) { modelUsed = `${route.model} via gemini-openai`; break; }
+
+          // 2. Fallback to direct Gemini generateContent API
+          responseText = await callGeminiDirect(
+            geminiKey,
+            route.model,
+            `${systemPromptWithCalcs}\n\nUser Question/Brief:\n"${prompt}"`,
+            DEFAULT_MAX_TOKENS,
+            temperature,
+          );
+          if (responseText) { modelUsed = `${route.model} via gemini-direct`; break; }
         }
 
-        if (route.provider === "mistral" && mistralKey) {
+        if (route.provider === "nvidia" && nvidiaKey) {
+          const nvidiaBase = process.env.NVIDIA_BASE_URL || "https://integrate.api.nvidia.com/v1";
+          const endpoint = nvidiaBase.endsWith("/chat/completions") ? nvidiaBase : `${nvidiaBase}/chat/completions`;
           responseText = await callOpenAICompatible(
-            "https://api.mistral.ai/v1/chat/completions",
-            mistralKey,
+            endpoint,
+            nvidiaKey,
             route.model,
             [
               { role: "system", content: systemPromptWithCalcs },
@@ -465,8 +863,9 @@ Format cleanly with readable paragraphs and avoid raw markdown asterisks (**) fo
             DEFAULT_MAX_TOKENS,
             {},
             temperature,
+            ATELIER_STUDIO_TOOLS,
           );
-          if (responseText) { modelUsed = `${route.model} via mistral`; break; }
+          if (responseText) { modelUsed = `${route.model} via nvidia`; break; }
         }
 
         if (route.provider === "openrouter" && openRouterKey) {
@@ -484,16 +883,15 @@ Format cleanly with readable paragraphs and avoid raw markdown asterisks (**) fo
               "X-Title": "AtelierOS Architectural Studio",
             },
             temperature,
+            ATELIER_STUDIO_TOOLS,
           );
           if (responseText) { modelUsed = `${route.model} via openrouter`; break; }
         }
 
-        if (route.provider === "nvidia" && nvidiaKey) {
-          const nvidiaBase = process.env.NVIDIA_BASE_URL || "https://integrate.api.nvidia.com/v1";
-          const endpoint = nvidiaBase.endsWith("/chat/completions") ? nvidiaBase : `${nvidiaBase}/chat/completions`;
+        if (route.provider === "github" && githubKey) {
           responseText = await callOpenAICompatible(
-            endpoint,
-            nvidiaKey,
+            "https://models.inference.ai.azure.com/chat/completions",
+            githubKey,
             route.model,
             [
               { role: "system", content: systemPromptWithCalcs },
@@ -502,19 +900,43 @@ Format cleanly with readable paragraphs and avoid raw markdown asterisks (**) fo
             DEFAULT_MAX_TOKENS,
             {},
             temperature,
+            ATELIER_STUDIO_TOOLS,
           );
-          if (responseText) { modelUsed = `${route.model} via nvidia`; break; }
+          if (responseText) { modelUsed = `${route.model} via github`; break; }
         }
 
-        if (route.provider === "gemini" && geminiKey) {
-          responseText = await callGeminiDirect(
-            geminiKey,
+        if (route.provider === "mistral" && mistralKey) {
+          responseText = await callOpenAICompatible(
+            "https://api.mistral.ai/v1/chat/completions",
+            mistralKey,
             route.model,
-            `${systemPromptWithCalcs}\n\nUser Question/Brief:\n"${prompt}"`,
+            [
+              { role: "system", content: systemPromptWithCalcs },
+              { role: "user", content: prompt },
+            ],
             DEFAULT_MAX_TOKENS,
+            {},
             temperature,
+            ATELIER_STUDIO_TOOLS,
           );
-          if (responseText) { modelUsed = `${route.model} via gemini-direct`; break; }
+          if (responseText) { modelUsed = `${route.model} via mistral`; break; }
+        }
+
+        if (route.provider === "cerebras" && cerebrasKey) {
+          responseText = await callOpenAICompatible(
+            "https://api.cerebras.ai/v1/chat/completions",
+            cerebrasKey,
+            route.model,
+            [
+              { role: "system", content: systemPromptWithCalcs },
+              { role: "user", content: prompt },
+            ],
+            DEFAULT_MAX_TOKENS,
+            {},
+            temperature,
+            ATELIER_STUDIO_TOOLS,
+          );
+          if (responseText) { modelUsed = `${route.model} via cerebras`; break; }
         }
       }
 

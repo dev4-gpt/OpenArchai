@@ -3,15 +3,17 @@ import { DesignCommand } from "../components/voice-assistant/types";
 function getApiCredentials() {
   return {
     geminiKey: process.env.GEMINI_API_KEY,
+    geminiModel: process.env.GEMINI_MODEL || "gemini-flash-lite-latest",
     openRouterKey: process.env.OPENROUTER_API_KEY,
   };
 }
+
 
 export async function parseDesignCommand(
   transcript: string,
   projectContext?: { rooms?: string[]; currentStyle?: string },
 ): Promise<DesignCommand> {
-  const { geminiKey, openRouterKey } = getApiCredentials();
+  const { geminiKey, geminiModel, openRouterKey } = getApiCredentials();
 
   const prompt = `You are a Voice AI Assistant for AtelierOS, an architecture and interior design platform. 
   Parse the user's voice transcript and return a valid JSON object matching one of these schema types for a DesignCommand:
@@ -38,7 +40,7 @@ export async function parseDesignCommand(
     if (geminiKey) {
       try {
         const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${geminiKey}`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -97,7 +99,7 @@ export async function parseDesignCommand(
 }
 
 export async function askArchitectQuestion(question: string, context?: string): Promise<string> {
-  const { geminiKey, openRouterKey } = getApiCredentials();
+  const { geminiKey, geminiModel, openRouterKey } = getApiCredentials();
 
   const prompt = `You are an expert architect and interior designer for AtelierOS. 
   Answer the following question briefly and professionally.
@@ -110,7 +112,7 @@ export async function askArchitectQuestion(question: string, context?: string): 
     if (geminiKey) {
       try {
         const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${geminiKey}`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -168,7 +170,7 @@ export async function analyzeMoodboardImage(
   base64Data: string,
   mimeType = "image/jpeg",
 ): Promise<MoodboardAnalysisResult> {
-  const { geminiKey, openRouterKey } = getApiCredentials();
+  const { geminiKey, geminiModel, openRouterKey } = getApiCredentials();
 
   // Strip prefix data:image/...;base64, if present for raw payload
   const cleanBase64 = base64Data.includes("base64,")
@@ -211,7 +213,7 @@ Output ONLY valid raw JSON with 5 color palette items.`;
     if (geminiKey) {
       try {
         const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`,
+          `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${geminiKey}`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
