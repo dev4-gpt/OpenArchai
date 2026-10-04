@@ -79,11 +79,13 @@ MANDATORY INSTITUTIONAL RECONCILIATION RULE: Whenever a budget cut, Capex reduct
 // Roles where temperature should be low (arithmetic / compliance outputs)
 const LOW_TEMPERATURE_ROLES: Set<AgentRole> = new Set(["cost_estimator", "code_specialist"]);
 
+const DEFAULT_GROQ_MODEL = process.env.GROQ_MODEL || "openai/gpt-oss-120b";
+
 const AGENT_MODEL_ROUTES: Record<AgentRole, Array<{ provider: string; model: string }>> = {
   chief_architect: [
     { provider: "nvidia", model: process.env.NVIDIA_MODEL || "z-ai/glm-5.3" },
+    { provider: "groq", model: DEFAULT_GROQ_MODEL },
     { provider: "openrouter", model: "google/gemini-2.5-flash" },
-    { provider: "groq", model: "llama-3.3-70b-versatile" },
     { provider: "gemini", model: "gemini-2.5-flash" },
     { provider: "mistral", model: "mistral-large-latest" },
     { provider: "github", model: "gpt-4o" },
@@ -91,8 +93,8 @@ const AGENT_MODEL_ROUTES: Record<AgentRole, Array<{ provider: string; model: str
   ],
   code_specialist: [
     { provider: "nvidia", model: process.env.NVIDIA_MODEL || "z-ai/glm-5.3" },
+    { provider: "groq", model: DEFAULT_GROQ_MODEL },
     { provider: "openrouter", model: "google/gemini-2.5-flash" },
-    { provider: "groq", model: "llama-3.3-70b-versatile" },
     { provider: "gemini", model: "gemini-2.5-flash" },
     { provider: "mistral", model: "mistral-large-latest" },
     { provider: "github", model: "gpt-4o" },
@@ -100,8 +102,8 @@ const AGENT_MODEL_ROUTES: Record<AgentRole, Array<{ provider: string; model: str
   ],
   interior_designer: [
     { provider: "nvidia", model: process.env.NVIDIA_MODEL || "z-ai/glm-5.3" },
+    { provider: "groq", model: DEFAULT_GROQ_MODEL },
     { provider: "openrouter", model: "meta-llama/llama-3.3-70b-instruct" },
-    { provider: "groq", model: "llama-3.3-70b-versatile" },
     { provider: "gemini", model: "gemini-2.5-flash" },
     { provider: "openrouter", model: "google/gemini-2.5-flash" },
     { provider: "mistral", model: "mistral-large-latest" },
@@ -109,8 +111,8 @@ const AGENT_MODEL_ROUTES: Record<AgentRole, Array<{ provider: string; model: str
   ],
   cost_estimator: [
     { provider: "nvidia", model: process.env.NVIDIA_MODEL || "z-ai/glm-5.3" },
+    { provider: "groq", model: DEFAULT_GROQ_MODEL },
     { provider: "openrouter", model: "google/gemini-2.5-flash" },
-    { provider: "groq", model: "llama-3.3-70b-versatile" },
     { provider: "gemini", model: "gemini-2.5-flash" },
     { provider: "mistral", model: "mistral-large-latest" },
     { provider: "github", model: "gpt-4o" },
