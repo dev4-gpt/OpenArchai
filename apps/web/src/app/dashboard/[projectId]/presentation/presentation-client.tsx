@@ -6,6 +6,7 @@ import { ModelViewer } from "@/components/model-viewer";
 import { calculateProjectCost } from "@/lib/cost-calculator";
 import { evaluateCompliance } from "@/lib/compliance-engine";
 import { Live3DWalkthroughPlayer } from "@/components/video/live-3d-walkthrough-player";
+import { RevitHiggsfieldPanel } from "@/components/video/revit-higgsfield-panel";
 import { generateFFESchedule } from "@/lib/ffe-catalog";
 
 import type { ConstructionElements } from "@/components/floor-plan-editor/export/to-elements";
@@ -26,6 +27,7 @@ export function PresentationClient({
   signedModelUrl,
   signedRenderUrls,
 }: PresentationClientProps) {
+  const [activeElements, setActiveElements] = useState<ConstructionElements | null>(elements || null);
   const [tier, setTier] = useState<"budget" | "mid" | "premium">("mid");
   const [selectedRender, setSelectedRender] = useState<string | null>(
     signedRenderUrls[0]?.url || null,
@@ -36,8 +38,8 @@ export function PresentationClient({
   const [clientName, setClientName] = useState("Markexis Private Client");
 
   const unitSystem = (project.unit_system as UnitSystem) || "metric";
-  const cost = calculateProjectCost(elements, project.region);
-  const compliance = evaluateCompliance(elements, project.region);
+  const cost = calculateProjectCost(activeElements, project.region);
+  const compliance = evaluateCompliance(activeElements, project.region);
 
   const grandTotal = cost.grandTotal[tier];
   const unitRate = Math.round(grandTotal / Math.max(1, cost.floorAreaSqFt));
@@ -219,9 +221,13 @@ export function PresentationClient({
       {/* ========================================================================= */}
       {/* 1. Live 3D Architectural Walkthrough & Spatial Envelope                 */}
       {/* ========================================================================= */}
-      <section className="space-y-3 print:hidden">
+      <section className="space-y-4 print:hidden">
+        <RevitHiggsfieldPanel
+          projectName={project.name}
+          onElementsImported={(el) => setActiveElements(el)}
+        />
         <Live3DWalkthroughPlayer
-          elements={elements}
+          elements={activeElements}
           signedModelUrl={signedModelUrl}
           projectName={project.name}
           unitSystem={unitSystem}

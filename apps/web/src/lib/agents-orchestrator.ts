@@ -4,7 +4,7 @@ import { checkSpanDeflection, checkPlenumClash } from "./calculators/structural-
 import { calculateSabineRT60, verifySTCDecoupling, calculateDaylightFactor, evaluateVastuMandala } from "./calculators/acoustic-rt60-calculator";
 import { calculateStaircaseCompliance } from "./calculators/staircase-egress-calculator";
 
-export type AgentRole = "chief_architect" | "code_specialist" | "interior_designer" | "cost_estimator";
+export type AgentRole = "chief_architect" | "code_specialist" | "interior_designer" | "cost_estimator" | "cinematographer_dop";
 
 export interface AgentMessage {
   id: string;
@@ -76,6 +76,18 @@ Focus on:
     systemPrompt: `You are Sunil Bajaj, Chief Quantity Surveyor. You track real-time construction, finishing, and workplace programming costs across Gurgaon NCR, Delhi, and Mumbai (Schedule of Rates & CPWD DSR).
 Focus on: Usable vs gross floor area budgeting, civil vs finishes splits, cost per sq ft (Budget ₹1,650/sqft, Standard ₹2,350/sqft, Luxury ₹3,800/sqft), value-engineering alternates (e.g. 1200x600 Kajaria PGVT vitrified tiles vs imported Italian marble, BWP 710 marine plywood, IS 15477 C2TE S1 adhesive, IS 287 kiln-drying 8-12%), MEP cost allowances, and 10% contingency buffers.
 MANDATORY INSTITUTIONAL RECONCILIATION RULE: Whenever a budget cut, Capex reduction, or value engineering is requested, you MUST provide an explicit markdown Before/After BOQ reconciliation table with columns: [Trade Package / Item, Baseline Cost (₹), Value-Engineered Spec (₹), Net Savings (₹), Lead Time Impact]. Show exact arithmetic.`,
+  },
+  cinematographer_dop: {
+    name: "Kabir Sen",
+    title: "Director of Photography & Higgsfield AI Specialist",
+    avatar: "🎥",
+    systemPrompt: `You are Kabir Sen, Principal Architectural Cinematographer and Director of Photography at AtelierOS. You specialize in converting Autodesk Revit BIM models and CAD spatial plans into photorealistic 60fps architectural walkthrough films using Higgsfield AI and camera flight paths.
+Focus on:
+- Camera optics: 28mm f/2.8 architectural cinema prime lenses for interiors (zero fish-eye distortion, crisp corners), 50mm for material vignettes, and 21mm for double-height atriums.
+- Human-eye perspective: 1.65m standing eye-level Steadicam tracking shots at steady 1.2 m/s pacing.
+- Architectural lighting choreography: Golden hour (3200K low-angle solar rays), morning diffused daylight, and twilight interior architectural illumination (2700K warm recessed downlights, concealed LED coves, 98+ CRI).
+- Higgsfield AI conditioning prompts: Precise architectural terminology (fluted timber slats, Italian Statuario marble reflections, acoustic baffles, sheer linen curtain caustics) and explicit camera trajectory cues.
+Always suggest realistic camera movements and lighting setups that preserve 100% CAD/Revit geometric accuracy without AI hallucinations.`,
   },
 };
 
@@ -225,6 +237,23 @@ export const ATELIER_STUDIO_TOOLS = [
           pujaQuadrant: { type: "string", description: "Quadrant for sacred/meditation space (optimal: NE / Ishanya)" },
         },
         required: ["kitchenQuadrant", "masterBedroomQuadrant"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "generate_cinematic_shotlist",
+      description: "Generates a deterministic 60fps architectural camera trajectory, focal lengths, and lighting cues for Higgsfield AI video walkthroughs based on Revit or CAD room boundaries.",
+      parameters: {
+        type: "object",
+        properties: {
+          roomNames: { type: "array", items: { type: "string" }, description: "List of rooms to navigate through" },
+          cameraStyle: { type: "string", description: "Camera flight style: 'steadicam_glide' | 'orbit_360' | 'hero_dolly'" },
+          lightingMood: { type: "string", description: "Lighting mood: 'golden_hour' | 'circadian_noon' | 'twilight_recessed'" },
+          focalLengthMm: { type: "number", description: "Lens focal length in mm (default 28)" },
+        },
+        required: ["roomNames"],
       },
     },
   },
@@ -382,6 +411,39 @@ Key Alignments:
 Priority Fixes:          ${evalResult.priorityFixes.length ? evalResult.priorityFixes.join("; ") : "Zero critical spatial defects."}`;
       return { result: evalResult, proofText };
     }
+    case "generate_cinematic_shotlist": {
+      const rooms: string[] = Array.isArray(args.roomNames) && args.roomNames.length > 0 ? args.roomNames : ["Entrance Foyer", "Living Room", "Glazed Balcony", "Master Bedroom"];
+      const cameraStyle = args.cameraStyle || "steadicam_glide";
+      const lightingMood = args.lightingMood || "golden_hour";
+      const focalLength = Number(args.focalLengthMm) || 28;
+
+      const waypoints = rooms.map((r, i) => ({
+        timeSec: i * 3,
+        name: r,
+        eye: [Number((i * 1.5 + 1.2).toFixed(2)), 1.65, Number((i * 0.8 + 0.5).toFixed(2))],
+        target: [Number((i * 1.5 + 2.0).toFixed(2)), 1.45, Number((i * 0.8 + 2.0).toFixed(2))],
+        fov: focalLength <= 24 ? 65 : focalLength <= 35 ? 55 : 45,
+      }));
+
+      const proofText = `Higgsfield AI 60fps Walkthrough Shot List:
+=========================================
+Lens:              ${focalLength}mm Cine Prime (Eye Height: 1.65m)
+Camera Style:      ${cameraStyle} (1.2 m/s steady tracking)
+Lighting Mood:     ${lightingMood} (Circadian solar conditioning)
+Keyframe Shots:    ${waypoints.map(w => `${w.timeSec}s: ${w.name} [Eye: (${w.eye.join(", ")}), FOV: ${w.fov}°]`).join(" -> ")}`;
+
+      return {
+        result: {
+          engine: "higgsfield_ai_v2",
+          focalLengthMm: focalLength,
+          cameraStyle,
+          lightingMood,
+          waypoints,
+          totalDurationSec: rooms.length * 3,
+        },
+        proofText,
+      };
+    }
     default:
       return { result: { error: `Unknown tool: ${name}` }, proofText: "" };
   }
@@ -420,6 +482,16 @@ const AGENT_MODEL_ROUTES: Record<AgentRole, Array<{ provider: string; model: str
     { provider: "github", model: "gpt-4o" },
   ],
   cost_estimator: [
+    { provider: "groq", model: DEFAULT_GROQ_MODEL },
+    { provider: "cerebras", model: DEFAULT_CEREBRAS_MODEL },
+    { provider: "mistral", model: DEFAULT_MISTRAL_MODEL },
+    { provider: "gemini", model: DEFAULT_GEMINI_MODEL },
+    { provider: "sambanova", model: DEFAULT_SAMBANOVA_MODEL },
+    { provider: "nvidia", model: process.env.NVIDIA_MODEL || "z-ai/glm-5.3" },
+    { provider: "openrouter", model: "google/gemini-2.5-flash" },
+    { provider: "github", model: "gpt-4o" },
+  ],
+  cinematographer_dop: [
     { provider: "groq", model: DEFAULT_GROQ_MODEL },
     { provider: "cerebras", model: DEFAULT_CEREBRAS_MODEL },
     { provider: "mistral", model: DEFAULT_MISTRAL_MODEL },
@@ -641,6 +713,7 @@ function ensureActionTriggers(content: string, role: AgentRole): { text: string;
     code_specialist: `\n\n[ACTION: 📜 Run NBC Egress & Fire Audit | audit_compliance | nbc_egress]\n[ACTION: 📐 Verify 0.9m Corridor Clearances | apply_layout | single_loaded_spine]`,
     interior_designer: `\n\n[ACTION: 🎨 Apply Curated Material Palette | apply_materials | fl_wooden_teak,wl_asian_paints_royale]\n[ACTION: 📊 Recalculate Specification Finishes | recalculate_boq | premium_finishes]`,
     cost_estimator: `\n\n[ACTION: 📊 Recalculate BOQ with Value-Engineered Swaps | recalculate_boq | ensuite_35]\n[ACTION: 📐 Apply High-Efficiency Studio Layout | apply_layout | single_loaded_spine]`,
+    cinematographer_dop: `\n\n[ACTION: 🎥 Generate Higgsfield 60fps Walkthrough Reel | generate_video_reel | steadicam_glide]\n[ACTION: 📐 Preview 3D Revit Camera Flight Path | preview_walkthrough | 28mm_cine]`,
   };
 
   return { text: `${content.trim()}${triggers[role] || ""}`, injected: true };
@@ -730,6 +803,16 @@ Acoustic Partition:     STC 55/56 tested — double-stud 90mm frame, 25mm air ca
 Finishes (Zero-VOC):    Asian Paints Royale Health Shield (<5g/L VOC, silver-ion antibacterial).
 Kota Stone Lead Time:   2-3 weeks (local Rajasthan quarry) vs 14-week Italian marble import.
 Circadian Lighting:     98+ CRI tunable LEDs, 2700K-6500K, UGR < 16.`);
+  }
+
+  // ── Cinematography & Higgsfield AI Flight Parameters → cinematographer_dop ──
+  if (role === "cinematographer_dop") {
+    sections.push(`Cinematography & Higgsfield AI Flight Parameters
+======================================================
+Camera Lens:         28mm f/2.8 Architectural Cine Prime (0% fisheye barrel distortion).
+Flight Trajectory:   1.65m human eye level; smooth Steadicam dolly at 1.2 m/s pacing.
+Higgsfield Model:    Open-Higgsfield-Cinema-Pro / Wan2.1 60fps 1080p/4k rendering.
+Circadian Lighting:  28.45°N Delhi-NCR solar vector; 2700K warm architectural recessed downlights.`);
   }
 
   if (sections.length === 0) return "";

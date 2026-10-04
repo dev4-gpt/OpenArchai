@@ -1,8 +1,8 @@
 import { ATELIER_STUDIO_TOOLS, executeStudioTool } from "../agents-orchestrator";
 
 describe("Universal Studio Tools Engine & Deterministic Function Calling", () => {
-  it("ATELIER_STUDIO_TOOLS exposes all 8 architectural calculation tools", () => {
-    expect(ATELIER_STUDIO_TOOLS.length).toBe(8);
+  it("ATELIER_STUDIO_TOOLS exposes all 9 architectural calculation tools", () => {
+    expect(ATELIER_STUDIO_TOOLS.length).toBe(9);
 
     const toolNames = ATELIER_STUDIO_TOOLS.map((t) => t.function.name);
     expect(toolNames).toContain("audit_nbc_egress");
@@ -13,6 +13,7 @@ describe("Universal Studio Tools Engine & Deterministic Function Calling", () =>
     expect(toolNames).toContain("calculate_staircase_capacity");
     expect(toolNames).toContain("calculate_daylight_factor");
     expect(toolNames).toContain("evaluate_vastu_mandala");
+    expect(toolNames).toContain("generate_cinematic_shotlist");
 
     for (const tool of ATELIER_STUDIO_TOOLS) {
       expect(tool.type).toBe("function");
@@ -145,9 +146,105 @@ describe("Universal Studio Tools Engine & Deterministic Function Calling", () =>
     expect(proofText).toContain("Agni (SE)");
   });
 
+  it("executeStudioTool('generate_cinematic_shotlist') generates 60fps camera waypoints and lens optics", () => {
+    const { result, proofText } = executeStudioTool("generate_cinematic_shotlist", {
+      roomNames: ["Foyer", "Living Room", "Terrace"],
+      focalLengthMm: 28,
+      cameraStyle: "steadicam_glide",
+      lightingMood: "golden_hour",
+    });
+
+    expect(result.focalLengthMm).toBe(28);
+    expect(result.waypoints.length).toBe(3);
+    expect(result.waypoints[0].eye[1]).toBe(1.65); // 1.65m human eye level
+    expect(result.totalDurationSec).toBe(9);
+    expect(proofText).toContain("Higgsfield AI 60fps Walkthrough Shot List");
+    expect(proofText).toContain("28mm Cine Prime");
+  });
+
   it("executeStudioTool with unknown tool handles error gracefully without throwing", () => {
     const { result, proofText } = executeStudioTool("non_existent_tool", {});
     expect(result.error).toContain("Unknown tool");
     expect(proofText).toBe("");
+  });
+});
+
+import { convertRevitToConstructionElements, convertRevitCamerasToHiggsfieldWaypoints, type RevitBIMPayload } from "../revit/revit-bridge";
+
+describe("Autodesk Revit BIM Bridge & Higgsfield Conditioning", () => {
+  const samplePayload: RevitBIMPayload = {
+    version: "1.0",
+    revitVersion: "Autodesk Revit 2025",
+    projectName: "DLF CyberCity Luxury Suite",
+    units: "metric",
+    levels: [{ name: "Level 1", elevationM: 0.0 }],
+    rooms: [
+      {
+        id: "revit_1",
+        name: "Entrance Foyer",
+        number: "101",
+        areaSqM: 14.5,
+        perimeterM: 15.0,
+        unboundedHeightM: 3.0,
+        level: "Level 1",
+        boundaryPoints: [[0, 0], [4, 0], [4, 3.6], [0, 3.6]],
+        finishSchedule: {
+          floorFinish: "Italian Statuario Marble",
+          wallFinish: "Asian Paints Royale Health Shield",
+        },
+      },
+      {
+        id: "revit_2",
+        name: "Living Room Core",
+        number: "102",
+        areaSqM: 42.0,
+        perimeterM: 26.0,
+        unboundedHeightM: 3.2,
+        level: "Level 1",
+        boundaryPoints: [[4, 0], [10, 0], [10, 7], [4, 7]],
+        finishSchedule: {
+          floorFinish: "Italian Statuario Marble",
+          wallFinish: "Burma Teak Acoustic Slats",
+        },
+      },
+    ],
+    cameras: [
+      {
+        viewName: "Walkthrough 1 - Entry",
+        viewType: "Perspective",
+        eyePosition: [2.0, 1.65, 0.5],
+        targetPosition: [2.0, 1.45, 2.5],
+        fieldOfViewDeg: 55,
+        focalLengthMm: 28,
+      },
+      {
+        viewName: "Walkthrough 2 - Living Room",
+        viewType: "Perspective",
+        eyePosition: [5.0, 1.65, 2.0],
+        targetPosition: [8.0, 1.3, 4.5],
+        fieldOfViewDeg: 55,
+        focalLengthMm: 28,
+      },
+    ],
+    exportedAt: "2026-10-04T00:00:00Z",
+  };
+
+  it("converts Revit BIM rooms into AtelierOS ConstructionElements", () => {
+    const elements = convertRevitToConstructionElements(samplePayload);
+    expect(elements.rooms?.length).toBe(2);
+    expect(elements.rooms?.[0].label).toBe("Entrance Foyer");
+    expect(elements.rooms?.[0].direction).toBe("E");
+    expect(elements.rooms?.[1].label).toBe("Living Room Core");
+    expect(elements.rooms?.[1].direction).toBe("NE");
+    expect(elements.walls.length).toBe(8); // 4 walls per room
+  });
+
+  it("converts Revit 3D perspective cameras into Higgsfield AI flight waypoints", () => {
+    const waypoints = convertRevitCamerasToHiggsfieldWaypoints(samplePayload.cameras);
+    expect(waypoints.length).toBe(2);
+    expect(waypoints[0].position[1]).toBe(1.65); // 1.65m human eye level
+    expect(waypoints[0].fov).toBe(55);
+    expect(waypoints[0].description).toContain("28mm Cine Prime");
+    expect(waypoints[1].timeSec).toBe(3);
   });
 });

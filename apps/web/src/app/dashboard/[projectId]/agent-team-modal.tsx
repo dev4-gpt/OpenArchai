@@ -420,6 +420,23 @@ const AGENT_SKILLS_DIRECTORY: AgentSkillProfile[] = [
     sampleQuestion: "How can we value-engineer this specification to save ₹4,50,000 without compromising premium perception?",
     sourceSkills: ["architect-calculator", "services/cost", "workplace-programmer"],
   },
+  {
+    role: "cinematographer_dop",
+    name: "Kabir Sen",
+    title: "Director of Photography & Higgsfield AI Specialist",
+    avatar: "🎥",
+    experience: "12+ yrs • Architectural Cinematography, Revit 3D Flight & AI Video",
+    coreSkills: [
+      "Revit BIM Camera Path Extraction & 1.65m Steadicam Flight",
+      "Higgsfield AI 60fps Hyperrealistic Architectural Reel Generation",
+      "28mm Cine Prime Interior Optics & Shallow Depth of Field",
+      "Circadian Solar Shadow Tracking (Delhi-NCR 28.45°N / US Latitudes)",
+      "Zero-Hallucination CAD Coordinate Locking & PBR Lighting",
+    ],
+    keyStandards: ["Higgsfield AI Director API", "Revit Walkthrough BIM", "ACEScg Color Workflow", "28mm Cine Primes"],
+    sampleQuestion: "Design a 60fps Higgsfield Steadicam walkthrough through the Revit entrance and living room with golden hour lighting.",
+    sourceSkills: ["3d-web-experience", "high-end-visual-design", "daylighting-design"],
+  },
 ];
 
 export const ALL_SPECIALIST_ROLES: {
@@ -456,6 +473,13 @@ export const ALL_SPECIALIST_ROLES: {
     name: "Sunil Bajaj",
     avatar: "📊",
     title: "Chief Quantity Surveyor & Cost Estimator",
+  },
+  {
+    id: "cinematographer_dop",
+    label: "AI Cinema & Video",
+    name: "Kabir Sen",
+    avatar: "🎥",
+    title: "Director of Photography & Higgsfield Specialist",
   },
 ];
 
@@ -502,6 +526,7 @@ export function AgentTeamPanel({
     "code_specialist",
     "interior_designer",
     "cost_estimator",
+    "cinematographer_dop",
   ]);
 
   // Observability, tracing & eval pipeline state
@@ -864,7 +889,7 @@ export function AgentTeamPanel({
   }
 
   function selectAll() {
-    setSelectedRoles(["chief_architect", "code_specialist", "interior_designer", "cost_estimator"]);
+    setSelectedRoles(["chief_architect", "code_specialist", "interior_designer", "cost_estimator", "cinematographer_dop"]);
   }
 
   function selectPair(r1: AgentRole, r2: AgentRole) {
