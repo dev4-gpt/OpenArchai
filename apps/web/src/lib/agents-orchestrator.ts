@@ -545,7 +545,7 @@ async function callOpenAICompatible(
 
           if (turn2Res.ok) {
             const turn2Json = await turn2Res.json();
-            let turn2Content = turn2Json.choices?.[0]?.message?.content || turn2Json.choices?.[0]?.message?.reasoning_content || "";
+            let turn2Content = turn2Json.choices?.[0]?.message?.content || turn2Json.choices?.[0]?.message?.reasoning_content || turn2Json.choices?.[0]?.message?.reasoning || "";
             turn2Content = turn2Content.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
             if (turn2Content) {
               clearTimeout(timeoutId);
@@ -565,7 +565,7 @@ async function callOpenAICompatible(
     }
 
     clearTimeout(timeoutId);
-    let content = msg?.content || msg?.reasoning_content || "";
+    let content = msg?.content || msg?.reasoning_content || msg?.reasoning || "";
     // Clean any DeepSeek-R1 thinking tokens
     content = content.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
     return content;
