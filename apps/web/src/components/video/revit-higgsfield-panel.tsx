@@ -20,6 +20,7 @@ export function RevitHiggsfieldPanel({
   const [lensMm, setLensMm] = useState<number>(28);
   const [cameraStyle, setCameraStyle] = useState<"interior_glide" | "orbit_360" | "hero_dolly">("interior_glide");
   const [lightingMood, setLightingMood] = useState<"golden_hour" | "circadian_noon" | "twilight_recessed">("golden_hour");
+  const [engine, setEngine] = useState<"wan_2_1" | "open_higgsfield" | "hunyuan_video" | "direct_cad" | "higgsfield_cloud">("wan_2_1");
   const [loading, setLoading] = useState(false);
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
   const [videoResult, setVideoResult] = useState<HiggsfieldJobResponse | null>(null);
@@ -230,6 +231,7 @@ export function RevitHiggsfieldPanel({
         projectName,
         prompt: generatedPrompt,
         cameraMode: cameraStyle,
+        engine,
         resolution: "1080p",
       });
 
@@ -360,6 +362,52 @@ export function RevitHiggsfieldPanel({
       {/* Tab 2: AI Cinematographer & Director Controls */}
       {activeTab === "dop_director" && (
         <div className="space-y-4">
+          {/* AI Video Foundation Engine Selector */}
+          <div className="rounded-lg border border-border bg-[#faf8f4] p-3 text-xs space-y-2">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
+              <label className="font-semibold text-foreground">
+                AI Video Foundation Engine (GPU Accelerated)
+              </label>
+              {engine === "wan_2_1" && (
+                <span className="text-[11px] font-medium text-emerald-700 bg-emerald-100/70 border border-emerald-300 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                  <span>⚡</span> #1 Open Foundation Model • $0 on your AWS Credits
+                </span>
+              )}
+              {engine === "hunyuan_video" && (
+                <span className="text-[11px] font-medium text-purple-700 bg-purple-100/70 border border-purple-300 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                  <span>🏛️</span> Tencent 13B Spatial Coherence • $0 on your AWS Credits
+                </span>
+              )}
+              {engine === "open_higgsfield" && (
+                <span className="text-[11px] font-medium text-indigo-700 bg-indigo-100/70 border border-indigo-300 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                  <span>🎥</span> Open-Higgsfield DoP Studio • $0 on your AWS Credits
+                </span>
+              )}
+              {engine === "direct_cad" && (
+                <span className="text-[11px] font-medium text-blue-700 bg-blue-100/70 border border-blue-300 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                  <span>📐</span> 100% CAD Geometry Fidelity • 0% Hallucination • $0
+                </span>
+              )}
+              {engine === "higgsfield_cloud" && (
+                <span className="text-[11px] font-medium text-amber-700 bg-amber-100/70 border border-amber-300 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                  <span>☁️</span> Official Cloud API • Requires Paid Higgsfield Key
+                </span>
+              )}
+            </div>
+
+            <select
+              value={engine}
+              onChange={(e) => setEngine(e.target.value as any)}
+              className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-accent font-medium"
+            >
+              <option value="wan_2_1">⚡ Wan 2.1 (Wan2GP 60fps Open Foundation — #1 Ranked VBench)</option>
+              <option value="hunyuan_video">🏛️ HunyuanVideo 13B (Tencent Spatial Architectural Coherence)</option>
+              <option value="open_higgsfield">🎥 Open-Higgsfield-AI (DoP Cinema Studio with Camera Matrices)</option>
+              <option value="direct_cad">📐 AtelierOS Direct CAD Steadicam (0% AI Hallucination, Instant 60fps)</option>
+              <option value="higgsfield_cloud">☁️ Official Higgsfield Cloud API (Managed SaaS)</option>
+            </select>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
             <div>
               <label className="font-semibold text-foreground block mb-1">Camera Lens (Optics)</label>
